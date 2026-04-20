@@ -32,23 +32,39 @@ settings = Settings()
 
 
 # ---------- Strategy constants ----------
-# A compact universe that still covers sectors + fixed income.
+# Expanded universe — 92 equities covering all 11 GICS sectors + broad-market
+# ETFs, plus 8 bond ETFs for fixed-income exposure. 100 tickers total.
 EQUITY_UNIVERSE: List[str] = [
-    # Tech / comms
+    # Tech / comms (incl. semis, software, platforms)
     "AAPL", "MSFT", "NVDA", "GOOGL", "META", "AMZN", "NFLX", "AVGO", "CRM", "ADBE",
     "ORCL", "AMD", "INTC", "CSCO", "QCOM", "TXN", "IBM",
-    # Consumer
+    "AMAT", "LRCX", "MU", "KLAC",                 # semiconductor-equipment + memory
+    "NOW", "PANW", "CRWD", "SNOW", "UBER",        # modern software + platforms
+    # Consumer (staples + discretionary + travel)
     "TSLA", "WMT", "HD", "NKE", "COST", "SBUX", "MCD", "PG", "KO", "PEP", "DIS",
+    "LOW", "TGT", "BKNG",
     # Financials
     "JPM", "BAC", "WFC", "GS", "MS", "BRK.B", "V", "MA", "AXP", "BLK", "SCHW",
+    "C", "PNC", "USB",
     # Healthcare
     "UNH", "JNJ", "LLY", "PFE", "MRK", "ABBV", "TMO", "ABT", "DHR",
-    # Industrials / energy / materials
-    "CAT", "BA", "GE", "HON", "UPS", "UNP", "XOM", "CVX", "COP",
+    "BMY", "CI", "ELV",
+    # Industrials (incl. defense)
+    "CAT", "BA", "GE", "HON", "UPS", "UNP",
+    "DE", "LMT", "RTX",
+    # Energy
+    "XOM", "CVX", "COP",
+    "SLB",
+    # Materials
     "LIN", "SHW",
-    # Real estate / utilities
-    "PLD", "AMT", "NEE", "DUK",
-    # Broad market ETFs (for cash-ish exposure and hedges)
+    "APD",
+    # Real estate (incl. data centers / towers)
+    "PLD", "AMT",
+    "EQIX",
+    # Utilities
+    "NEE", "DUK",
+    "SO", "D",
+    # Broad market ETFs
     "SPY", "QQQ", "DIA", "IWM", "VTI",
 ]
 
@@ -65,20 +81,32 @@ FIXED_INCOME_UNIVERSE: List[str] = [
 
 # Rough GICS-lite sector map for diversification guards.
 SECTOR_MAP: dict[str, str] = {
-    **{t: "Tech" for t in ["AAPL", "MSFT", "NVDA", "GOOGL", "META", "AMZN", "NFLX",
-                           "AVGO", "CRM", "ADBE", "ORCL", "AMD", "INTC", "CSCO",
-                           "QCOM", "TXN", "IBM"]},
-    **{t: "Consumer" for t in ["TSLA", "WMT", "HD", "NKE", "COST", "SBUX", "MCD",
-                               "PG", "KO", "PEP", "DIS"]},
-    **{t: "Financials" for t in ["JPM", "BAC", "WFC", "GS", "MS", "BRK.B", "V",
-                                 "MA", "AXP", "BLK", "SCHW"]},
-    **{t: "Healthcare" for t in ["UNH", "JNJ", "LLY", "PFE", "MRK", "ABBV", "TMO",
-                                 "ABT", "DHR"]},
-    **{t: "Industrials" for t in ["CAT", "BA", "GE", "HON", "UPS", "UNP"]},
-    **{t: "Energy" for t in ["XOM", "CVX", "COP"]},
-    **{t: "Materials" for t in ["LIN", "SHW"]},
-    **{t: "RealEstate" for t in ["PLD", "AMT"]},
-    **{t: "Utilities" for t in ["NEE", "DUK"]},
+    **{t: "Tech" for t in [
+        "AAPL", "MSFT", "NVDA", "GOOGL", "META", "AMZN", "NFLX",
+        "AVGO", "CRM", "ADBE", "ORCL", "AMD", "INTC", "CSCO",
+        "QCOM", "TXN", "IBM",
+        "AMAT", "LRCX", "MU", "KLAC",
+        "NOW", "PANW", "CRWD", "SNOW", "UBER",
+    ]},
+    **{t: "Consumer" for t in [
+        "TSLA", "WMT", "HD", "NKE", "COST", "SBUX", "MCD",
+        "PG", "KO", "PEP", "DIS",
+        "LOW", "TGT", "BKNG",
+    ]},
+    **{t: "Financials" for t in [
+        "JPM", "BAC", "WFC", "GS", "MS", "BRK.B", "V",
+        "MA", "AXP", "BLK", "SCHW",
+        "C", "PNC", "USB",
+    ]},
+    **{t: "Healthcare" for t in [
+        "UNH", "JNJ", "LLY", "PFE", "MRK", "ABBV", "TMO", "ABT", "DHR",
+        "BMY", "CI", "ELV",
+    ]},
+    **{t: "Industrials" for t in ["CAT", "BA", "GE", "HON", "UPS", "UNP", "DE", "LMT", "RTX"]},
+    **{t: "Energy" for t in ["XOM", "CVX", "COP", "SLB"]},
+    **{t: "Materials" for t in ["LIN", "SHW", "APD"]},
+    **{t: "RealEstate" for t in ["PLD", "AMT", "EQIX"]},
+    **{t: "Utilities" for t in ["NEE", "DUK", "SO", "D"]},
     **{t: "BroadETF" for t in ["SPY", "QQQ", "DIA", "IWM", "VTI"]},
     **{t: "FixedIncome" for t in FIXED_INCOME_UNIVERSE},
 }
@@ -163,6 +191,33 @@ TICKER_NAMES: dict[str, List[str]] = {
     "LQD": ["LQD"],
     "HYG": ["HYG"],
     "TIP": ["TIPS"],
+    # Added in universe expansion
+    "AMAT": ["Applied Materials"],
+    "LRCX": ["Lam Research"],
+    "MU": ["Micron"],
+    "KLAC": ["KLA Corp", "KLA"],
+    "NOW": ["ServiceNow"],
+    "PANW": ["Palo Alto Networks", "Palo Alto"],
+    "CRWD": ["CrowdStrike"],
+    "SNOW": ["Snowflake"],
+    "UBER": ["Uber"],
+    "LOW": ["Lowe's", "Lowes"],
+    "TGT": ["Target"],
+    "BKNG": ["Booking", "Booking Holdings", "Booking.com"],
+    "C": ["Citigroup", "Citi"],
+    "PNC": ["PNC Financial", "PNC Bank"],
+    "USB": ["U.S. Bancorp", "US Bancorp"],
+    "BMY": ["Bristol-Myers", "Bristol Myers"],
+    "CI": ["Cigna"],
+    "ELV": ["Elevance", "Anthem"],
+    "DE": ["Deere", "John Deere"],
+    "LMT": ["Lockheed Martin", "Lockheed"],
+    "RTX": ["RTX", "Raytheon"],
+    "SLB": ["Schlumberger", "SLB"],
+    "APD": ["Air Products"],
+    "EQIX": ["Equinix"],
+    "SO": ["Southern Company"],
+    "D": ["Dominion Energy"],
 }
 
 

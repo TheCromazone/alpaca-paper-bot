@@ -13,7 +13,10 @@ from sqlalchemy import select
 from bot.db import NewsItem, SessionLocal
 
 
-# Only RSS — we do not scrape HTML or circumvent paywalls.
+# Only RSS for discovery — we do not scrape HTML on first sight. The article
+# scraper (bot/news/article_scraper.py) fetches full article bodies *after*
+# a headline has been tagged with at least one universe ticker, and only
+# from direct publisher URLs (not from Google News redirect wrappers).
 FEEDS: dict[str, str] = {
     "CNBC Top News":       "https://www.cnbc.com/id/100003114/device/rss/rss.html",
     "CNBC Markets":        "https://www.cnbc.com/id/10000664/device/rss/rss.html",
@@ -21,7 +24,6 @@ FEEDS: dict[str, str] = {
     "Yahoo Finance":       "https://finance.yahoo.com/news/rssindex",
     "CNN Business":        "https://rss.cnn.com/rss/money_news_international.rss",
     "Seeking Alpha":       "https://seekingalpha.com/market_currents.xml",
-    "Reuters Markets":     "https://news.google.com/rss/search?q=when:1d+allinurl:reuters.com+markets&hl=en-US&gl=US&ceid=US:en",
     "MarketWatch Top":     "https://www.marketwatch.com/rss/topstories",
 }
 

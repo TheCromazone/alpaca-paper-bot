@@ -11,7 +11,7 @@ from apscheduler.triggers.cron import CronTrigger
 from loguru import logger
 
 from bot.alpaca_client import AlpacaClient
-from bot.config import FIXED_INCOME_UNIVERSE, EQUITY_UNIVERSE, ROOT, settings
+from bot.config import FIXED_INCOME_UNIVERSE, EQUITY_UNIVERSE, FULL_UNIVERSE, ROOT, settings
 from bot.db import (
     JobRun,
     Position,
@@ -21,9 +21,10 @@ from bot.db import (
     init_db,
 )
 from bot.executor import execute
+from bot.news.article_scraper import scrape_pending
 from bot.news.rss_scraper import fetch_all, persist_new
 from bot.signals import aggregator
-from bot.signals.sentiment import score_unscored
+from bot.signals.sentiment import rescore_scraped_articles, score_unscored
 from bot.strategy import plan
 from bot.signals import investors as investor_job
 from bot.signals import politicians as politician_job
@@ -127,7 +128,16 @@ def tick() -> None:
     alpaca = AlpacaClient()
 
     _log_job("news_refresh", lambda: (
-        persist_new(fetch_all()), score_unscored()
+        persist_new(fetch_all()),
+        score_unscored(),
+    ))
+    # Article bodies come second — fetching can be slow, and we only scrape
+    # headlines that already matched a universe ticker. After the scrape we
+    # re-score the matched items with their full body so the next tick's
+    # composite score sees the richer sentiment.
+    _log_job("article_scrape", lambda: (
+        scrape_pending(FULL_UNIVERSE),
+        rescore_scraped_articles(),
     ))
     _log_job("sync_account", lambda: _sync_account_and_positions(alpaca))
 

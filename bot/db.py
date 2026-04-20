@@ -57,6 +57,9 @@ class NewsItem(Base):
     vader_score = Column(Float)           # -1..+1
     finbert_label = Column(String(16))    # "positive" | "neutral" | "negative"
     finbert_score = Column(Float)         # label confidence
+    article_text = Column(Text)           # full extracted body, when we scraped it
+    article_fetched_at = Column(DateTime(timezone=True))  # null = not yet attempted
+    article_status = Column(String(16))   # "ok" | "empty" | "blocked" | "error" | null
 
 
 class Signal(Base):
@@ -156,8 +159,28 @@ class PriceHistory(Base):
     )
 
 
+def _migrate_sqlite() -> None:
+    """Tiny migration helper: add new columns to existing tables without
+    re-creating them. SQLite is permissive about ALTER TABLE ADD COLUMN."""
+    from sqlalchemy import inspect, text
+    insp = inspect(engine)
+    if "news_items" not in insp.get_table_names():
+        return
+    existing = {c["name"] for c in insp.get_columns("news_items")}
+    additions = [
+        ("article_text",       "TEXT"),
+        ("article_fetched_at", "DATETIME"),
+        ("article_status",     "VARCHAR(16)"),
+    ]
+    with engine.begin() as conn:
+        for col, typ in additions:
+            if col not in existing:
+                conn.execute(text(f"ALTER TABLE news_items ADD COLUMN {col} {typ}"))
+
+
 def init_db() -> None:
     Base.metadata.create_all(engine)
+    _migrate_sqlite()
 
 
 def session_scope() -> Iterator[Session]:
