@@ -15,8 +15,6 @@ dashboard/.next/
 dashboard/out/
 dashboard/.turbo/
 
-deck/build/node_modules/
-deck/build/package-lock.json
 
 .DS_Store
 Thumbs.db
