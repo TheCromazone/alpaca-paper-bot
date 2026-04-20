@@ -118,9 +118,10 @@ def _refresh_price_history(alpaca: AlpacaClient) -> None:
                 s.add(PriceHistory(ticker=ticker, trade_date=ts, close=close))
 
 
-def tick() -> None:
-    """Single 5-min cycle."""
-    if not _is_market_open_now():
+def tick(force: bool = False) -> None:
+    """Single 5-min cycle. `force=True` bypasses the NYSE-hours gate so a
+    manual run can refresh news + queue limit orders before open."""
+    if not force and not _is_market_open_now():
         logger.debug("market closed, skipping tick")
         return
 
@@ -174,8 +175,8 @@ def main(run_once: bool = False) -> None:
     init_db()
 
     if run_once:
-        logger.info("run-once mode")
-        tick()
+        logger.info("run-once mode (forcing tick regardless of market hours)")
+        tick(force=True)
         return
 
     scheduler = BlockingScheduler(timezone="UTC")
