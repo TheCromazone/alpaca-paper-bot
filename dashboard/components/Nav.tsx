@@ -9,6 +9,7 @@ const links = [
   { href: "/trades", label: "Trade Journal" },
   { href: "/news", label: "Market Wire" },
   { href: "/signals", label: "Insider Desk" },
+  { href: "/deck/Alpaca%20Bot%20Deck.html", label: "Deck", external: true },
 ];
 
 export function Nav() {
@@ -27,6 +28,19 @@ export function Nav() {
     >
       {links.map((l) => {
         const active = pathname === l.href;
+        if (l.external) {
+          return (
+            <a
+              key={l.href}
+              href={l.href}
+              target="_blank"
+              rel="noreferrer"
+              className="nav-pill"
+            >
+              {l.label} ↗
+            </a>
+          );
+        }
         return (
           <Link
             key={l.href}
