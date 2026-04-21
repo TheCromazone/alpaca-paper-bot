@@ -152,16 +152,35 @@ def tick(force: bool = False) -> None:
     logger.info("=== tick done ===")
 
 
+def research_tick() -> None:
+    """News + article scraping only — no trading. Runs every 15 min 24/7 so
+    the bot stays warm overnight/weekends. Bails out when the market is open
+    because the 5-min `tick` is already doing this work and we don't want two
+    jobs hammering RSS feeds simultaneously."""
+    if _is_market_open_now():
+        return
+    logger.info("=== research tick ({}) ===", datetime.now(timezone.utc).isoformat())
+    _log_job("news_refresh_offhours", lambda: (
+        persist_new(fetch_all()),
+        score_unscored(),
+    ))
+    _log_job("article_scrape_offhours", lambda: (
+        scrape_pending(FULL_UNIVERSE),
+        rescore_scraped_articles(),
+    ))
+    logger.info("=== research tick done ===")
+
+
 def daily_price_refresh() -> None:
     _log_job("price_refresh", lambda: _refresh_price_history(AlpacaClient()))
 
 
-def weekly_politician_refresh() -> None:
-    _log_job("politicians_weekly", politician_job.run)
+def daily_politician_refresh() -> None:
+    _log_job("politicians_daily", politician_job.run)
 
 
-def quarterly_investor_refresh() -> None:
-    _log_job("investors_quarterly", investor_job.run)
+def weekly_investor_refresh() -> None:
+    _log_job("investors_weekly", investor_job.run)
 
 
 def _setup_logging() -> None:
@@ -195,14 +214,24 @@ def main(run_once: bool = False) -> None:
         day_of_week="mon-fri", hour="20", minute="30", timezone="UTC"),
         id="price_refresh")
 
-    # Weekly politician job — Monday 07:00 UTC
-    scheduler.add_job(weekly_politician_refresh, CronTrigger(
-        day_of_week="mon", hour="7", minute="0", timezone="UTC"),
+    # 24/7 news + article research — every 15 min, all days. The job self-gates
+    # so it becomes a no-op during market hours (the 5-min `tick` covers that
+    # window). This is what keeps sentiment fresh overnight/weekends/holidays
+    # so we open Monday with already-scored news.
+    scheduler.add_job(research_tick, CronTrigger(minute="*/15", timezone="UTC"),
+                      id="research", max_instances=1, coalesce=True)
+
+    # Daily politician disclosure refresh — 07:00 UTC (pre-US-open). Disclosures
+    # trickle in throughout the day; checking daily means a new filing shows up
+    # in signals within 24h.
+    scheduler.add_job(daily_politician_refresh, CronTrigger(
+        hour="7", minute="0", timezone="UTC"),
         id="politicians")
 
-    # Quarterly investor job — 1st of month 06:00 UTC (cheap to run monthly)
-    scheduler.add_job(quarterly_investor_refresh, CronTrigger(
-        day="1", hour="6", minute="0", timezone="UTC"),
+    # Weekly investor 13F refresh — Sunday 06:00 UTC. 13Fs update quarterly in
+    # reality, but checking weekly catches new filings the same week they land.
+    scheduler.add_job(weekly_investor_refresh, CronTrigger(
+        day_of_week="sun", hour="6", minute="0", timezone="UTC"),
         id="investors")
 
     logger.info("scheduler started (DRY_RUN={})", settings.dry_run)
