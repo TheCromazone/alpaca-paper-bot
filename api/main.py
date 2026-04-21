@@ -40,9 +40,24 @@ app.add_middleware(
 init_db()
 
 
+def _iso_utc(dt: datetime | None) -> str | None:
+    """Serialize a stored datetime as an explicit-UTC ISO string.
+
+    Bot-side writes use ``datetime.now(timezone.utc)``, but SQLite strips the
+    tz info on read so datetimes come back naive. If we emit those naive, the
+    browser parses them as *local* time, breaking countdowns and "time ago"
+    labels. We always tag them as UTC on the way out of the API.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
+
+
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "now": datetime.now(timezone.utc).isoformat()}
+    return {"ok": True, "now": _iso_utc(datetime.now(timezone.utc))}
 
 
 @app.get("/portfolio/summary")
@@ -69,7 +84,7 @@ def portfolio_summary() -> dict:
             "invested": latest.equity - latest.cash,
             "unrealized_pnl": total_unrealized,
             "spy_close": latest.spy_close,
-            "as_of": latest.at.isoformat(),
+            "as_of": _iso_utc(latest.at),
             "position_count": len(positions),
             "sector_breakdown": [
                 {"sector": k, "market_value": round(v, 2),
@@ -90,7 +105,7 @@ def portfolio_history(days: int = Query(30, ge=1, le=365)) -> list[dict]:
             .order_by(PortfolioSnapshot.at)
         ).all()
     return [
-        {"at": r.at.isoformat(), "equity": r.equity, "spy_close": r.spy_close}
+        {"at": _iso_utc(r.at), "equity": r.equity, "spy_close": r.spy_close}
         for r in rows
     ]
 
@@ -115,8 +130,8 @@ def positions() -> list[dict]:
                 "peak_price": p.peak_price,
                 "stop_price": stop_price,
                 "distance_to_stop_pct": ((p.market_price - stop_price) / p.market_price) if p.market_price else 0,
-                "opened_at": p.opened_at.isoformat(),
-                "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+                "opened_at": _iso_utc(p.opened_at),
+                "updated_at": _iso_utc(p.updated_at),
             })
     return out
 
@@ -139,8 +154,8 @@ def trades(limit: int = Query(100, ge=1, le=500)) -> list[dict]:
                 "notional": t.notional,
                 "status": t.status,
                 "dry_run": t.dry_run,
-                "submitted_at": t.submitted_at.isoformat(),
-                "filled_at": t.filled_at.isoformat() if t.filled_at else None,
+                "submitted_at": _iso_utc(t.submitted_at),
+                "filled_at": _iso_utc(t.filled_at),
                 "reason": decision.reason if decision else None,
                 "composite_score": decision.composite_score if decision else None,
                 "score_breakdown": decision.score_breakdown if decision else None,
@@ -159,7 +174,7 @@ def decisions(limit: int = 100, action: Optional[str] = None) -> list[dict]:
     return [
         {
             "id": d.id,
-            "at": d.at.isoformat(),
+            "at": _iso_utc(d.at),
             "ticker": d.ticker,
             "action": d.action,
             "composite_score": d.composite_score,
@@ -186,7 +201,7 @@ def news(limit: int = Query(50, ge=1, le=200), ticker: Optional[str] = None) -> 
             "url": r.url,
             "summary": r.summary,
             "source": r.source,
-            "published_at": r.published_at.isoformat(),
+            "published_at": _iso_utc(r.published_at),
             "tickers": r.tickers or [],
             "vader_score": r.vader_score,
             "sentiment_label": _label_for(r.vader_score),
@@ -221,7 +236,7 @@ def signals(limit: int = Query(100, ge=1, le=500), kind: Optional[str] = None) -
             "source": sig.source,
             "direction": sig.direction,
             "amount": sig.amount,
-            "as_of": sig.as_of.isoformat(),
+            "as_of": _iso_utc(sig.as_of),
             "meta": sig.meta or {},
         }
         for sig in rows
@@ -269,12 +284,12 @@ def bot_status() -> dict:
             select(Decision).order_by(desc(Decision.at)).limit(1)
         ).first()
     return {
-        "last_tick_at": last_tick.started_at.isoformat() if last_tick else None,
+        "last_tick_at": _iso_utc(last_tick.started_at) if last_tick else None,
         "last_tick_status": last_tick.status if last_tick else None,
         "interval_seconds": 300,
         "last_decision": (
             {
-                "at": last_decision.at.isoformat(),
+                "at": _iso_utc(last_decision.at),
                 "ticker": last_decision.ticker,
                 "action": last_decision.action,
                 "composite_score": last_decision.composite_score,
@@ -296,8 +311,8 @@ def jobs(limit: int = 30) -> list[dict]:
         {
             "id": j.id,
             "job_name": j.job_name,
-            "started_at": j.started_at.isoformat(),
-            "finished_at": j.finished_at.isoformat() if j.finished_at else None,
+            "started_at": _iso_utc(j.started_at),
+            "finished_at": _iso_utc(j.finished_at),
             "status": j.status,
             "message": j.message,
         }

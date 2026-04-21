@@ -29,9 +29,14 @@ function useCountUpFromZero(target: number, duration = 1400) {
   return target * eased;
 }
 
-function useClock(tickMs = 1000) {
-  const [now, setNow] = useState<Date>(() => new Date());
+/** Clock that is *null* until the client has mounted. Components must render
+ * a stable placeholder on the first pass so SSR HTML matches the client's
+ * initial hydration output — otherwise React tears the tree down with a
+ * "text did not match" error at the second boundary. */
+function useClock(tickMs = 1000): Date | null {
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
+    setNow(new Date());
     const id = setInterval(() => setNow(new Date()), tickMs);
     return () => clearInterval(id);
   }, [tickMs]);
@@ -52,23 +57,30 @@ export function Masthead() {
   const eqAnim = useCountUpFromZero(equity, 1400);
   const pnlAnim = useCountUpFromZero(pnl, 1400);
 
-  const dateStr = new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(now);
-  const timeStr = now.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
+  // Before the first client paint `now` is null, so we render a stable dash.
+  // Both server and client emit the same markup, hydration succeeds, and then
+  // the real clock takes over on the next tick.
+  const dateStr = now
+    ? new Intl.DateTimeFormat("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }).format(now)
+    : "—";
+  const timeStr = now
+    ? now.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      })
+    : "--:--:--";
 
   // Rough ET market-open check (local clock may be anywhere; this is a friendly
   // indicator, not authoritative — the bot's scheduler is what actually gates orders).
-  const mins = now.getHours() * 60 + now.getMinutes();
-  const isOpen =
+  const mins = now ? now.getHours() * 60 + now.getMinutes() : 0;
+  const isOpen = !!now &&
     now.getDay() >= 1 &&
     now.getDay() <= 5 &&
     mins >= 9 * 60 + 30 &&
