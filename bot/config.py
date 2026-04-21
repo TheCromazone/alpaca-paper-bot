@@ -9,7 +9,10 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(ROOT / ".env")
+# override=True so .env is the source of truth — without it, an empty var
+# inherited from the launching shell (e.g. ANTHROPIC_API_KEY="" set at the
+# OS level) would shadow the real value and silently break the LLM path.
+load_dotenv(ROOT / ".env", override=True)
 
 
 class Settings(BaseSettings):
@@ -26,6 +29,19 @@ class Settings(BaseSettings):
     sec_user_agent: str = Field(
         "alpaca-bot research contact@example.com", alias="SEC_USER_AGENT"
     )
+
+    # ---------- LLM-era (Phase 1) ----------
+    # Claude does the reasoning; web_search is a server-side tool baked into
+    # the Messages API, so no separate search key is required.
+    anthropic_api_key: str = Field("", alias="ANTHROPIC_API_KEY")
+    llm_model: str = Field("claude-opus-4-7", alias="LLM_MODEL")
+    llm_daily_usd_budget: float = Field(5.00, alias="LLM_DAILY_USD_BUDGET")
+    # Feature flag — set to true only after Phase 5 cutover. Until then,
+    # routine code can exist and be unit-tested without ever firing on cron.
+    llm_routines_enabled: bool = Field(False, alias="LLM_ROUTINES_ENABLED")
+    # Test-only: reschedule every routine to fire 30s apart at startup for
+    # end-to-end smoke runs. Ignored in production (never committed as true).
+    schedule_debug_fast: bool = Field(False, alias="SCHEDULE_DEBUG_FAST")
 
 
 settings = Settings()
@@ -236,6 +252,20 @@ DIP_ADD_BOOST = 0.50             # size of the add (as a fraction of current pos
 # Composite score thresholds
 OPEN_SCORE_THRESHOLD = 1.0
 CLOSE_SCORE_THRESHOLD = -1.0
+
+
+# ---------- LLM-era trading caps (Phase 1) ----------
+# The tool layer enforces these — see bot/llm/tools.py. Keeping them here so
+# memory/strategy.md's "caps you can't evade" list stays in sync with code.
+LLM_MAX_POSITION_PCT = 0.05        # 5% of equity per new position at entry
+LLM_MAX_POSITIONS = 15             # hard cap on concurrent holdings
+LLM_TRAILING_STOP_PCT = 0.10       # 10% trailing stop attached to every buy
+LLM_MIDDAY_STOP_LOSS_PCT = 0.07    # midday routine force-closes names down this much from avg cost
+LLM_WASH_TRADE_LOOKBACK_DAYS = 3   # refuse opposite-side trade on same symbol within this window
+LLM_TRAILING_STOP_MIN = 0.03       # set_trailing_stop refuses anything outside [MIN, MAX]
+LLM_TRAILING_STOP_MAX = 0.25
+LLM_MIN_THESIS_CHARS = 20          # every buy/sell requires a human-readable justification
+LLM_MAX_TOOL_ITERATIONS = 20       # runner halts a routine after this many tool calls
 
 # Signal weights (see plan's composite_score formula)
 WEIGHT_NEWS = 0.35

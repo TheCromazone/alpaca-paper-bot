@@ -134,6 +134,10 @@ class Position(Base):
     peak_price = Column(Float, nullable=False)  # for trailing stops
     opened_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    # LLM-era: Alpaca order id of the open trailing-stop protecting this
+    # position. We cancel this before placing a sell so the stop doesn't
+    # double-fire against a market order racing it.
+    stop_order_id = Column(String(64))
 
 
 class JobRun(Base):
@@ -159,23 +163,63 @@ class PriceHistory(Base):
     )
 
 
+class LLMRun(Base):
+    """One record per scheduled LLM routine invocation.
+
+    Captures tokens, cost, which tools got called, and the final summary text
+    so the dashboard can reconstruct *why* a routine did what it did without
+    replaying the entire conversation. Budget enforcement sums ``usd_cost``
+    over ``started_at >= today 00:00 UTC``.
+    """
+    __tablename__ = "llm_runs"
+    id = Column(Integer, primary_key=True)
+    # premarket | execute | midday | close | weekly_review
+    routine = Column(String(32), index=True, nullable=False)
+    started_at = Column(DateTime(timezone=True), default=_utcnow, index=True, nullable=False)
+    finished_at = Column(DateTime(timezone=True))
+    # running | ok | failed | budget_halt
+    status = Column(String(16), default="running", nullable=False)
+    model = Column(String(64), nullable=False)
+    input_tokens = Column(Integer, default=0, nullable=False)
+    output_tokens = Column(Integer, default=0, nullable=False)
+    cache_read_tokens = Column(Integer, default=0, nullable=False)
+    cache_write_tokens = Column(Integer, default=0, nullable=False)
+    usd_cost = Column(Float, default=0.0, nullable=False)
+    web_search_calls = Column(Integer, default=0, nullable=False)
+    tool_calls = Column(Integer, default=0, nullable=False)
+    tool_trace = Column(JSON, default=list)   # [{name, args_summary, ok, ms}]
+    summary = Column(Text, default="")        # final assistant text, truncated
+    error = Column(Text)
+
+
 def _migrate_sqlite() -> None:
     """Tiny migration helper: add new columns to existing tables without
-    re-creating them. SQLite is permissive about ALTER TABLE ADD COLUMN."""
+    re-creating them. SQLite is permissive about ALTER TABLE ADD COLUMN.
+
+    New LLM-era tables come in via ``Base.metadata.create_all`` — this helper
+    only exists for in-place additions to already-populated tables.
+    """
     from sqlalchemy import inspect, text
     insp = inspect(engine)
-    if "news_items" not in insp.get_table_names():
-        return
-    existing = {c["name"] for c in insp.get_columns("news_items")}
-    additions = [
-        ("article_text",       "TEXT"),
-        ("article_fetched_at", "DATETIME"),
-        ("article_status",     "VARCHAR(16)"),
-    ]
-    with engine.begin() as conn:
-        for col, typ in additions:
-            if col not in existing:
-                conn.execute(text(f"ALTER TABLE news_items ADD COLUMN {col} {typ}"))
+    tables = set(insp.get_table_names())
+
+    if "news_items" in tables:
+        existing = {c["name"] for c in insp.get_columns("news_items")}
+        news_additions = [
+            ("article_text",       "TEXT"),
+            ("article_fetched_at", "DATETIME"),
+            ("article_status",     "VARCHAR(16)"),
+        ]
+        with engine.begin() as conn:
+            for col, typ in news_additions:
+                if col not in existing:
+                    conn.execute(text(f"ALTER TABLE news_items ADD COLUMN {col} {typ}"))
+
+    if "positions" in tables:
+        pos_cols = {c["name"] for c in insp.get_columns("positions")}
+        if "stop_order_id" not in pos_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE positions ADD COLUMN stop_order_id VARCHAR(64)"))
 
 
 def init_db() -> None:

@@ -10,7 +10,13 @@ from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest
 from alpaca.data.timeframe import TimeFrame
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide, TimeInForce
-from alpaca.trading.requests import LimitOrderRequest
+from alpaca.trading.requests import (
+    GetOrdersRequest,
+    LimitOrderRequest,
+    MarketOrderRequest,
+    TrailingStopOrderRequest,
+)
+from alpaca.trading.enums import QueryOrderStatus
 from loguru import logger
 
 from bot.config import settings
@@ -131,6 +137,61 @@ class AlpacaClient:
         order = self.trading.submit_order(req)
         logger.info("submitted {} {} {} @ {}", side, qty, symbol, limit_price)
         return str(order.id)
+
+    def submit_market(self, symbol: str, qty: float, side: str) -> str:
+        """Market order, DAY TIF. The LLM-era workhorse — swing entries don't
+        need to chase ticks, and Alpaca's price improvement is good on paper.
+        """
+        req = MarketOrderRequest(
+            symbol=symbol,
+            qty=qty,
+            side=OrderSide.BUY if side == "buy" else OrderSide.SELL,
+            time_in_force=TimeInForce.DAY,
+        )
+        order = self.trading.submit_order(req)
+        logger.info("submitted market {} {} {}", side, qty, symbol)
+        return str(order.id)
+
+    def submit_trailing_stop(self, symbol: str, qty: float, trail_percent: float) -> str:
+        """Attach a GTC trailing stop to a long position. ``trail_percent`` is
+        fractional (0.10 = 10%); Alpaca's SDK wants the whole-number form so
+        we scale it once here.
+        """
+        req = TrailingStopOrderRequest(
+            symbol=symbol,
+            qty=qty,
+            side=OrderSide.SELL,  # always protecting a long
+            time_in_force=TimeInForce.GTC,
+            trail_percent=round(trail_percent * 100, 2),
+        )
+        order = self.trading.submit_order(req)
+        logger.info("submitted trailing-stop {} {} trail={}%", qty, symbol, round(trail_percent * 100, 2))
+        return str(order.id)
+
+    def cancel_order_by_id(self, order_id: str) -> bool:
+        try:
+            self.trading.cancel_order_by_id(order_id)
+            return True
+        except Exception as exc:
+            logger.warning("cancel_order {} failed: {}", order_id, exc)
+            return False
+
+    def open_orders(self) -> list[dict]:
+        """Return open (submitted / partially filled / pending) orders as plain dicts."""
+        req = GetOrdersRequest(status=QueryOrderStatus.OPEN, limit=200)
+        orders = self.trading.get_orders(filter=req)
+        out: list[dict] = []
+        for o in orders:
+            out.append({
+                "id": str(o.id),
+                "symbol": o.symbol,
+                "qty": float(o.qty or 0),
+                "side": str(o.side.value if hasattr(o.side, "value") else o.side),
+                "type": str(o.order_type.value if hasattr(o.order_type, "value") else o.order_type),
+                "status": str(o.status.value if hasattr(o.status, "value") else o.status),
+                "submitted_at": o.submitted_at.isoformat() if o.submitted_at else None,
+            })
+        return out
 
     def market_is_open(self) -> bool:
         return bool(self.trading.get_clock().is_open)
