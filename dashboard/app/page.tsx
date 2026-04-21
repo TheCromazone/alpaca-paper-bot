@@ -11,6 +11,7 @@ import { SectionHead } from "@/components/SectionHead";
 import { BotRibbon } from "@/components/BotRibbon";
 import { Leaderboard } from "@/components/Leaderboard";
 import { InsiderDesk } from "@/components/InsiderDesk";
+import { ThesisPanel } from "@/components/ThesisPanel";
 
 export default function Home() {
   const { data: summary } = useQuery<PortfolioSummary>({
@@ -74,18 +75,35 @@ export default function Home() {
             >
               T
             </span>
-            he bot runs every five minutes during market hours, combining news
-            sentiment, congressional disclosures, and 13F filings into a single
-            composite score per ticker. Decisions are logged with reasoning and
-            surfaced here — the dashed red line tracks the S&amp;P 500 indexed
-            to the same starting equity so relative performance is visible at a
-            glance.
+            he bot runs five scheduled routines per weekday — pre-market
+            research at 07:00 ET, execute at market open, a midday risk scan,
+            a close wrap-up, and a Friday post-mortem. Each is a Claude Opus
+            tool-use loop that reads memory files, researches catalysts with
+            web search + our scraped news DB, and places trades with a 10%
+            trailing stop attached automatically. The dashed red line tracks
+            the S&amp;P 500 indexed to the same starting equity so relative
+            performance is visible at a glance.
           </p>
           <BotRibbon />
           <div style={{ marginTop: 20 }}>
             <EquityChart startEquity={baseEquity} />
           </div>
         </article>
+      </section>
+
+      {/* Row 1.5: Today's thesis from research_log.md */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(12, 1fr)",
+          gap: 28,
+          marginTop: 44,
+        }}
+        className="rule-top"
+      >
+        <div style={{ gridColumn: "span 12", paddingTop: 24 }}>
+          <ThesisPanel />
+        </div>
       </section>
 
       {/* Row 2: Sector donut + gainers/draggers */}

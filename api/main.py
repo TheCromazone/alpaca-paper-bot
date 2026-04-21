@@ -12,9 +12,11 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import desc, select
 
+from bot.config import settings
 from bot.db import (
     Decision,
     JobRun,
+    LLMRun,
     NewsItem,
     PortfolioSnapshot,
     Position,
@@ -24,6 +26,7 @@ from bot.db import (
     Trade,
     init_db,
 )
+from bot.llm import memory as llm_memory
 
 app = FastAPI(title="Alpaca Trading Bot API", version="0.1.0")
 app.add_middleware(
@@ -318,3 +321,157 @@ def jobs(limit: int = 30) -> list[dict]:
         }
         for j in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# LLM-era endpoints (Phase 4)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/llm/runs")
+def llm_runs(limit: int = Query(20, ge=1, le=200)) -> list[dict]:
+    """Recent LLMRun rows for the dashboard's routine-history panel.
+
+    Each row includes token breakdown and tool_trace so the UI can render a
+    "what did the model do" bullet list without replaying the conversation.
+    """
+    with SessionLocal() as s:
+        rows = s.scalars(
+            select(LLMRun).order_by(desc(LLMRun.started_at)).limit(limit)
+        ).all()
+    return [
+        {
+            "id": r.id,
+            "routine": r.routine,
+            "started_at": _iso_utc(r.started_at),
+            "finished_at": _iso_utc(r.finished_at),
+            "status": r.status,
+            "model": r.model,
+            "input_tokens": r.input_tokens,
+            "output_tokens": r.output_tokens,
+            "cache_read_tokens": r.cache_read_tokens,
+            "cache_write_tokens": r.cache_write_tokens,
+            "usd_cost": round(r.usd_cost, 4),
+            "web_search_calls": r.web_search_calls,
+            "tool_calls": r.tool_calls,
+            "tool_trace": r.tool_trace or [],
+            "summary": r.summary or "",
+            "error": r.error,
+        }
+        for r in rows
+    ]
+
+
+@app.get("/llm/cost")
+def llm_cost() -> dict:
+    """Today (UTC) + this week spend + budget so the UI can render a bar."""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    # "week" = rolling 7-day window; simpler than ISO-week math and enough
+    # for the dashboard card.
+    week_start = today_start - timedelta(days=7)
+    with SessionLocal() as s:
+        today = s.scalars(
+            select(LLMRun.usd_cost).where(LLMRun.started_at >= today_start)
+        ).all()
+        week = s.scalars(
+            select(LLMRun.usd_cost).where(LLMRun.started_at >= week_start)
+        ).all()
+        cache_read = s.scalars(
+            select(LLMRun.cache_read_tokens).where(LLMRun.started_at >= today_start)
+        ).all()
+        cache_write = s.scalars(
+            select(LLMRun.cache_write_tokens).where(LLMRun.started_at >= today_start)
+        ).all()
+    today_usd = float(sum(today))
+    week_usd = float(sum(week))
+    budget = settings.llm_daily_usd_budget
+    cr_total = int(sum(cache_read))
+    cw_total = int(sum(cache_write))
+    cache_hit_ratio = (
+        cr_total / (cr_total + cw_total) if (cr_total + cw_total) else None
+    )
+    return {
+        "today_usd": round(today_usd, 4),
+        "week_usd": round(week_usd, 4),
+        "budget_usd": float(budget),
+        "remaining_usd": round(max(0.0, budget - today_usd), 4),
+        "cache_hit_ratio": (
+            round(cache_hit_ratio, 3) if cache_hit_ratio is not None else None
+        ),
+    }
+
+
+_MEMORY_NAMES = ("strategy", "portfolio", "trade_log", "research_log")
+
+
+@app.get("/memory/{name}")
+def memory_file(name: str) -> dict:
+    """Return a memory file's raw markdown + metadata. Whitelisted names
+    only — anything else is a 404."""
+    if name not in _MEMORY_NAMES:
+        raise HTTPException(404, f"memory file {name!r} not found")
+    return {
+        "name": name,
+        "content": llm_memory.read(name),  # type: ignore[arg-type]
+        **llm_memory.stat(name),            # type: ignore[arg-type]
+    }
+
+
+# Canonical routine schedule — mirrors what ``bot/main.py`` will register at
+# Phase 5 cutover. Exposed via the API so the dashboard can countdown to the
+# next firing without needing to peek at APScheduler internals over RPC.
+# Times are in America/New_York; cron-style tuple (day_of_week, hour, minute).
+_ROUTINE_SCHEDULE: list[dict] = [
+    {"name": "premarket",     "day_of_week": "mon-fri", "hour": 7,  "minute": 0},
+    {"name": "execute",       "day_of_week": "mon-fri", "hour": 9,  "minute": 30},
+    {"name": "midday",        "day_of_week": "mon-fri", "hour": 13, "minute": 0},
+    {"name": "close",         "day_of_week": "mon-fri", "hour": 16, "minute": 0},
+    {"name": "weekly_review", "day_of_week": "fri",     "hour": 17, "minute": 0},
+]
+
+
+def _next_firing_utc(entry: dict) -> datetime:
+    """Compute the next UTC datetime that matches the given cron tuple.
+
+    Uses APScheduler's ``CronTrigger`` with ``timezone="America/New_York"``
+    so DST is automatic; returns the tz-aware UTC equivalent.
+    """
+    from apscheduler.triggers.cron import CronTrigger
+    trig = CronTrigger(
+        day_of_week=entry["day_of_week"],
+        hour=entry["hour"],
+        minute=entry["minute"],
+        timezone="America/New_York",
+    )
+    now = datetime.now(timezone.utc)
+    fire = trig.get_next_fire_time(None, now)  # previous_fire_time=None
+    return fire.astimezone(timezone.utc)
+
+
+@app.get("/routines/next")
+def routines_next() -> dict:
+    """Return the next-firing time for each routine + which one is next up.
+
+    Dashboard renders the next-up countdown prominently and lists the other
+    four in a smaller schedule strip.
+    """
+    now = datetime.now(timezone.utc)
+    entries: list[dict] = []
+    for entry in _ROUTINE_SCHEDULE:
+        fire_utc = _next_firing_utc(entry)
+        entries.append({
+            "name": entry["name"],
+            "day_of_week": entry["day_of_week"],
+            "hour": entry["hour"],
+            "minute": entry["minute"],
+            "next_fire_utc": _iso_utc(fire_utc),
+            "seconds_until": max(0, int((fire_utc - now).total_seconds())),
+        })
+    entries.sort(key=lambda e: e["seconds_until"])
+    return {
+        "now_utc": _iso_utc(now),
+        "routines_enabled": settings.llm_routines_enabled,
+        "next": entries[0],
+        "all": entries,
+    }
