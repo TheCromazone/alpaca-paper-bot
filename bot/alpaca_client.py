@@ -18,8 +18,26 @@ from alpaca.trading.requests import (
 )
 from alpaca.trading.enums import QueryOrderStatus
 from loguru import logger
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from bot.config import settings
+
+
+# Last week's bot.log had 11 sync_account failures over 8 days from
+# transient connect/read timeouts to Alpaca. Wrapping the read paths in
+# tenacity gives us automatic exponential backoff so a 5-second blip
+# doesn't show up as a "failed" job in the dashboard.
+_NETWORK_RETRY = retry(
+    retry=retry_if_exception_type((TimeoutError, ConnectionError, OSError)),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=8),
+    reraise=True,
+)
 
 
 @dataclass
@@ -55,6 +73,7 @@ class AlpacaClient:
         )
 
     # ---------- account ----------
+    @_NETWORK_RETRY
     def account(self) -> AccountSummary:
         a = self.trading.get_account()
         return AccountSummary(
@@ -64,6 +83,7 @@ class AlpacaClient:
             pattern_day_trader=bool(a.pattern_day_trader),
         )
 
+    @_NETWORK_RETRY
     def positions(self) -> list[PositionInfo]:
         items = self.trading.get_all_positions()
         out: list[PositionInfo] = []
@@ -81,6 +101,7 @@ class AlpacaClient:
         return out
 
     # ---------- quotes ----------
+    @_NETWORK_RETRY
     def latest_quotes(self, symbols: Iterable[str]) -> dict[str, float]:
         syms = [s for s in symbols if s]
         if not syms:
@@ -193,5 +214,6 @@ class AlpacaClient:
             })
         return out
 
+    @_NETWORK_RETRY
     def market_is_open(self) -> bool:
         return bool(self.trading.get_clock().is_open)

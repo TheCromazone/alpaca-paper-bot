@@ -267,6 +267,17 @@ LLM_TRAILING_STOP_MAX = 0.25
 LLM_MIN_THESIS_CHARS = 20          # every buy/sell requires a human-readable justification
 LLM_MAX_TOOL_ITERATIONS = 20       # runner halts a routine after this many tool calls
 
+# --- Lessons from week 1 of quant trading (2026-04-20 to 2026-04-24) ---
+# - 579 trades / week on a $50k account = 20x portfolio turnover — way too
+#   noisy. Cap fresh names per day so theses get time to play out.
+# - Three tickers got 100% of action because of contradictory rules on AGG.
+#   Bond ETFs are now opt-in via thesis only (no automatic floor).
+# - 44% of orders were rejected by Alpaca's wash-trade detector. Pre-cancel
+#   any open opposite-side order on the same symbol before submitting.
+LLM_MAX_NEW_POSITIONS_PER_DAY = 2  # cap on fresh-ticker buys per day
+LLM_MAX_TOOL_RESULT_NEWS = 8       # tool layer trims get_recent_news to this many items
+LLM_MAX_TOOL_RESULT_SIGNALS = 10   # similarly for get_recent_signals
+
 # Signal weights (see plan's composite_score formula)
 WEIGHT_NEWS = 0.35
 WEIGHT_POLITICIAN = 0.25

@@ -29,8 +29,11 @@ from sqlalchemy import desc, select
 
 from bot.alpaca_client import AlpacaClient
 from bot.config import (
+    LLM_MAX_NEW_POSITIONS_PER_DAY,
     LLM_MAX_POSITION_PCT,
     LLM_MAX_POSITIONS,
+    LLM_MAX_TOOL_RESULT_NEWS,
+    LLM_MAX_TOOL_RESULT_SIGNALS,
     LLM_MIN_THESIS_CHARS,
     LLM_TRAILING_STOP_MAX,
     LLM_TRAILING_STOP_MIN,
@@ -105,6 +108,51 @@ def _portfolio_snapshot() -> dict:
             for p in positions
         ],
     }
+
+
+def _new_position_buys_today() -> int:
+    """Count today's submitted/dry_run buy trades whose symbol was NOT
+    already held at the start of the day. We approximate "wasn't held" by
+    asking: was there a Trade row before today on this ticker? If not,
+    today's buy counts as a *new* position. Used to cap fresh names/day.
+    """
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    with SessionLocal() as s:
+        todays_buys = s.scalars(
+            select(Trade)
+            .where(Trade.side == "buy")
+            .where(Trade.submitted_at >= today_start)
+        ).all()
+        new_count = 0
+        for t in todays_buys:
+            prior = s.scalars(
+                select(Trade)
+                .where(Trade.ticker == t.ticker)
+                .where(Trade.submitted_at < today_start)
+                .limit(1)
+            ).first()
+            if prior is None:
+                new_count += 1
+    return new_count
+
+
+def _cancel_open_orders_for(symbol: str, *, side: str | None = None) -> int:
+    """Cancel all open Alpaca orders on ``symbol`` (optionally filtered by
+    side). Returns count of orders cancelled. This is the fix for last
+    week's 44% rejection rate — the quant strategy kept submitting orders
+    that conflicted with already-open orders, and Alpaca rejected them as
+    potential wash trades.
+    """
+    c = _alpaca()
+    cancelled = 0
+    for o in c.open_orders():
+        if o["symbol"].upper() != symbol.upper():
+            continue
+        if side and o["side"].lower() != side.lower():
+            continue
+        if c.cancel_order_by_id(o["id"]):
+            cancelled += 1
+    return cancelled
 
 
 def _recent_opposite_trade(ticker: str, side: str) -> Trade | None:
@@ -190,7 +238,11 @@ def _h_get_price_snapshot(args: dict) -> dict:
 def _h_get_recent_news(args: dict) -> dict:
     ticker = args.get("ticker")
     days = int(args.get("days", 3))
-    limit = min(int(args.get("limit", 15)), 50)
+    # Cap aggressively — last week's smoke test showed each verbose news
+    # dump bloated next-turn input by ~3k tokens, which compounded into a
+    # rate-limit hit after 4 turns. ~8 items keeps the model focused on
+    # the most recent + most relevant headlines.
+    limit = min(int(args.get("limit", 8)), LLM_MAX_TOOL_RESULT_NEWS)
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     with SessionLocal() as s:
         q = (
@@ -223,7 +275,7 @@ def _h_get_recent_signals(args: dict) -> dict:
     ticker = args.get("ticker")
     kind = args.get("kind", "all")
     days = int(args.get("days", 14))
-    limit = min(int(args.get("limit", 20)), 100)
+    limit = min(int(args.get("limit", 10)), LLM_MAX_TOOL_RESULT_SIGNALS)
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     with SessionLocal() as s:
         q = (
@@ -326,16 +378,28 @@ def _h_place_buy(args: dict) -> dict:
 
     # Position-count + stealth-top-up guards.
     held = {p["ticker"]: p for p in snap["positions"]}
-    if symbol not in held and len(held) >= LLM_MAX_POSITIONS:
+    is_new_name = symbol not in held
+    if is_new_name and len(held) >= LLM_MAX_POSITIONS:
         raise ToolError(
             f"already at max positions ({LLM_MAX_POSITIONS}); close one before opening a new name"
         )
-    if symbol in held:
+    if not is_new_name:
         post_mv = held[symbol]["market_value"] + notional
         if post_mv > max_notional + 0.01:
             raise ToolError(
                 f"adding ${notional:.2f} to {symbol} would make it "
                 f"${post_mv:.2f}, exceeding 5% cap ${max_notional:.2f}"
+            )
+
+    # Daily fresh-name cap. After last week's quant strategy did 579 trades
+    # in 8 days on 3 tickers, we're forcing patience: at most N truly new
+    # tickers per day, regardless of conviction. Adds (top-ups) don't count.
+    if is_new_name:
+        new_today = _new_position_buys_today()
+        if new_today >= LLM_MAX_NEW_POSITIONS_PER_DAY:
+            raise ToolError(
+                f"already opened {new_today} new positions today (cap "
+                f"{LLM_MAX_NEW_POSITIONS_PER_DAY}); save other ideas for tomorrow"
             )
 
     # Wash-trade window.
@@ -345,6 +409,14 @@ def _h_place_buy(args: dict) -> dict:
             f"recent sell on {symbol} at {recent.submitted_at.isoformat()} "
             f"is within {LLM_WASH_TRADE_LOOKBACK_DAYS}-day wash window; skip"
         )
+
+    # Cancel any open opposite-side order on this symbol BEFORE placing the
+    # buy. Last week's quant strategy hit a 44% Alpaca rejection rate from
+    # exactly this collision (e.g. an open sell limit at $99.44 made a buy
+    # at $99.94 a wash-trade per Alpaca). One pre-cancel call ends it.
+    cancelled = _cancel_open_orders_for(symbol, side="sell")
+    if cancelled:
+        logger.info("place_buy {}: pre-cancelled {} open sell order(s)", symbol, cancelled)
 
     # Price + sizing. Use mid price for sizing; Alpaca market orders will
     # fill near here. We record ``notional / mid`` as the target qty, rounded
@@ -429,6 +501,13 @@ def _h_place_sell(args: dict) -> dict:
         )
 
     c = _alpaca()
+
+    # Cancel any open buy orders on this symbol (e.g. a stale dip-add limit
+    # from a prior routine) before submitting the sell — same wash-trade
+    # rejection mitigation as place_buy.
+    cancelled = _cancel_open_orders_for(symbol, side="buy")
+    if cancelled:
+        logger.info("place_sell {}: pre-cancelled {} open buy order(s)", symbol, cancelled)
 
     # Cancel any open trailing stop on this symbol so it doesn't race the
     # sell we're about to submit.

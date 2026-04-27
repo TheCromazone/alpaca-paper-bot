@@ -183,6 +183,32 @@ def weekly_investor_refresh() -> None:
     _log_job("investors_weekly", investor_job.run)
 
 
+# --- Phase 5: LLM routines (gated on settings.llm_routines_enabled) ---
+def _llm_premarket() -> None:
+    from bot.routines import premarket
+    _log_job("llm_premarket", premarket.run)
+
+
+def _llm_execute() -> None:
+    from bot.routines import execute as ex
+    _log_job("llm_execute", ex.run)
+
+
+def _llm_midday() -> None:
+    from bot.routines import midday
+    _log_job("llm_midday", midday.run)
+
+
+def _llm_close() -> None:
+    from bot.routines import close as cl
+    _log_job("llm_close", cl.run)
+
+
+def _llm_weekly_review() -> None:
+    from bot.routines import weekly_review
+    _log_job("llm_weekly_review", weekly_review.run)
+
+
 def _setup_logging() -> None:
     logger.remove()
     logger.add(sys.stderr, level=settings.log_level)
@@ -200,19 +226,53 @@ def main(run_once: bool = False) -> None:
 
     scheduler = BlockingScheduler(timezone="UTC")
 
-    # Tick every 5 minutes 9:30am-4:00pm ET (13:30-20:00 UTC). The tick itself
-    # double-checks calendar so holidays are handled.
-    scheduler.add_job(tick, CronTrigger(
-        day_of_week="mon-fri", hour="13-19", minute="*/5", timezone="UTC"),
-        id="tick", max_instances=1, coalesce=True)
-    scheduler.add_job(tick, CronTrigger(
-        day_of_week="mon-fri", hour="20", minute="0", timezone="UTC"),
-        id="close_tick", max_instances=1)
+    # --- RETIRED: composite-score quant tick ---
+    # Replaced by the five LLM routines registered below. The function
+    # ``tick()`` stays callable for `python -m bot.main --once` so the
+    # quant strategy can be A/B'd manually. Reason for retirement: in
+    # 8 days (2026-04-20 through 2026-04-24) the strategy underperformed
+    # SPY by 67 bps while doing 579 trades on three tickers, hit a 44%
+    # wash-trade rejection rate from Alpaca, and never crossed its own
+    # ±1.0 conviction thresholds so no new positions were opened.
+    # ---------------------------------------------------------------
+    # scheduler.add_job(tick, CronTrigger(
+    #     day_of_week="mon-fri", hour="13-19", minute="*/5", timezone="UTC"),
+    #     id="tick", max_instances=1, coalesce=True)
+    # scheduler.add_job(tick, CronTrigger(
+    #     day_of_week="mon-fri", hour="20", minute="0", timezone="UTC"),
+    #     id="close_tick", max_instances=1)
 
-    # Daily price refresh at 20:30 UTC (4:30pm ET, after close)
+    # Daily price refresh at 20:30 UTC (4:30pm ET, after close) — still runs;
+    # the LLM strategy doesn't need it directly but it keeps PriceHistory
+    # warm for the dashboard's tape + any future sparkline charts.
     scheduler.add_job(daily_price_refresh, CronTrigger(
         day_of_week="mon-fri", hour="20", minute="30", timezone="UTC"),
         id="price_refresh")
+
+    # --- LLM routines (Phase 5 cutover) -----------------------------
+    # Anchored to America/New_York so DST is automatic and times track NYSE.
+    # Five routines per week, each a Claude tool-use loop. Gated on
+    # settings.llm_routines_enabled so this can be flipped off without a
+    # code change if anything goes sideways.
+    if settings.llm_routines_enabled:
+        scheduler.add_job(_llm_premarket, CronTrigger(
+            day_of_week="mon-fri", hour=7, minute=0, timezone="America/New_York"),
+            id="llm_premarket", max_instances=1, coalesce=True)
+        scheduler.add_job(_llm_execute, CronTrigger(
+            day_of_week="mon-fri", hour=9, minute=30, timezone="America/New_York"),
+            id="llm_execute", max_instances=1, coalesce=True)
+        scheduler.add_job(_llm_midday, CronTrigger(
+            day_of_week="mon-fri", hour=13, minute=0, timezone="America/New_York"),
+            id="llm_midday", max_instances=1, coalesce=True)
+        scheduler.add_job(_llm_close, CronTrigger(
+            day_of_week="mon-fri", hour=16, minute=0, timezone="America/New_York"),
+            id="llm_close", max_instances=1, coalesce=True)
+        scheduler.add_job(_llm_weekly_review, CronTrigger(
+            day_of_week="fri", hour=17, minute=0, timezone="America/New_York"),
+            id="llm_weekly_review", max_instances=1, coalesce=True)
+        logger.info("LLM routines registered (5 jobs, America/New_York timezone)")
+    else:
+        logger.info("LLM_ROUTINES_ENABLED=false; routines NOT scheduled")
 
     # 24/7 news + article research — every 15 min, all days. The job self-gates
     # so it becomes a no-op during market hours (the 5-min `tick` covers that
