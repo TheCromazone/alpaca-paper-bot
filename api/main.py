@@ -15,8 +15,11 @@ from sqlalchemy import desc, select
 from bot.config import settings
 from bot.db import (
     Decision,
+    EarningsCalendar,
+    EarningsHistory,
     JobRun,
     LLMRun,
+    MarketRegime,
     NewsItem,
     PortfolioSnapshot,
     Position,
@@ -34,6 +37,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
     ],
     allow_credentials=False,
     allow_methods=["GET"],
@@ -222,6 +227,96 @@ def _label_for(v: Optional[float]) -> str:
     if v <= -0.2:
         return "negative"
     return "neutral"
+
+
+@app.get("/regime/today")
+def regime_today() -> dict:
+    """Latest macro snapshot. Returns 404 if the regime job hasn't run yet."""
+    with SessionLocal() as s:
+        row = s.scalars(
+            select(MarketRegime).order_by(desc(MarketRegime.as_of)).limit(1)
+        ).first()
+    if not row:
+        raise HTTPException(404, "no regime snapshot yet")
+    return {
+        "as_of": _iso_utc(row.as_of),
+        "vix": row.vix,
+        "vix_5d_change": row.vix_5d_change,
+        "spy_trend": row.spy_trend,
+        "t10y2y": row.t10y2y,
+        "breadth_pct": row.breadth_pct,
+        "regime_label": row.regime_label,
+    }
+
+
+@app.get("/earnings/upcoming")
+def earnings_upcoming(days: int = Query(14, ge=1, le=60)) -> list[dict]:
+    """Next N days of earnings reports for universe tickers, plus the
+    last-4-quarter surprise % per ticker."""
+    today = datetime.now(timezone.utc)
+    cutoff = today + timedelta(days=days)
+    with SessionLocal() as s:
+        rows = s.scalars(
+            select(EarningsCalendar)
+            .where(EarningsCalendar.report_date >= today)
+            .where(EarningsCalendar.report_date <= cutoff)
+            .order_by(EarningsCalendar.report_date.asc())
+        ).all()
+        out = []
+        for r in rows:
+            history = s.scalars(
+                select(EarningsHistory)
+                .where(EarningsHistory.ticker == r.ticker)
+                .order_by(desc(EarningsHistory.quarter))
+                .limit(4)
+            ).all()
+            out.append({
+                "ticker": r.ticker,
+                "report_date": _iso_utc(r.report_date),
+                "time_of_day": r.time_of_day,
+                "eps_estimate": r.eps_estimate,
+                "last_4_surprise_pcts": [h.surprise_pct for h in history],
+            })
+    return out
+
+
+@app.get("/signals/by-politician")
+def signals_by_politician(
+    name: Optional[str] = None,
+    days: int = Query(60, ge=1, le=365),
+    limit: int = Query(50, ge=1, le=500),
+) -> list[dict]:
+    """Politician trades filtered by partial name match (case-insensitive)
+    and optional date window. Returns chamber, weight, source URL via meta."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    needle = (name or "").strip().lower()
+    with SessionLocal() as s:
+        rows = s.scalars(
+            select(Signal)
+            .where(Signal.kind == "politician")
+            .where(Signal.as_of >= cutoff)
+            .order_by(desc(Signal.as_of))
+            .limit(limit * 5)  # over-fetch so the post-filter still hits limit
+        ).all()
+    out = []
+    for r in rows:
+        meta = r.meta or {}
+        pol = (meta.get("politician") or r.source or "").strip()
+        if needle and needle not in pol.lower():
+            continue
+        out.append({
+            "id": r.id,
+            "ticker": r.ticker,
+            "politician": pol,
+            "chamber": meta.get("chamber"),
+            "direction": r.direction,
+            "amount": r.amount,
+            "as_of": _iso_utc(r.as_of),
+            "source_url": meta.get("source_url"),
+        })
+        if len(out) >= limit:
+            break
+    return out
 
 
 @app.get("/signals")
