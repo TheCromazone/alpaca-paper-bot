@@ -5,11 +5,13 @@ only — this service is not intended for internet exposure.
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 
 from bot.config import settings
@@ -30,6 +32,59 @@ from bot.db import (
     init_db,
 )
 from bot.llm import memory as llm_memory
+from bot.manual_trade import ManualTradeError, manual_trade
+
+# Lazy import — `AlpacaClient.__init__` constructs an SDK client on each
+# instance so we keep one alive at module scope for the API's live calls.
+from bot.alpaca_client import AlpacaClient
+
+_alpaca_singleton: AlpacaClient | None = None
+
+
+def _alpaca() -> AlpacaClient:
+    """One-shot Alpaca client per FastAPI worker. Cheap to construct but
+    we still cache it so we don't pay TCP/TLS handshake cost on every
+    `/positions` poll (10s cadence)."""
+    global _alpaca_singleton
+    if _alpaca_singleton is None:
+        _alpaca_singleton = AlpacaClient()
+    return _alpaca_singleton
+
+
+_TRADE_LOG_LINE = re.compile(
+    # Match BUY or MANUAL BUY lines from memory/trade_log.md and extract
+    # the ticker + thesis text. Examples (from real history):
+    #   - 2026-04-28T13:30:33 | BUY  RTX    qty=  14.0000 ... thesis: text
+    #   - 2026-05-01T22:28:32 | MANUAL BUY  AAPL   qty= ... note: text
+    r"^- (?P<ts>\S+)\s+\|\s+(?:MANUAL\s+)?(?P<side>BUY|SELL)\s+(?P<ticker>\S+).*?(?:thesis|reason|note):\s*(?P<reason>.+)$",
+    re.MULTILINE,
+)
+
+
+def _trade_log_thesis_index() -> dict[str, dict]:
+    """Parse memory/trade_log.md into {ticker → {ts, side, reason}} keyed by
+    the most recent BUY for each ticker. Used as a fallback when the local
+    Decision table doesn't have a row (positions opened before the
+    place_buy handler started writing Decisions). Read on every call —
+    the file is small (<64KB cap) and changes infrequently.
+    """
+    try:
+        text = llm_memory.read("trade_log")
+    except Exception:
+        return {}
+    out: dict[str, dict] = {}
+    for m in _TRADE_LOG_LINE.finditer(text):
+        side = m.group("side")
+        if side != "BUY":
+            continue
+        ticker = m.group("ticker").upper()
+        # Latest wins — entries are append-only, last match per ticker is freshest.
+        out[ticker] = {
+            "ts": m.group("ts"),
+            "reason": m.group("reason").strip(),
+            "side": side,
+        }
+    return out
 
 app = FastAPI(title="Alpaca Trading Bot API", version="0.1.0")
 app.add_middleware(
@@ -41,7 +96,9 @@ app.add_middleware(
         "http://127.0.0.1:3001",
     ],
     allow_credentials=False,
-    allow_methods=["GET"],
+    # `POST` is required for the dashboard's manual trade panel
+    # (`POST /trade/manual`). Everything else is read-only `GET`.
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -70,36 +127,81 @@ def health() -> dict:
 
 @app.get("/portfolio/summary")
 def portfolio_summary() -> dict:
-    with SessionLocal() as s:
-        latest = s.scalars(
-            select(PortfolioSnapshot).order_by(desc(PortfolioSnapshot.at)).limit(1)
-        ).first()
-        if not latest:
-            raise HTTPException(404, "no portfolio snapshots yet")
+    """Live portfolio snapshot — calls Alpaca directly so the dashboard
+    always shows truth, with the local DB as a fallback if Alpaca is
+    unreachable. Pre-Apr-30 this read from ``PortfolioSnapshot``, but the
+    quant-tick retirement orphaned the only writer for that table; positions
+    drifted 7+ days out of date. Now we hit Alpaca live and only fall back
+    to the snapshot if the network call fails.
+    """
+    from bot.config import SECTOR_MAP
 
-        positions = s.scalars(select(Position)).all()
+    try:
+        acct = _alpaca().account()
+        live_positions = _alpaca().positions()
+        spy_close: float | None = None
+        try:
+            spy_close = _alpaca().latest_quotes(["SPY"]).get("SPY")
+        except Exception:
+            pass
+
         sectors: dict[str, float] = {}
-        from bot.config import SECTOR_MAP
-        for p in positions:
-            sec = SECTOR_MAP.get(p.ticker, "Other")
+        for p in live_positions:
+            sec = SECTOR_MAP.get(p.symbol, "Other")
             sectors[sec] = sectors.get(sec, 0.0) + p.market_value
-
-        total_unrealized = sum(p.unrealized_pnl for p in positions)
+        total_unrealized = sum(p.unrealized_pl for p in live_positions)
         return {
-            "equity": latest.equity,
-            "cash": latest.cash,
-            "buying_power": latest.buying_power,
-            "invested": latest.equity - latest.cash,
+            "equity": acct.equity,
+            "cash": acct.cash,
+            "buying_power": acct.buying_power,
+            "invested": acct.equity - acct.cash,
             "unrealized_pnl": total_unrealized,
-            "spy_close": latest.spy_close,
-            "as_of": _iso_utc(latest.at),
-            "position_count": len(positions),
+            "spy_close": spy_close,
+            "as_of": _iso_utc(datetime.now(timezone.utc)),
+            "source": "alpaca_live",
+            "position_count": len(live_positions),
             "sector_breakdown": [
-                {"sector": k, "market_value": round(v, 2),
-                 "weight": round(v / latest.equity, 4) if latest.equity else 0}
+                {
+                    "sector": k,
+                    "market_value": round(v, 2),
+                    "weight": round(v / acct.equity, 4) if acct.equity else 0,
+                }
                 for k, v in sorted(sectors.items(), key=lambda kv: -kv[1])
             ],
         }
+    except Exception as exc:
+        # Network blip / Alpaca downtime — fall back to the most recent
+        # local snapshot so the dashboard doesn't go blank.
+        from loguru import logger as _logger
+        _logger.warning("portfolio_summary live-fetch failed, falling back to DB: {}", exc)
+        with SessionLocal() as s:
+            latest = s.scalars(
+                select(PortfolioSnapshot).order_by(desc(PortfolioSnapshot.at)).limit(1)
+            ).first()
+            if not latest:
+                raise HTTPException(503, f"Alpaca unreachable and no snapshot: {exc}")
+            positions = s.scalars(select(Position)).all()
+            sectors: dict[str, float] = {}
+            for p in positions:
+                sec = SECTOR_MAP.get(p.ticker, "Other")
+                sectors[sec] = sectors.get(sec, 0.0) + p.market_value
+            total_unrealized = sum(p.unrealized_pnl for p in positions)
+            return {
+                "equity": latest.equity,
+                "cash": latest.cash,
+                "buying_power": latest.buying_power,
+                "invested": latest.equity - latest.cash,
+                "unrealized_pnl": total_unrealized,
+                "spy_close": latest.spy_close,
+                "as_of": _iso_utc(latest.at),
+                "source": "db_fallback",
+                "position_count": len(positions),
+                "sector_breakdown": [
+                    {"sector": k, "market_value": round(v, 2),
+                     "weight": round(v / latest.equity, 4) if latest.equity else 0}
+                    for k, v in sorted(sectors.items(), key=lambda kv: -kv[1])
+                ],
+            }
 
 
 @app.get("/portfolio/history")
@@ -120,40 +222,153 @@ def portfolio_history(days: int = Query(30, ge=1, le=365)) -> list[dict]:
 
 @app.get("/positions")
 def positions() -> list[dict]:
-    with SessionLocal() as s:
-        rows = s.scalars(select(Position).order_by(desc(Position.market_value))).all()
-        from bot.config import SECTOR_MAP, TRAILING_STOP_PCT
+    """Live Alpaca positions enriched with the bot's reasoning from the
+    local Decision table. Each row carries the LATEST buy thesis for that
+    ticker so the dashboard can show "why do we own this?" inline.
+    Falls back to the local Position table only if Alpaca is unreachable.
+    """
+    from bot.config import SECTOR_MAP, TRAILING_STOP_PCT
+
+    try:
+        live = _alpaca().positions()
+        # Pull every Decision for the symbols we hold so we can attach
+        # the latest BUY reason. Cheaper than per-symbol queries — one
+        # IN-list select.
+        held_symbols = [p.symbol for p in live]
+        latest_buys: dict[str, Decision] = {}
+        latest_trades: dict[str, Trade] = {}
+        # Fallback theses parsed from memory/trade_log.md for positions
+        # opened before the place_buy handler started writing Decisions.
+        log_theses = _trade_log_thesis_index()
+        if held_symbols:
+            with SessionLocal() as s:
+                rows = s.scalars(
+                    select(Decision)
+                    .where(Decision.ticker.in_(held_symbols))
+                    .where(Decision.action.in_(["buy", "manual_buy"]))
+                    .order_by(desc(Decision.at))
+                ).all()
+                for d in rows:
+                    if d.ticker not in latest_buys:
+                        latest_buys[d.ticker] = d
+                trade_rows = s.scalars(
+                    select(Trade)
+                    .where(Trade.ticker.in_(held_symbols))
+                    .where(Trade.side == "buy")
+                    .order_by(desc(Trade.submitted_at))
+                ).all()
+                for t in trade_rows:
+                    if t.ticker not in latest_trades:
+                        latest_trades[t.ticker] = t
+            # Local-DB Position rows for stop info (peak_price, stop_order_id).
+            with SessionLocal() as s:
+                local_pos = {
+                    p.ticker: p
+                    for p in s.scalars(select(Position)).all()
+                }
+        else:
+            local_pos = {}
+
         out = []
-        for p in rows:
-            stop_price = p.peak_price * (1 - TRAILING_STOP_PCT) if p.peak_price else 0
+        for p in sorted(live, key=lambda x: -x.market_value):
+            local = local_pos.get(p.symbol)
+            peak = (local.peak_price if local else None) or p.market_price
+            stop_price = peak * (1 - TRAILING_STOP_PCT) if peak else 0
+            d = latest_buys.get(p.symbol)
+            t = latest_trades.get(p.symbol)
+            # Resolve thesis: prefer the structured Decision row; fall back
+            # to a parsed line from trade_log.md for legacy positions whose
+            # buy pre-dates the Decision-writing place_buy.
+            thesis: str | None = d.reason if d else None
+            decision_action: str | None = d.action if d else None
+            decision_at: str | None = _iso_utc(d.at) if d else None
+            if thesis is None:
+                log_entry = log_theses.get(p.symbol)
+                if log_entry:
+                    thesis = log_entry["reason"]
+                    decision_action = "buy"
+                    decision_at = log_entry["ts"]  # ISO string already
             out.append({
-                "ticker": p.ticker,
-                "sector": SECTOR_MAP.get(p.ticker, "Other"),
+                "ticker": p.symbol,
+                "sector": SECTOR_MAP.get(p.symbol, "Other"),
                 "qty": p.qty,
-                "avg_cost": p.avg_cost,
+                "avg_cost": p.avg_entry_price,
                 "market_price": p.market_price,
                 "market_value": p.market_value,
-                "unrealized_pnl": p.unrealized_pnl,
-                "unrealized_pct": ((p.market_price / p.avg_cost) - 1) if p.avg_cost else 0,
-                "peak_price": p.peak_price,
+                "unrealized_pnl": p.unrealized_pl,
+                "unrealized_pct": ((p.market_price / p.avg_entry_price) - 1) if p.avg_entry_price else 0,
+                "peak_price": peak,
                 "stop_price": stop_price,
                 "distance_to_stop_pct": ((p.market_price - stop_price) / p.market_price) if p.market_price else 0,
-                "opened_at": _iso_utc(p.opened_at),
-                "updated_at": _iso_utc(p.updated_at),
+                "opened_at": _iso_utc(t.submitted_at) if t else None,
+                "updated_at": _iso_utc(datetime.now(timezone.utc)),
+                # Trading rationale + provenance
+                "thesis": thesis,
+                "decision_at": decision_at,
+                "decision_action": decision_action,
+                "stop_order_id": local.stop_order_id if local else None,
             })
-    return out
+        return out
+    except Exception as exc:
+        from loguru import logger as _logger
+        _logger.warning("/positions live-fetch failed, falling back to DB: {}", exc)
+        # Original DB-only path (keeps the dashboard alive in degraded mode).
+        with SessionLocal() as s:
+            rows = s.scalars(select(Position).order_by(desc(Position.market_value))).all()
+            out = []
+            for p in rows:
+                stop_price = p.peak_price * (1 - TRAILING_STOP_PCT) if p.peak_price else 0
+                d = s.scalars(
+                    select(Decision)
+                    .where(Decision.ticker == p.ticker)
+                    .where(Decision.action.in_(["buy", "manual_buy"]))
+                    .order_by(desc(Decision.at))
+                    .limit(1)
+                ).first()
+                out.append({
+                    "ticker": p.ticker,
+                    "sector": SECTOR_MAP.get(p.ticker, "Other"),
+                    "qty": p.qty,
+                    "avg_cost": p.avg_cost,
+                    "market_price": p.market_price,
+                    "market_value": p.market_value,
+                    "unrealized_pnl": p.unrealized_pnl,
+                    "unrealized_pct": ((p.market_price / p.avg_cost) - 1) if p.avg_cost else 0,
+                    "peak_price": p.peak_price,
+                    "stop_price": stop_price,
+                    "distance_to_stop_pct": ((p.market_price - stop_price) / p.market_price) if p.market_price else 0,
+                    "opened_at": _iso_utc(p.opened_at),
+                    "updated_at": _iso_utc(p.updated_at),
+                    "thesis": d.reason if d else None,
+                    "decision_at": _iso_utc(d.at) if d else None,
+                    "decision_action": d.action if d else None,
+                    "stop_order_id": p.stop_order_id,
+                })
+        return out
 
 
 @app.get("/trades")
 def trades(limit: int = Query(100, ge=1, le=500)) -> list[dict]:
+    """Recent trades, merging:
+      1. Local ``Trade`` rows (LLM/manual entries — carry thesis + composite).
+      2. Alpaca's filled closed orders from the last 30 days that *aren't*
+         already in the local table — this is how trailing-stop SELL fills
+         and any other auxiliary orders Alpaca executed on our behalf show
+         up on the dashboard. They carry no thesis (the LLM didn't place
+         them) but they're tagged ``source: "alpaca_fill"`` and a synthetic
+         ``reason`` line that explains the order type.
+    """
     with SessionLocal() as s:
         rows = s.scalars(
             select(Trade).order_by(desc(Trade.submitted_at)).limit(limit)
         ).all()
-        out = []
+        local: list[dict] = []
+        local_ids: set[str] = set()
         for t in rows:
             decision = next((d for d in t.decisions), None)
-            out.append({
+            if t.alpaca_order_id:
+                local_ids.add(t.alpaca_order_id)
+            local.append({
                 "id": t.id,
                 "ticker": t.ticker,
                 "side": t.side,
@@ -168,8 +383,61 @@ def trades(limit: int = Query(100, ge=1, le=500)) -> list[dict]:
                 "composite_score": decision.composite_score if decision else None,
                 "score_breakdown": decision.score_breakdown if decision else None,
                 "action": decision.action if decision else None,
+                "source": "local",
             })
-    return out
+
+    # Merge in Alpaca's recent closed orders (best effort — degrade to local
+    # only if Alpaca is unreachable). Negative IDs are synthetic so the React
+    # `key` prop stays unique alongside the local rows.
+    alpaca_rows: list[dict] = []
+    try:
+        closed = _alpaca().closed_orders(days=30, limit=200)
+    except Exception:
+        closed = []
+    for i, o in enumerate(closed):
+        if o.get("id") and o["id"] in local_ids:
+            continue  # already represented as a local Trade row
+        otype = (o.get("type") or "").lower()
+        side = (o.get("side") or "").lower()
+        # Synthesize a human-readable reason so the user knows *why* this
+        # order existed. Trailing-stop fills are the main thing the user
+        # asked to "be seen" in the dashboard.
+        if otype == "trailing_stop":
+            reason = "Alpaca trailing-stop fill (10% from peak — auto risk control)"
+        elif otype == "stop":
+            reason = "Alpaca hard stop fill"
+        elif otype == "limit":
+            reason = "Alpaca limit fill"
+        elif side == "sell":
+            reason = "Alpaca SELL (filled outside the LLM bot)"
+        else:
+            reason = "Alpaca fill (placed outside the LLM bot)"
+        alpaca_rows.append({
+            "id": -1000 - i,  # synthetic negative id, won't collide
+            "ticker": o.get("symbol") or "",
+            "side": side or "buy",
+            "qty": o.get("qty") or 0,
+            "price": o.get("price") or 0,
+            "notional": o.get("notional") or 0,
+            "status": o.get("status") or "filled",
+            "dry_run": False,
+            "submitted_at": o.get("submitted_at"),
+            "filled_at": o.get("filled_at"),
+            "reason": reason,
+            "composite_score": None,
+            "score_breakdown": None,
+            "action": None,
+            "source": "alpaca_fill",
+            "order_type": otype,
+        })
+
+    merged = local + alpaca_rows
+    # Sort by submitted_at desc; treat None as far past so nothing crashes.
+    merged.sort(
+        key=lambda r: r.get("submitted_at") or "",
+        reverse=True,
+    )
+    return merged[:limit]
 
 
 @app.get("/decisions")
@@ -370,21 +638,69 @@ def tape(limit: int = 16) -> list[dict]:
 
 @app.get("/bot/status")
 def bot_status() -> dict:
-    """Recap for the BotRibbon. Reports last strategy tick + last decision."""
+    """Recap for the BotRibbon. Surfaces the latest meaningful bot activity
+    so the dashboard's "Running" indicator reflects what the bot is *actually*
+    doing today, not the retired quant tick from days ago.
+
+    Priority order for `last_tick_at`:
+      1. Most recent successful LLM run (premarket / execute / midday / etc.)
+      2. Most recent JobRun of any kind (research_tick, regime, earnings, ...)
+      3. Most recent legacy strategy_tick (preserved for back-compat)
+    """
     with SessionLocal() as s:
-        last_tick = s.scalars(
-            select(JobRun)
-            .where(JobRun.job_name == "strategy_tick")
-            .order_by(desc(JobRun.started_at))
-            .limit(1)
+        last_llm = s.scalars(
+            select(LLMRun).order_by(desc(LLMRun.started_at)).limit(1)
+        ).first()
+        last_job = s.scalars(
+            select(JobRun).order_by(desc(JobRun.started_at)).limit(1)
         ).first()
         last_decision = s.scalars(
             select(Decision).order_by(desc(Decision.at)).limit(1)
         ).first()
+
+    # Pick the most recent activity across LLM runs and any job_run.
+    candidates: list[tuple[datetime, str, str]] = []
+    if last_llm and last_llm.started_at:
+        candidates.append((
+            last_llm.started_at,
+            last_llm.status,
+            f"llm_{last_llm.routine}",
+        ))
+    if last_job and last_job.started_at:
+        candidates.append((
+            last_job.started_at,
+            last_job.status,
+            last_job.job_name,
+        ))
+    candidates.sort(key=lambda c: c[0], reverse=True)
+
+    if candidates:
+        ts, status, kind = candidates[0]
+        last_tick_at = _iso_utc(ts)
+        last_tick_status = status
+        last_tick_kind = kind
+    else:
+        last_tick_at = None
+        last_tick_status = None
+        last_tick_kind = None
+
     return {
-        "last_tick_at": _iso_utc(last_tick.started_at) if last_tick else None,
-        "last_tick_status": last_tick.status if last_tick else None,
-        "interval_seconds": 300,
+        "last_tick_at": last_tick_at,
+        "last_tick_status": last_tick_status,
+        "last_tick_kind": last_tick_kind,
+        "interval_seconds": 900,  # research_tick cadence; LLM routines anchored to ET clock
+        "last_llm_run": (
+            {
+                "id": last_llm.id,
+                "routine": last_llm.routine,
+                "started_at": _iso_utc(last_llm.started_at),
+                "status": last_llm.status,
+                "tool_calls": last_llm.tool_calls,
+                "usd_cost": last_llm.usd_cost,
+            }
+            if last_llm
+            else None
+        ),
         "last_decision": (
             {
                 "at": _iso_utc(last_decision.at),
@@ -570,3 +886,57 @@ def routines_next() -> dict:
         "next": entries[0],
         "all": entries,
     }
+
+
+# ---------------------------------------------------------------------------
+# Manual trade endpoint — the dashboard's user-driven escape hatch.
+# ---------------------------------------------------------------------------
+
+
+class ManualTradeRequest(BaseModel):
+    """Body for ``POST /trade/manual``.
+
+    Provide exactly one of ``qty`` or ``notional_usd``. The endpoint computes
+    the missing one from a live mid quote.
+    """
+
+    symbol: str = Field(..., min_length=1, max_length=16)
+    side: str = Field(..., pattern="^(buy|sell)$")
+    qty: Optional[float] = Field(None, gt=0)
+    notional_usd: Optional[float] = Field(None, gt=0)
+    note: str = Field("", max_length=200)
+    # Paper Alpaca will queue an order placed after-hours; require an
+    # explicit opt-in so a misclick at 2 AM doesn't get filled at the open.
+    allow_after_hours: bool = False
+
+
+@app.post("/trade/manual")
+def trade_manual(req: ManualTradeRequest) -> dict:
+    """Execute a manual buy or sell from the dashboard.
+
+    Hits Alpaca via :func:`bot.manual_trade.manual_trade`, which:
+      * pre-cancels any opposite-side open orders on the symbol,
+      * honors ``DRY_RUN`` (returns a ``DRY-MAN-…`` order id, no Alpaca call),
+      * persists ``Trade`` + ``Decision`` rows tagged ``manual_{side}``,
+      * appends a ``MANUAL`` line to ``memory/trade_log.md``.
+
+    Returns the placed trade so the UI can flash a confirmation immediately
+    without waiting for the next ``/trades`` poll.
+    """
+    try:
+        return manual_trade(
+            symbol=req.symbol,
+            side=req.side,
+            qty=req.qty,
+            notional_usd=req.notional_usd,
+            note=req.note,
+            allow_after_hours=req.allow_after_hours,
+        )
+    except ManualTradeError as exc:
+        # 400 — user can fix their input and resubmit.
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:  # pragma: no cover — surface for the dashboard
+        # 500 — log + surface a short message; full traceback goes to api.log.
+        from loguru import logger as _logger
+        _logger.exception("manual_trade failed: {}", exc)
+        raise HTTPException(status_code=500, detail=f"internal error: {exc}")
