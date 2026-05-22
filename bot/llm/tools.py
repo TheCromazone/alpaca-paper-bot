@@ -1,7 +1,7 @@
 """Tool registry + validators — the trust boundary.
 
 The LLM *proposes* via tool calls; handlers here *verify and execute*. Every
-hard cap (5% size, 15-position count, 10% trailing stop, 7% midday cut, 3-day
+hard cap (5% size, 25-position count, 10% trailing stop, 7% midday cut, 3-day
 wash window, 20-char thesis minimum) is enforced here in code, never in
 prompts. Prompt constraints are best-effort guidance; these are guarantees.
 
@@ -41,8 +41,10 @@ from bot.config import (
     LLM_WASH_TRADE_LOOKBACK_DAYS,
     settings,
 )
-from bot.db import NewsItem, Position, Signal, SessionLocal, Trade
+from bot.db import Decision, NewsItem, Position, Signal, SessionLocal, Trade
 from bot.llm import memory
+from bot.signals import earnings as earnings_mod
+from bot.signals import regime as regime_mod
 
 
 # ---------------------------------------------------------------------------
@@ -350,6 +352,70 @@ def _h_set_trailing_stop(args: dict) -> dict:
     return {"order_id": oid, "symbol": symbol, "trail_percent": trail}
 
 
+def _h_get_market_regime(args: dict) -> dict:
+    """Latest macro snapshot: VIX, SPY trend, yield-curve, breadth, label.
+
+    The LLM uses this to size positions. risk_off → smaller orders or skip
+    new buys; risk_on → comfortable opening at the 5% cap.
+    """
+    snap = regime_mod.latest()
+    if not snap:
+        return {"available": False, "note": "no regime snapshot yet — first run pending"}
+    return {"available": True, **snap}
+
+
+def _h_get_upcoming_earnings(args: dict) -> dict:
+    """Upcoming earnings reports for universe tickers.
+
+    Returns ticker, report_date, time_of_day (bmo/amc), eps_estimate, and
+    last 4 quarters' surprise %. The LLM should avoid opening new positions
+    in names reporting within the next 5 days unless the thesis explicitly
+    *is* the earnings beat.
+    """
+    days = int(args.get("days", 14))
+    days = max(1, min(days, 30))
+    return {"days": days, "events": earnings_mod.upcoming(days=days)}
+
+
+def _h_get_politician_trades(args: dict) -> dict:
+    """Politician trades filtered by name and/or ticker. Richer than
+    ``get_recent_signals`` — returns chamber, weight, source URL, etc."""
+    name = (args.get("name") or "").strip().lower()
+    ticker = args.get("ticker")
+    days = int(args.get("days", 60))
+    days = max(1, min(days, 180))
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    with SessionLocal() as s:
+        q = (
+            select(Signal)
+            .where(Signal.kind == "politician")
+            .where(Signal.as_of >= cutoff)
+            .order_by(desc(Signal.as_of))
+            .limit(50)
+        )
+        rows = s.scalars(q).all()
+    out = []
+    for r in rows:
+        meta = r.meta or {}
+        pol = (meta.get("politician") or r.source or "").strip()
+        if name and name not in pol.lower():
+            continue
+        if ticker and r.ticker.upper() != ticker.upper():
+            continue
+        out.append({
+            "ticker": r.ticker,
+            "politician": pol,
+            "chamber": meta.get("chamber"),
+            "direction": r.direction,
+            "amount": r.amount,
+            "as_of": r.as_of.isoformat() if r.as_of else None,
+            "source_url": meta.get("source_url"),
+        })
+        if len(out) >= 25:
+            break
+    return {"trades": out}
+
+
 def _h_place_buy(args: dict) -> dict:
     symbol = _require_str(args, "symbol").upper()
     notional = _require_pos_float(args, "notional_usd")
@@ -437,13 +503,25 @@ def _h_place_buy(args: dict) -> dict:
         status = "dry_run"
     else:
         order_id = c.submit_market(symbol, qty, "buy")
-        # Pausing to set the stop right after. Alpaca allows a trailing stop
-        # independent of the parent fill state; on a market order the parent
-        # almost always fills immediately during RTH.
-        stop_id = c.submit_trailing_stop(symbol, qty, LLM_TRAILING_STOP_PCT)
+        # Trailing stop is best-effort. Alpaca rejects GTC trailing stops on
+        # fractional positions ("fractional orders must be DAY orders"), and
+        # a stop failure must NOT roll back the parent buy — that's how
+        # 2026-04-27 execute lost 4 INTC attempts in a row. The midday
+        # routine's 7%-from-cost rule serves as the safety net while we
+        # decide whether to track stops in our own DB.
+        try:
+            stop_id = c.submit_trailing_stop(symbol, qty, LLM_TRAILING_STOP_PCT)
+        except Exception as exc:
+            logger.warning(
+                "place_buy {}: parent filled (id={}) but trailing stop failed: {}",
+                symbol, order_id, exc,
+            )
+            stop_id = None
         status = "submitted"
 
-    # Persist Trade + stop_order_id.
+    # Persist Trade + Decision + stop_order_id. The Decision row is what
+    # the dashboard reads to surface "why we own this" inline on holdings —
+    # without it the position shows up but the rationale is invisible.
     with SessionLocal.begin() as s:
         trade = Trade(
             ticker=symbol, side="buy", qty=qty, price=mid,
@@ -452,6 +530,15 @@ def _h_place_buy(args: dict) -> dict:
         )
         s.add(trade)
         s.flush()
+        s.add(Decision(
+            ticker=symbol,
+            action="buy",
+            composite_score=0.0,
+            score_breakdown={"llm": True, "thesis_chars": len(thesis)},
+            reason=thesis,
+            dry_run=settings.dry_run,
+            trade_id=trade.id,
+        ))
         pos_row = s.get(Position, symbol)
         if pos_row is not None:
             pos_row.stop_order_id = stop_id
@@ -530,10 +617,21 @@ def _h_place_sell(args: dict) -> dict:
         status = "submitted"
 
     with SessionLocal.begin() as s:
-        s.add(Trade(
+        trade = Trade(
             ticker=symbol, side="sell", qty=qty, price=mid,
             notional=notional, status=status, alpaca_order_id=order_id,
             dry_run=settings.dry_run,
+        )
+        s.add(trade)
+        s.flush()
+        s.add(Decision(
+            ticker=symbol,
+            action="sell",
+            composite_score=0.0,
+            score_breakdown={"llm": True, "qty": qty},
+            reason=reason,
+            dry_run=settings.dry_run,
+            trade_id=trade.id,
         ))
 
     _append_trade_log(
@@ -563,7 +661,15 @@ def _build_registry() -> dict[str, ToolSpec]:
         "read_memory": ToolSpec(
             definition={
                 "name": "read_memory",
-                "description": "Read a memory file (strategy / portfolio / trade_log / research_log).",
+                "description": (
+                    "Read a memory file. Available files: "
+                    "strategy (the rulebook — laws), "
+                    "playbook (research method — how to do idea-gen / earnings-prep), "
+                    "catalysts (macro calendar — FOMC, CPI, jobs, earnings anchor weeks), "
+                    "portfolio (current book), "
+                    "trade_log (append-only ledger), "
+                    "research_log (your dated research notes)."
+                ),
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -711,12 +817,67 @@ def _build_registry() -> dict[str, ToolSpec]:
             handler=_h_set_trailing_stop,
             routines=frozenset({"execute", "midday"}),
         ),
+        "get_market_regime": ToolSpec(
+            definition={
+                "name": "get_market_regime",
+                "description": (
+                    "Today's macro snapshot: VIX + 5d change, SPY 50d/200d MA "
+                    "trend, 10Y-2Y treasury spread, breadth (% of universe "
+                    "above 50d MA), regime_label ('risk_on'|'neutral'|"
+                    "'risk_off'). Use risk_off as a signal to skip new buys "
+                    "or size down."
+                ),
+                "input_schema": {"type": "object", "properties": {}},
+            },
+            handler=_h_get_market_regime,
+            routines=frozenset({"premarket", "execute", "midday", "close", "weekly_review"}),
+        ),
+        "get_upcoming_earnings": ToolSpec(
+            definition={
+                "name": "get_upcoming_earnings",
+                "description": (
+                    "Upcoming earnings for universe tickers. Returns "
+                    "ticker, report_date (UTC), time_of_day, eps_estimate, "
+                    "last_4_surprise_pcts. Avoid opening new positions in "
+                    "names reporting within 5 days unless the thesis IS the "
+                    "earnings beat."
+                ),
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "days": {"type": "integer", "minimum": 1, "maximum": 30},
+                    },
+                },
+            },
+            handler=_h_get_upcoming_earnings,
+            routines=frozenset({"premarket", "execute", "midday", "weekly_review"}),
+        ),
+        "get_politician_trades": ToolSpec(
+            definition={
+                "name": "get_politician_trades",
+                "description": (
+                    "Politician trades filtered by name and/or ticker. "
+                    "Richer than get_recent_signals: returns chamber + URL. "
+                    "Useful for 'what did Pelosi buy this quarter'."
+                ),
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "ticker": {"type": "string"},
+                        "days": {"type": "integer", "minimum": 1, "maximum": 180},
+                    },
+                },
+            },
+            handler=_h_get_politician_trades,
+            routines=frozenset({"premarket", "execute", "weekly_review"}),
+        ),
         "place_buy": ToolSpec(
             definition={
                 "name": "place_buy",
                 "description": (
                     "Open or add to a position. Enforces 5% equity cap, "
-                    "15-position max, wash-trade window, and auto-attaches "
+                    "25-position max, wash-trade window, and auto-attaches "
                     "a 10% trailing stop. Thesis must be ≥20 chars."
                 ),
                 "input_schema": {

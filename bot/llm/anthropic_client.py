@@ -72,13 +72,14 @@ class AnthropicClient:
 
     def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
         self.model = model or settings.llm_model
-        # max_retries=5 lets the SDK ride out a single 30k-tokens/min rate
-        # limit hit — each backoff is exponential, so 5 retries buys us
-        # ~60–90 seconds of ceiling wait, which is usually enough to get
-        # past a bursty minute.
+        # Apr-21 smoke test: SDK's 5 retries weren't enough when 11 back-to-
+        # back turns burst past 30k tokens/min. The runner now sleeps
+        # LLM_TURN_THROTTLE_SECONDS between turns to prevent sustained
+        # bursting; 8 retries here is the belt-and-braces against transient
+        # spikes the throttle can't smooth out.
         self.client = Anthropic(
             api_key=api_key or settings.anthropic_api_key,
-            max_retries=5,
+            max_retries=8,
         )
 
     def create_turn(

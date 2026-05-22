@@ -15,10 +15,29 @@ from typing import Any
 from loguru import logger
 from sqlalchemy import func, select
 
-from bot.config import LLM_MAX_TOOL_ITERATIONS, settings
+from bot.config import (
+    LLM_MAX_TOOL_ITERATIONS,
+    LLM_TURN_THROTTLE_SECONDS,
+    LLM_PREMARKET_MAX_ITERATIONS,
+    LLM_RATE_LIMIT_BACKOFF_BASE,
+    LLM_RATE_LIMIT_BACKOFF_MAX,
+    LLM_RATE_LIMIT_RETRIES,
+    settings,
+)
 from bot.db import LLMRun, SessionLocal
 from bot.llm import prompts, tools
-from bot.llm.anthropic_client import AnthropicClient, compute_cost_usd
+from bot.llm.anthropic_client import AnthropicClient
+from bot.llm.anthropic_client import compute_cost_usd as _anthropic_cost
+
+try:
+    from anthropic import RateLimitError as _RateLimitError  # SDK >=0.40
+except Exception:  # pragma: no cover
+    _RateLimitError = None  # type: ignore
+
+try:
+    from openai import RateLimitError as _OpenAIRateLimitError  # openai >=1.x
+except Exception:  # pragma: no cover
+    _OpenAIRateLimitError = None  # type: ignore
 
 
 _SUMMARY_CAP_CHARS = 2048
@@ -59,25 +78,55 @@ def _args_summary(args: dict) -> dict:
     return out
 
 
+def _compute_cost(provider: str, usage: dict) -> float:
+    """Per-token USD cost for the active provider.
+
+    Codex via Plus is flat-fee; tokens are still counted for observability
+    but the dollar figure is always 0.0 so the daily-budget guard never
+    fires on that path.
+    """
+    if provider == "codex_oauth":
+        return 0.0
+    return _anthropic_cost(
+        usage["input"], usage["output"],
+        usage["cache_read"], usage["cache_write"], usage["web_search"],
+    )
+
+
 def run_routine(routine: str) -> int:
     """Drive one routine end-to-end. Returns the ``LLMRun.id``.
 
     Safe to call from tests with ``DRY_RUN=true`` — none of the buys / sells
     reach Alpaca in that mode.
     """
-    if not settings.anthropic_api_key:
-        logger.warning("run_routine({}): ANTHROPIC_API_KEY not set; skipping", routine)
-        return -1
+    provider = (settings.llm_provider or "anthropic").lower()
 
+    # Provider-specific preflight + model selection
+    if provider == "codex_oauth":
+        active_model = settings.llm_model_codex
+        # codex_auth manages the OAuth token; we don't gate on a key string.
+    else:
+        if not settings.anthropic_api_key:
+            logger.warning(
+                "run_routine({}): ANTHROPIC_API_KEY not set; skipping", routine
+            )
+            return -1
+        active_model = settings.llm_model
+
+    # Budget guard only applies to per-token providers. Codex/Plus is flat.
     budget = settings.llm_daily_usd_budget
-    spent_already = _today_usd_spent()
-    budget_remaining = max(0.0, budget - spent_already)
-    if budget_remaining <= 0:
-        logger.warning(
-            "run_routine({}): daily budget ${} exhausted (${:.2f} spent); skipping",
-            routine, budget, spent_already,
-        )
-        return -1
+    if provider == "codex_oauth":
+        spent_already = 0.0
+        budget_remaining = float("inf")
+    else:
+        spent_already = _today_usd_spent()
+        budget_remaining = max(0.0, budget - spent_already)
+        if budget_remaining <= 0:
+            logger.warning(
+                "run_routine({}): daily budget ${} exhausted (${:.2f} spent); skipping",
+                routine, budget, spent_already,
+            )
+            return -1
 
     # --- Create LLMRun row upfront so it captures failures too. ---
     started = datetime.now(timezone.utc)
@@ -85,7 +134,7 @@ def run_routine(routine: str) -> int:
         row = LLMRun(
             routine=routine,
             started_at=started,
-            model=settings.llm_model,
+            model=active_model,
             status="running",
             tool_trace=[],
         )
@@ -94,14 +143,23 @@ def run_routine(routine: str) -> int:
         run_id = row.id
 
     # --- Build system + first user message ---
-    system = prompts.build_system_messages(budget_remaining)
+    system = prompts.build_system_messages(budget_remaining, provider=provider)
     user_prompt = prompts.user_prompt_for(routine)
     messages: list[dict] = [{"role": "user", "content": user_prompt}]
 
     local_tools = tools.tools_for_routine(routine)
-    enable_web_search = routine in {"premarket", "weekly_review"}
+    # Codex/Plus OAuth path has no server-side web_search tool; surface that
+    # difference to the model via the prompt (handled in prompts.py) rather
+    # than wiring the SDK to a no-op.
+    enable_web_search = (
+        provider == "anthropic" and routine in {"premarket", "weekly_review"}
+    )
 
-    client = AnthropicClient()
+    if provider == "codex_oauth":
+        from bot.llm.openai_client import CodexClient  # local import — keeps anthropic-only deploys lighter
+        client: Any = CodexClient(model=active_model)
+    else:
+        client = AnthropicClient(model=active_model)
 
     # Accumulators persisted to the row at the end.
     usage = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0, "web_search": 0}
@@ -110,14 +168,21 @@ def run_routine(routine: str) -> int:
     status = "ok"
     error_msg: str | None = None
 
+    # Premarket is the heaviest routine and the one that's been hitting 429s.
+    # Use a tighter iteration ceiling for it; everyone else gets the default.
+    iter_cap = LLM_PREMARKET_MAX_ITERATIONS if routine == "premarket" else LLM_MAX_TOOL_ITERATIONS
+
     try:
-        for step in range(LLM_MAX_TOOL_ITERATIONS):
-            # Budget guard: recompute each iteration.
-            in_flight_cost = compute_cost_usd(
-                usage["input"], usage["output"],
-                usage["cache_read"], usage["cache_write"], usage["web_search"],
-            )
-            if spent_already + in_flight_cost > budget:
+        for step in range(iter_cap):
+            # Throttle: slow back-to-back turns so we don't burst past the
+            # org's per-minute input-token limit. Skip the first turn.
+            if step > 0 and LLM_TURN_THROTTLE_SECONDS > 0:
+                time.sleep(LLM_TURN_THROTTLE_SECONDS)
+
+            # Budget guard: recompute each iteration. (Codex/Plus path
+            # returns 0.0 — the guard never fires; that's intentional.)
+            in_flight_cost = _compute_cost(provider, usage)
+            if provider != "codex_oauth" and spent_already + in_flight_cost > budget:
                 logger.warning(
                     "run_routine({}): budget halt at step {} — spent ${:.3f} "
                     "(pre=${:.3f} + step=${:.3f}) > budget ${}",
@@ -127,12 +192,43 @@ def run_routine(routine: str) -> int:
                 status = "budget_halt"
                 break
 
-            turn = client.create_turn(
-                system=system,
-                messages=messages,
-                tools=local_tools,
-                enable_web_search=enable_web_search,
-            )
+            # Adaptive 429 backoff. The SDK retries internally (max_retries=8)
+            # but exhausts its budget turn-after-turn under sustained load —
+            # exactly what killed premarket on May 4/5/6. We add a wider
+            # exponential sleep so the rate-limit window has time to reset.
+            turn = None
+            last_rl_exc: Exception | None = None
+            for attempt in range(LLM_RATE_LIMIT_RETRIES + 1):
+                try:
+                    turn = client.create_turn(
+                        system=system,
+                        messages=messages,
+                        tools=local_tools,
+                        enable_web_search=enable_web_search,
+                    )
+                    break
+                except Exception as exc:
+                    is_rl = (
+                        (_RateLimitError is not None and isinstance(exc, _RateLimitError))
+                        or (_OpenAIRateLimitError is not None and isinstance(exc, _OpenAIRateLimitError))
+                    )
+                    if not is_rl:
+                        # Some 429s come back wrapped — fall back to status-code sniff.
+                        is_rl = "429" in str(exc) or "rate_limit" in str(exc).lower()
+                    if not is_rl or attempt >= LLM_RATE_LIMIT_RETRIES:
+                        raise
+                    last_rl_exc = exc
+                    sleep_s = min(
+                        LLM_RATE_LIMIT_BACKOFF_MAX,
+                        LLM_RATE_LIMIT_BACKOFF_BASE * (2 ** attempt),
+                    )
+                    logger.warning(
+                        "run_routine({}): 429 at step {} attempt {}; sleeping {}s before retry",
+                        routine, step, attempt, sleep_s,
+                    )
+                    time.sleep(sleep_s)
+            if turn is None:  # pragma: no cover  — unreachable, raise covered above
+                raise RuntimeError(f"create_turn returned None after retries ({last_rl_exc!r})")
             usage["input"]        += turn.input_tokens
             usage["output"]       += turn.output_tokens
             usage["cache_read"]   += turn.cache_read_tokens
@@ -207,7 +303,7 @@ def run_routine(routine: str) -> int:
             # Ran out of iterations without natural end_turn.
             status = "failed"
             error_msg = (
-                f"hit {LLM_MAX_TOOL_ITERATIONS}-iteration ceiling without end_turn"
+                f"hit {iter_cap}-iteration ceiling without end_turn"
             )
             logger.warning("run_routine({}): {}", routine, error_msg)
     except Exception as exc:
@@ -215,11 +311,8 @@ def run_routine(routine: str) -> int:
         status = "failed"
         error_msg = repr(exc)
 
-    # Final cost computation.
-    usd_cost = compute_cost_usd(
-        usage["input"], usage["output"],
-        usage["cache_read"], usage["cache_write"], usage["web_search"],
-    )
+    # Final cost computation (provider-aware; codex_oauth returns 0.0).
+    usd_cost = _compute_cost(provider, usage)
 
     with SessionLocal.begin() as s:
         row = s.get(LLMRun, run_id)

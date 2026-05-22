@@ -28,11 +28,24 @@ MEMORY_DIR = ROOT / "memory"
 
 # ALL_MEMORY is used for reads. WRITABLE / APPENDABLE are the narrower sets
 # used by the write/append helpers and re-exported for the tool layer.
-ALL_MEMORY = ("strategy", "portfolio", "trade_log", "research_log")
+# `playbook` and `catalysts` were added 2026-05-07 from the Anthropic
+# claude-for-financial-services equity-research plugin (idea-generation,
+# earnings-preview, catalyst-calendar skills) — distilled rubrics live in
+# memory/ so they're cheap to read and cheap to amend without code changes.
+ALL_MEMORY = (
+    "strategy",
+    "portfolio",
+    "trade_log",
+    "research_log",
+    "playbook",
+    "catalysts",
+)
 WRITABLE = ("portfolio",)                       # whole-file rewrite
 APPENDABLE = ("research_log", "trade_log")      # append-only
 
-MemoryName = Literal["strategy", "portfolio", "trade_log", "research_log"]
+MemoryName = Literal[
+    "strategy", "portfolio", "trade_log", "research_log", "playbook", "catalysts",
+]
 
 MAX_WRITE_BYTES = 64 * 1024
 

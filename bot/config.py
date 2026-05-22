@@ -31,10 +31,18 @@ class Settings(BaseSettings):
     )
 
     # ---------- LLM-era (Phase 1) ----------
-    # Claude does the reasoning; web_search is a server-side tool baked into
-    # the Messages API, so no separate search key is required.
+    # Two backends are supported:
+    #   - anthropic      → Claude Messages API (per-token billing)
+    #   - codex_oauth    → OpenAI Codex via ChatGPT Plus OAuth (codex-auth lib,
+    #                      $0/call under Plus subscription, ChatGPT-tier rate
+    #                      limits apply, alpha library)
+    # Codex backend is the live default after the 2026-05-20 cutover from
+    # Anthropic (credit balance went to zero). Anthropic path is preserved
+    # as a fallback — flip LLM_PROVIDER=anthropic if codex breaks.
+    llm_provider: str = Field("codex_oauth", alias="LLM_PROVIDER")
     anthropic_api_key: str = Field("", alias="ANTHROPIC_API_KEY")
     llm_model: str = Field("claude-opus-4-7", alias="LLM_MODEL")
+    llm_model_codex: str = Field("gpt-5.5", alias="LLM_MODEL_CODEX")
     llm_daily_usd_budget: float = Field(5.00, alias="LLM_DAILY_USD_BUDGET")
     # Feature flag — set to true only after Phase 5 cutover. Until then,
     # routine code can exist and be unit-tested without ever firing on cron.
@@ -258,13 +266,13 @@ CLOSE_SCORE_THRESHOLD = -1.0
 # The tool layer enforces these — see bot/llm/tools.py. Keeping them here so
 # memory/strategy.md's "caps you can't evade" list stays in sync with code.
 LLM_MAX_POSITION_PCT = 0.05        # 5% of equity per new position at entry
-LLM_MAX_POSITIONS = 15             # hard cap on concurrent holdings
+LLM_MAX_POSITIONS = 25             # hard cap on concurrent holdings
 LLM_TRAILING_STOP_PCT = 0.10       # 10% trailing stop attached to every buy
 LLM_MIDDAY_STOP_LOSS_PCT = 0.07    # midday routine force-closes names down this much from avg cost
 LLM_WASH_TRADE_LOOKBACK_DAYS = 3   # refuse opposite-side trade on same symbol within this window
 LLM_TRAILING_STOP_MIN = 0.03       # set_trailing_stop refuses anything outside [MIN, MAX]
 LLM_TRAILING_STOP_MAX = 0.25
-LLM_MIN_THESIS_CHARS = 20          # every buy/sell requires a human-readable justification
+LLM_MIN_THESIS_CHARS = 120         # every buy/sell requires a structured 5-field thesis (was 20, raised 2026-05-07 after audit found 0/178 decisions had a thesis ≥80 chars; rubric in memory/playbook.md §1)
 LLM_MAX_TOOL_ITERATIONS = 20       # runner halts a routine after this many tool calls
 
 # --- Lessons from week 1 of quant trading (2026-04-20 to 2026-04-24) ---
@@ -275,8 +283,31 @@ LLM_MAX_TOOL_ITERATIONS = 20       # runner halts a routine after this many tool
 # - 44% of orders were rejected by Alpaca's wash-trade detector. Pre-cancel
 #   any open opposite-side order on the same symbol before submitting.
 LLM_MAX_NEW_POSITIONS_PER_DAY = 2  # cap on fresh-ticker buys per day
-LLM_MAX_TOOL_RESULT_NEWS = 8       # tool layer trims get_recent_news to this many items
-LLM_MAX_TOOL_RESULT_SIGNALS = 10   # similarly for get_recent_signals
+# Tool-result payload caps. Lowered 2026-05-07 after 3 consecutive premarket
+# 429 RateLimitError failures (May 4/5/6) — premarket eats most of the 30k
+# input-tokens/minute budget on news payloads.
+LLM_MAX_TOOL_RESULT_NEWS = 5       # was 8 — tool layer trims get_recent_news to this many items
+LLM_MAX_TOOL_RESULT_SIGNALS = 6    # was 10 — similarly for get_recent_signals
+
+# Throttle between Anthropic turns (seconds). Apr-21 smoke test failed with a
+# 429 after 11 rapid tool-use turns — the org's tier-1 limit is 30k input
+# tokens/minute and back-to-back turns burned through it. Bumped to 12s on
+# 2026-05-07 after 3 consecutive premarket failures (the 6s gap wasn't
+# enough once tool-result payloads grew past ~3k tokens). 12s gives <=5
+# turns/min worst-case, comfortably under 30k/min for ~5k-token turns.
+LLM_TURN_THROTTLE_SECONDS = 12     # was 6
+
+# Tighter iteration cap for premarket only — that routine is the heaviest
+# (web_search + multiple news/signals fetches) and most prone to running
+# itself into the rate limit. Other routines stick with LLM_MAX_TOOL_ITERATIONS.
+LLM_PREMARKET_MAX_ITERATIONS = 12  # was 20 (default)
+
+# Adaptive backoff on 429s inside one turn (exponential, capped). The SDK
+# already does max_retries=8 internally but the retry budget is exhausted
+# turn-after-turn. We add a wider sleep so the rate-limit window resets.
+LLM_RATE_LIMIT_BACKOFF_BASE = 8    # seconds; sleep = base * 2**attempt
+LLM_RATE_LIMIT_BACKOFF_MAX  = 90   # cap (seconds)
+LLM_RATE_LIMIT_RETRIES      = 3
 
 # Signal weights (see plan's composite_score formula)
 WEIGHT_NEWS = 0.35
@@ -285,16 +316,93 @@ WEIGHT_INVESTOR = 0.20
 WEIGHT_MOMENTUM = 0.15
 WEIGHT_DIP_BONUS = 0.05
 
-# Tracked 13F CIKs (zero-padded strings).
+# Tracked 13F CIKs (zero-padded strings). Expanded from 10 → 30 funds for
+# broader signal coverage. Verify CIKs at https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany
 TRACKED_INVESTORS: dict[str, str] = {
-    "Berkshire Hathaway": "0001067983",
-    "Pershing Square": "0001336528",
-    "Scion (Michael Burry)": "0001649339",
-    "Bridgewater": "0001350694",
+    # Original 10
+    "Berkshire Hathaway":       "0001067983",
+    "Pershing Square":          "0001336528",
+    "Scion (Michael Burry)":    "0001649339",
+    "Bridgewater":              "0001350694",
     "Renaissance Technologies": "0001037389",
-    "ARK Investment": "0001697748",
-    "Third Point": "0001040273",
-    "Appaloosa": "0001656456",
-    "Greenlight Capital": "0001079114",
-    "Baupost Group": "0001061768",
+    "ARK Investment":           "0001697748",
+    "Third Point":              "0001040273",
+    "Appaloosa":                "0001656456",
+    "Greenlight Capital":       "0001079114",
+    "Baupost Group":            "0001061768",
+    # Expansion: macro / quant / multi-strat
+    "Citadel Advisors":         "0001423053",
+    "Millennium Management":    "0001273087",
+    "Two Sigma Advisers":       "0001478735",
+    "D.E. Shaw":                "0001009207",
+    "Tudor Investment":         "0001037389",
+    "Point72 Asset Mgmt":       "0001603466",
+    "Balyasny Asset Mgmt":      "0001162188",
+    # Expansion: long/short equity + activist
+    "Tiger Global Mgmt":        "0001167483",
+    "Coatue Management":        "0001135730",
+    "Lone Pine Capital":        "0001061165",
+    "Viking Global Investors":  "0001103804",
+    "Maverick Capital":         "0001015308",
+    "Soros Fund Mgmt":          "0001029160",
+    "Elliott Investment Mgmt":  "0001791786",
+    "Icahn Capital":            "0000921669",
+    "Pershing Square Tontine":  "0001823584",
+    # Expansion: famous specialists / tech
+    "Whale Rock Capital":       "0001396092",
+    "Greenoaks Capital":        "0001602119",
+    "Dan Loeb (Third Point)":   "0001040273",  # alias kept for tracking
+    "Stanley Druckenmiller":    "0001536411",  # Duquesne Family Office
+    "Seth Klarman (Baupost)":   "0001061768",  # alias kept for tracking
+}
+
+# Per-investor conviction weight applied to 13F deltas. Default 1.0.
+# Higher weight = signal counts more in the composite. Calibrated by track
+# record + deal size (Berkshire's $5M flag is bigger conviction than a
+# multi-strat's $5M rebalance).
+INVESTOR_WEIGHTS: dict[str, float] = {
+    "Berkshire Hathaway": 2.0,
+    "Pershing Square": 1.6,
+    "Scion (Michael Burry)": 1.6,
+    "Stanley Druckenmiller": 1.6,
+    "Soros Fund Mgmt": 1.5,
+    "Elliott Investment Mgmt": 1.5,
+    "Icahn Capital": 1.4,
+    "Tiger Global Mgmt": 1.3,
+    "Coatue Management": 1.3,
+    "Lone Pine Capital": 1.3,
+    "Viking Global Investors": 1.3,
+    "Greenlight Capital": 1.3,
+    "Third Point": 1.3,
+    "Appaloosa": 1.3,
+    "Baupost Group": 1.3,
+    "ARK Investment": 1.0,
+    "Bridgewater": 0.9,            # macro/risk-parity, not stock-picker
+    "Renaissance Technologies": 0.8,  # high-frequency rebalance noise
+    "Citadel Advisors": 0.8,       # multi-strat noise
+    "Millennium Management": 0.8,
+    "Two Sigma Advisers": 0.8,
+    "D.E. Shaw": 0.8,
+    "Point72 Asset Mgmt": 0.8,
+    "Balyasny Asset Mgmt": 0.8,
+    "Tudor Investment": 1.0,
+}
+
+# Per-politician conviction weight. Pelosi/Tuberville have well-documented
+# prescient calls (semis '21, defense '22-'24) — boost their signal.
+# Default 1.0 (stored unweighted in DB; aggregator multiplies on read).
+POLITICIAN_WEIGHTS: dict[str, float] = {
+    "Nancy Pelosi":  2.0,
+    "Paul Pelosi":   2.0,   # spousal trades count
+    "Tommy Tuberville": 1.6,
+    "Dan Crenshaw": 1.4,
+    "Josh Gottheimer": 1.3,
+    "Ro Khanna": 1.2,
+    "Mark Green": 1.2,
+    "Susan Wild": 1.2,
+    "Michael McCaul": 1.2,
+    "John Boozman": 1.2,
+    "Sheldon Whitehouse": 1.2,
+    "Pat Toomey": 1.2,
+    "Garret Graves": 1.2,
 }

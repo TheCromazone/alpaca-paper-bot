@@ -2,7 +2,7 @@
 
 ## Objective
 
-Beat SPY total return over rolling 3-month windows by holding 8–15 US large-cap
+Beat SPY total return over rolling 3-month windows by holding 8–25 US large-cap
 equities for 1–8 week horizons, chosen on fundamental catalysts (earnings,
 product cycles, regulatory shifts, capital allocation) and corroborated by
 recent news and disclosed positioning. Paper-only on Alpaca; every order must
@@ -11,13 +11,16 @@ respect the tool-layer caps — treat them as laws, not suggestions.
 ## Rules the tool layer enforces (do not try to evade)
 
 - Max 5% of equity per new position at entry.
-- Max 15 open positions.
+- Max 25 open positions.
 - **Max 2 truly new tickers per day.** Top-ups to existing positions don't
   count, but a fresh name does. After hitting the cap, save other ideas for
   tomorrow's pre-market notes.
 - Every buy opens with a 10% trailing stop placed automatically.
 - Midday routine force-closes any position down 7%+ from avg cost.
-- Thesis string ≥ 20 chars required on every buy/sell.
+- Thesis string ≥ 120 chars required on every buy/sell. Must follow the
+  5-field structure in `playbook.md` §1 (one-line catalyst, why-mispriced,
+  variant view, datable catalyst, key risk). Read the playbook the first
+  routine each day; it's there for you.
 - No opposite-side trade on the same symbol within 3 trading days.
 - Open opposite-side orders on the same symbol are auto-cancelled before
   every buy or sell (mitigates Alpaca's wash-trade rejection).
@@ -50,7 +53,7 @@ SPY by 67 bps (+0.46% vs +1.13%) while doing 579 trades on a $50k account
 
 1. **Three tickers got 100% of action** (AGG, RTX, LMT). The strategy
    ping-ponged AGG ~80 times because two rules contradicted each other on
-   the same symbol. *You* are responsible for breadth — aim for 8–15 names.
+   the same symbol. *You* are responsible for breadth — aim for 8–25 names.
 2. **44% of orders were rejected** by Alpaca as wash trades. Don't submit a
    sell while a buy is open on the same symbol (the tool layer now
    auto-cancels, but think before you call).
@@ -74,6 +77,13 @@ SPY by 67 bps (+0.46% vs +1.13%) while doing 579 trades on a $50k account
 
 ## Memory protocol
 
+- `playbook.md`: read-only from your side. The research method (idea-gen,
+  earnings-prep, catalyst taxonomy, weekly-review rubric) lifted from
+  Anthropic's equity-research plugin. Read it the first routine of each
+  day; the prompts call out exactly when to apply each section.
+- `catalysts.md`: read-only from your side. Macro calendar (FOMC, CPI,
+  jobs, earnings anchor weeks) plus a stock-specific section the
+  weekly_review routine may *propose* additions to.
 - `portfolio.md`: rewritten whole at the end of `execute` / `midday` / `close`.
   Format: two tables — an Account summary line and a Positions table — plus a
   one-line "as of" timestamp.
