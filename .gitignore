@@ -1,21 +1,46 @@
+# Secrets / per-machine config
 .env
+.codex-auth/
+
+# Python
 .venv/
 venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+*.egg-info/
 
+# SQLite DB + caches
 data/trading.db
 data/trading.db-journal
+data/trading.db-wal
+data/trading.db-shm
 data/models/
 data/sec_cache/
 
+# Dashboard / Node
 dashboard/node_modules/
 dashboard/.next/
 dashboard/out/
 dashboard/.turbo/
+dashboard/test-results/
+dashboard/playwright-report/
 
+# Local logs + audit dumps (kept on-disk only, not in git)
+logs/
+*.log
+*.log.new
+scripts/*.out
+scripts/_*audit*.out
 
+# Design refs scratch dirs
+.design-ref*/
+
+# OS junk
 .DS_Store
 Thumbs.db
-*.log
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
