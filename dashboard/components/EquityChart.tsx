@@ -11,10 +11,13 @@ export function EquityChart({ startEquity = 100_000 }: { startEquity?: number })
   const { data: history } = useQuery<HistoryPoint[]>({
     queryKey: ["history", 30],
     queryFn: () => api.history(30),
+    // Equity curve advances with every snapshot the bot writes — refetch
+    // often enough that the "now" pulse marker reflects current reality.
+    refetchInterval: 30_000,
   });
 
   const ref = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ w: 800, h: 340 });
+  const [size, setSize] = useState({ w: 800, h: 560 });
   const [hover, setHover] = useState<Normalized | null>(null);
   const [now, setNow] = useState(() => performance.now());
 
@@ -49,7 +52,7 @@ export function EquityChart({ startEquity = 100_000 }: { startEquity?: number })
         style={{
           position: "relative",
           width: "100%",
-          height: 340,
+          height: 560,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -138,7 +141,7 @@ export function EquityChart({ startEquity = 100_000 }: { startEquity?: number })
   }
 
   return (
-    <div ref={ref} style={{ position: "relative", width: "100%", height: 340 }}>
+    <div ref={ref} style={{ position: "relative", width: "100%", height: 560 }}>
       <svg
         width="100%"
         height="100%"
@@ -148,13 +151,14 @@ export function EquityChart({ startEquity = 100_000 }: { startEquity?: number })
       >
         <defs>
           <linearGradient id="eqFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--cyan)" stopOpacity="0.28" />
-            <stop offset="50%" stopColor="var(--cyan)" stopOpacity="0.08" />
-            <stop offset="100%" stopColor="var(--cyan)" stopOpacity="0" />
+            <stop offset="0%" stopColor="var(--emerald)" stopOpacity="0.30" />
+            <stop offset="50%" stopColor="var(--emerald)" stopOpacity="0.10" />
+            <stop offset="100%" stopColor="var(--emerald)" stopOpacity="0" />
           </linearGradient>
           <linearGradient id="eqStroke" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="var(--violet)" />
-            <stop offset="100%" stopColor="var(--cyan)" />
+            <stop offset="0%" stopColor="var(--emerald-deep)" />
+            <stop offset="50%" stopColor="var(--emerald)" />
+            <stop offset="100%" stopColor="var(--mint)" />
           </linearGradient>
           <filter id="eqGlow" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="3" result="blur" />

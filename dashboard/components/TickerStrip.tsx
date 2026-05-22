@@ -7,7 +7,8 @@ export function TickerStrip() {
   const { data } = useQuery<TapeRow[]>({
     queryKey: ["tape"],
     queryFn: api.tape,
-    refetchInterval: 60_000,
+    // Ticker tape is the most "alive" thing on the page — keep it visibly fresh.
+    refetchInterval: 15_000,
   });
   const tape = data ?? [];
   if (!tape.length) {

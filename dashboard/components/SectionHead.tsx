@@ -26,7 +26,7 @@ export function SectionHead({
             style={{
               fontSize: 10,
               letterSpacing: "0.25em",
-              color: "var(--cyan)",
+              color: "var(--emerald)",
               marginBottom: 6,
             }}
           >
@@ -38,9 +38,10 @@ export function SectionHead({
           className="display"
           style={{
             margin: 0,
-            fontSize: "clamp(20px, 2vw, 28px)",
+            fontSize: "clamp(18px, 1.7vw, 24px)",
             fontWeight: 600,
             lineHeight: 1,
+            color: "var(--ink)",
           }}
         >
           {title}

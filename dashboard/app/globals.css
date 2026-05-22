@@ -1,36 +1,54 @@
 @import "tailwindcss";
 
 :root {
-  /* Dark techy terminal palette */
-  --bg-0: #06080c;
-  --bg-1: #0a0e16;
-  --bg-2: #0f1421;
-  --bg-3: #141a2b;
-  --panel: rgba(14, 20, 34, 0.72);
-  --panel-br: rgba(120, 180, 255, 0.08);
-  --panel-br-strong: rgba(120, 180, 255, 0.18);
+  /* Cromaz: obsidian + chrome + emerald */
+  --bg-0: #050608;
+  --bg-1: #0a0c10;
+  --bg-2: #0f1216;
+  --bg-3: #161a20;
+  --panel: rgba(14, 17, 22, 0.78);
+  --panel-br: rgba(180, 200, 210, 0.08);
+  --panel-br-strong: rgba(0, 230, 130, 0.22);
 
-  --ink: #eaf0ff;
-  --ink-muted: #98a4c2;
-  --ink-faint: #5f6a86;
-  --rule: rgba(120, 180, 255, 0.14);
-  --rule-hair: rgba(120, 180, 255, 0.08);
+  --ink: #eef1f3;
+  --ink-muted: #9aa3ad;
+  --ink-faint: #5b6470;
+  --rule: rgba(180, 200, 210, 0.12);
+  --rule-hair: rgba(180, 200, 210, 0.06);
 
-  --cyan: oklch(78% 0.15 210);
-  --cyan-glow: oklch(78% 0.16 210 / 0.55);
-  --violet: oklch(70% 0.18 290);
-  --violet-glow: oklch(70% 0.18 290 / 0.45);
-  --lime: oklch(82% 0.20 145);
-  --lime-glow: oklch(82% 0.22 145 / 0.55);
-  --rose: oklch(70% 0.21 20);
-  --rose-glow: oklch(70% 0.22 20 / 0.55);
-  --amber: oklch(80% 0.17 75);
+  /* Brand greens — emerald → mint */
+  --emerald: oklch(72% 0.22 148);
+  --emerald-deep: oklch(58% 0.21 148);
+  --emerald-glow: oklch(72% 0.22 148 / 0.55);
+  --mint: oklch(85% 0.20 152);
+  --mint-glow: oklch(85% 0.22 152 / 0.45);
 
-  --gain: var(--lime);
-  --gain-glow: var(--lime-glow);
+  /* Chrome / silver */
+  --chrome-1: #f4f6f8;
+  --chrome-2: #c8ced4;
+  --chrome-3: #8b939c;
+  --chrome-4: #4a5058;
+
+  --rose: oklch(68% 0.22 22);
+  --rose-glow: oklch(68% 0.22 22 / 0.55);
+  --amber: oklch(82% 0.17 75);
+
+  --gain: var(--emerald);
+  --gain-glow: var(--emerald-glow);
   --loss: var(--rose);
   --loss-glow: var(--rose-glow);
-  --accent: var(--cyan);
+  --accent: var(--emerald);
+  --accent-2: var(--chrome-2);
+
+  /* Back-compat aliases — components written before the rebrand still
+     reference --cyan/--violet/--lime; route them all to emerald/chrome
+     so legacy code naturally adopts the new palette. */
+  --cyan: var(--emerald);
+  --cyan-glow: var(--emerald-glow);
+  --violet: var(--mint);
+  --violet-glow: var(--mint-glow);
+  --lime: var(--emerald);
+  --lime-glow: var(--emerald-glow);
 }
 
 @theme inline {
@@ -43,19 +61,21 @@
   --color-ink-faint: var(--ink-faint);
   --color-rule: var(--rule);
   --color-rule-hair: var(--rule-hair);
-  --color-cyan: var(--cyan);
-  --color-violet: var(--violet);
-  --color-lime: var(--lime);
+  --color-emerald: var(--emerald);
+  --color-mint: var(--mint);
+  --color-chrome-2: var(--chrome-2);
   --color-rose: var(--rose);
   --color-amber: var(--amber);
   --color-gain: var(--gain);
   --color-loss: var(--loss);
   --color-warn: var(--amber);
-  /* Back-compat aliases used by pre-existing subpages */
+  --color-cyan: var(--cyan);
+  --color-violet: var(--violet);
+  --color-lime: var(--lime);
   --color-paper: var(--bg-0);
   --color-paper-deep: var(--bg-2);
   --color-paper-edge: var(--bg-3);
-  --font-display: var(--font-fraunces);
+  --font-display: var(--font-cinzel);
   --font-body: var(--font-inter);
   --font-mono: var(--font-jetbrains);
 }
@@ -72,50 +92,53 @@ html, body {
   overflow-x: hidden;
 }
 
-/* Animated aurora backdrop */
+/* Cromaz aurora — emerald + chrome shimmer over obsidian */
 body::before {
   content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 10% 0%,   oklch(40% 0.15 210 / 0.35), transparent 60%),
-    radial-gradient(ellipse 80% 60% at 90% 20%,  oklch(40% 0.18 290 / 0.30), transparent 60%),
-    radial-gradient(ellipse 80% 60% at 50% 100%, oklch(40% 0.17 145 / 0.22), transparent 60%),
-    linear-gradient(180deg, #06080c 0%, #080b12 40%, #06080c 100%);
-  animation: aurora 28s ease-in-out infinite alternate;
+    radial-gradient(ellipse 70% 50% at 12% 0%,   oklch(45% 0.20 148 / 0.32), transparent 60%),
+    radial-gradient(ellipse 70% 50% at 88% 18%,  oklch(40% 0.04 200 / 0.28), transparent 60%),
+    radial-gradient(ellipse 80% 60% at 50% 100%, oklch(40% 0.18 148 / 0.18), transparent 60%),
+    linear-gradient(180deg, #050608 0%, #07090c 40%, #050608 100%);
+  animation: aurora 32s ease-in-out infinite alternate;
 }
 @keyframes aurora {
   0%   { filter: hue-rotate(0deg)   saturate(1); }
-  50%  { filter: hue-rotate(20deg)  saturate(1.15); }
-  100% { filter: hue-rotate(-15deg) saturate(0.95); }
+  50%  { filter: hue-rotate(8deg)   saturate(1.18); }
+  100% { filter: hue-rotate(-6deg)  saturate(0.95); }
 }
 
-/* Grid overlay */
+/* Grid overlay — emerald hairlines */
 body::after {
   content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 1;
   background-image:
-    linear-gradient(to right,  rgba(120, 180, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(120, 180, 255, 0.045) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse 100% 80% at 50% 40%, black 40%, transparent 90%);
-  -webkit-mask-image: radial-gradient(ellipse 100% 80% at 50% 40%, black 40%, transparent 90%);
+    linear-gradient(to right,  rgba(0, 230, 130, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 230, 130, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 100% 80% at 50% 40%, black 30%, transparent 90%);
+  -webkit-mask-image: radial-gradient(ellipse 100% 80% at 50% 40%, black 30%, transparent 90%);
 }
 
-/* Subtle moving scanline */
+/* Subtle candlestick scatter — purely decorative ambient */
+.ambient-candles {
+  position: fixed; inset: 0;
+  z-index: 1; pointer-events: none;
+  opacity: 0.18;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 0%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 0%, transparent 75%);
+}
+
+/* Subtle scanline — emerald tint */
 .scanline {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2;
-  background: linear-gradient(180deg, transparent 0%, rgba(180, 220, 255, 0.04) 50%, transparent 100%);
-  height: 160px;
-  animation: scan 12s linear infinite;
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 2;
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 230, 130, 0.05) 50%, transparent 100%);
+  height: 200px;
+  animation: scan 14s linear infinite;
   mix-blend-mode: screen;
 }
 @keyframes scan {
@@ -123,45 +146,67 @@ body::after {
   to   { transform: translateY(110vh); }
 }
 
-/* Typography helpers */
+/* Typography */
 .display {
-  font-family: var(--font-fraunces), Georgia, serif;
-  font-feature-settings: "ss01" 1, "ss02" 1;
+  font-family: var(--font-cinzel), "Cinzel", "Times New Roman", serif;
+  font-feature-settings: "ss01" 1;
+  letter-spacing: 0.02em;
+  font-weight: 600;
+}
+.display-num {
+  font-family: var(--font-inter), "Inter", system-ui, sans-serif;
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 .mono {
   font-family: var(--font-jetbrains), "JetBrains Mono", monospace;
   font-feature-settings: "tnum" 1, "lnum" 1;
 }
-.smallcaps { text-transform: uppercase; letter-spacing: 0.18em; }
+.smallcaps { text-transform: uppercase; letter-spacing: 0.22em; }
 .tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Chrome text — silvery gradient with a slow shimmer */
+.chrome-text {
+  background: linear-gradient(180deg, #ffffff 0%, var(--chrome-2) 35%, var(--chrome-3) 50%, var(--chrome-2) 65%, #ffffff 100%);
+  background-size: 100% 220%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: chrome-shift 7s ease-in-out infinite alternate;
+}
+@keyframes chrome-shift {
+  0%   { background-position: 0 0%; }
+  100% { background-position: 0 100%; }
+}
+
+.emerald-text { color: var(--emerald); text-shadow: 0 0 14px var(--emerald-glow); }
+.emerald-stroke { -webkit-text-stroke: 1px var(--emerald); }
 
 .rule-top { border-top: 1px solid var(--rule); }
 .rule-bot { border-bottom: 1px solid var(--rule); }
 .rule-hair { border-bottom: 1px solid var(--rule-hair); }
 
 a { color: inherit; text-decoration: none; }
-a:hover { color: var(--cyan); }
+a:hover { color: var(--emerald); }
 
-/* Panel chrome — glass + subtle gradient border */
+/* Panel chrome — emerald edge accent */
 .panel {
   background: var(--panel);
   border: 1px solid var(--panel-br);
   border-radius: 6px;
   backdrop-filter: blur(14px) saturate(120%);
   -webkit-backdrop-filter: blur(14px) saturate(120%);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset,
-              0 18px 50px -18px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 18px 50px -18px rgba(0,0,0,0.65);
   position: relative;
   overflow: hidden;
 }
 .panel::before {
   content: "";
-  position: absolute;
-  inset: 0;
+  position: absolute; inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(130deg, rgba(120, 180, 255, 0.15), transparent 40%, transparent 60%, rgba(180, 120, 255, 0.12));
+  background: linear-gradient(130deg, var(--emerald-glow), transparent 30%, transparent 70%, rgba(200,206,212,0.18));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
           mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
@@ -177,14 +222,11 @@ a:hover { color: var(--cyan); }
 .marquee-track { animation: marquee 80s linear infinite; }
 .marquee-track.paused { animation-play-state: paused; }
 
-@keyframes rise {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.rise { animation: rise 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px);} to { opacity: 1; transform: translateY(0);} }
+.rise { animation: rise 700ms cubic-bezier(0.2,0.7,0.2,1) both; }
 
 @keyframes pulse-dot {
-  0%, 100% { transform: scale(1);    opacity: 1;   box-shadow: 0 0 0 0 var(--loss-glow); }
+  0%, 100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 var(--loss-glow); }
   50%      { transform: scale(1.15); opacity: 0.9; box-shadow: 0 0 0 8px transparent; }
 }
 .pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
@@ -194,13 +236,13 @@ a:hover { color: var(--cyan); }
   80%  { transform: scale(3.2); opacity: 0; }
   100% { transform: scale(3.2); opacity: 0; }
 }
-.pulse-ring { animation: pulse-ring 2s cubic-bezier(0.2, 0.7, 0.2, 1) infinite; }
+.pulse-ring { animation: pulse-ring 2s cubic-bezier(0.2,0.7,0.2,1) infinite; }
 
 @keyframes draw { to { stroke-dashoffset: 0; } }
 .draw-in {
   stroke-dasharray: var(--len, 1000);
   stroke-dashoffset: var(--len, 1000);
-  animation: draw 2.4s cubic-bezier(0.2, 0.7, 0.2, 1) 200ms forwards;
+  animation: draw 2.4s cubic-bezier(0.2,0.7,0.2,1) 200ms forwards;
 }
 
 @keyframes shimmer {
@@ -208,7 +250,7 @@ a:hover { color: var(--cyan); }
   100% { background-position: 200% 0; }
 }
 .shimmer {
-  background: linear-gradient(90deg, transparent 0%, rgba(180, 220, 255, 0.18) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(180,220,255,0.18) 50%, transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 3s linear infinite;
 }
@@ -217,41 +259,47 @@ a:hover { color: var(--cyan); }
   from { width: 0; }
   to   { width: var(--w, 100%); }
 }
-.grow-w { animation: grow-w 1200ms cubic-bezier(0.2, 0.7, 0.2, 1) 200ms both; }
+.grow-w { animation: grow-w 1200ms cubic-bezier(0.2,0.7,0.2,1) 200ms both; }
 
-/* Ticker strip */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+
+@keyframes halo-breathe {
+  0%, 100% { transform: scale(1);    opacity: 0.55; }
+  50%      { transform: scale(1.08); opacity: 0.95; }
+}
+
+/* Ticker strip — emerald bottom border + inset glow */
 .ticker-strip {
   position: relative;
   overflow: hidden;
   border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
-  background: linear-gradient(180deg, rgba(10, 14, 22, 0.95), rgba(6, 8, 12, 0.95));
+  border-bottom: 1px solid rgba(0, 230, 130, 0.25);
+  background: linear-gradient(180deg, rgba(8,11,15,0.96), rgba(5,6,8,0.96));
   backdrop-filter: blur(12px);
+  box-shadow: 0 0 24px rgba(0, 230, 130, 0.06) inset;
 }
 .ticker-track {
-  display: inline-flex;
-  gap: 0;
-  white-space: nowrap;
-  will-change: transform;
+  display: inline-flex; gap: 0; white-space: nowrap; will-change: transform;
 }
 .ticker-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+  display: inline-flex; align-items: center; gap: 10px;
   padding: 8px 22px;
   border-right: 1px solid var(--rule-hair);
   font-family: var(--font-jetbrains), "JetBrains Mono", monospace;
-  font-size: 11px;
-  letter-spacing: 0.04em;
+  font-size: 11px; letter-spacing: 0.04em;
   color: var(--ink-muted);
 }
 .ticker-item .sym { font-weight: 700; color: var(--ink); }
-.ticker-item .up   { color: var(--lime); text-shadow: 0 0 8px var(--lime-glow); }
+.ticker-item .up   { color: var(--emerald); text-shadow: 0 0 8px var(--emerald-glow); }
 .ticker-item .down { color: var(--rose); text-shadow: 0 0 8px var(--rose-glow); }
 
 /* Spark bars */
 .bar-track {
-  background: rgba(120, 180, 255, 0.08);
+  background: rgba(180,200,210,0.06);
   height: 4px;
   position: relative;
   overflow: hidden;
@@ -259,41 +307,29 @@ a:hover { color: var(--cyan); }
 }
 .bar-fill {
   height: 100%;
-  background: var(--cyan);
-  transition: width 600ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  background: var(--emerald);
+  transition: width 600ms cubic-bezier(0.2,0.7,0.2,1);
   border-radius: 2px;
 }
-.bar-fill.gain { background: var(--lime); box-shadow: 0 0 8px var(--lime-glow); }
+.bar-fill.gain {
+  background: linear-gradient(90deg, var(--emerald-deep), var(--mint));
+  box-shadow: 0 0 10px var(--emerald-glow);
+}
 .bar-fill.loss { background: var(--rose); box-shadow: 0 0 8px var(--rose-glow); }
 
-/* Trade row hover reveal */
-.trade-row {
-  transition: background 200ms, border-color 200ms;
-  border-left: 2px solid transparent;
-  padding-left: 10px;
-}
-.trade-row:hover { background: rgba(120, 180, 255, 0.04); border-left-color: var(--cyan); }
-.trade-row .detail {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 320ms cubic-bezier(0.2, 0.7, 0.2, 1), opacity 240ms;
-  opacity: 0;
-}
-.trade-row:hover .detail { max-height: 200px; opacity: 1; }
-
-/* Cadence progress bar */
+/* Cadence bar — emerald → mint */
 .cadence-bar {
   position: relative;
   height: 3px;
-  background: rgba(120, 180, 255, 0.1);
+  background: rgba(180,200,210,0.08);
   overflow: hidden;
   border-radius: 2px;
 }
 .cadence-bar > span {
   position: absolute;
   left: 0; top: 0; bottom: 0;
-  background: linear-gradient(90deg, var(--cyan), var(--violet));
-  box-shadow: 0 0 12px var(--cyan-glow);
+  background: linear-gradient(90deg, var(--emerald-deep), var(--emerald), var(--mint));
+  box-shadow: 0 0 14px var(--emerald-glow);
 }
 
 /* Stat card */
@@ -301,13 +337,13 @@ a:hover { color: var(--cyan); }
   padding: 12px 14px;
   border: 1px solid var(--panel-br);
   border-radius: 5px;
-  background: rgba(10, 14, 22, 0.55);
+  background: rgba(10,12,16,0.6);
   backdrop-filter: blur(8px);
-  transition: border-color 200ms;
+  transition: border-color 200ms, transform 200ms;
 }
-.stat-card:hover { border-color: var(--panel-br-strong); }
+.stat-card:hover { border-color: var(--panel-br-strong); transform: translateY(-1px); }
 
-/* Nav pill */
+/* Nav pill — emerald active glow */
 .nav-pill {
   position: relative;
   padding: 7px 14px;
@@ -321,12 +357,12 @@ a:hover { color: var(--cyan); }
 .nav-pill.active {
   color: var(--ink);
   font-weight: 700;
-  background: rgba(120, 180, 255, 0.08);
-  border-color: rgba(120, 180, 255, 0.25);
-  box-shadow: 0 0 16px rgba(120, 180, 255, 0.15) inset;
+  background: linear-gradient(135deg, rgba(0,230,130,0.12), rgba(180,200,210,0.04));
+  border-color: rgba(0,230,130,0.32);
+  box-shadow: 0 0 18px rgba(0,230,130,0.18) inset;
 }
 
-/* Chip */
+/* Chip — emerald BUY, rose SELL */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -337,29 +373,100 @@ a:hover { color: var(--cyan); }
   font-size: 10px;
   border: 1px solid var(--rule);
   color: var(--ink-muted);
-  background: rgba(120, 180, 255, 0.03);
+  background: rgba(180,200,210,0.03);
 }
-.chip.buy  { color: var(--lime); border-color: var(--lime-glow); box-shadow: 0 0 8px rgba(126, 245, 110, 0.15) inset; }
-.chip.sell { color: var(--rose); border-color: var(--rose-glow); }
+.chip.buy {
+  color: var(--emerald);
+  border-color: var(--emerald-glow);
+  box-shadow: 0 0 10px rgba(0,230,130,0.18) inset;
+}
+.chip.sell {
+  color: var(--rose);
+  border-color: var(--rose-glow);
+}
 
-/* Accent section-head bar */
+/* Section accent — emerald + chrome bar */
 .accent-bar {
   display: inline-block;
   width: 3px;
-  height: 12px;
-  background: linear-gradient(180deg, var(--cyan), var(--violet));
+  height: 18px;
+  background: linear-gradient(180deg, var(--emerald), var(--chrome-2));
   border-radius: 2px;
-  box-shadow: 0 0 10px var(--cyan-glow);
-  margin-right: 8px;
+  box-shadow: 0 0 10px var(--emerald-glow);
+  margin-right: 10px;
   vertical-align: middle;
 }
 
-:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+/* Trade row hover — emerald stripe */
+.trade-row {
+  transition: background 200ms, border-color 200ms;
+  border-left: 2px solid transparent;
+  padding-left: 10px;
+}
+.trade-row:hover {
+  background: rgba(0,230,130,0.04);
+  border-left-color: var(--emerald);
+}
+.trade-row .detail {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 320ms cubic-bezier(0.2,0.7,0.2,1), opacity 240ms;
+  opacity: 0;
+}
+.trade-row:hover .detail { max-height: 200px; opacity: 1; }
 
-/* Scrollbar */
+:focus-visible { outline: 2px solid var(--emerald); outline-offset: 2px; }
+
+/* Scrollbar — chrome on obsidian */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(120, 180, 255, 0.12); border-radius: 5px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(120, 180, 255, 0.28); }
+::-webkit-scrollbar-thumb { background: rgba(180,200,210,0.12); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,230,130,0.28); }
 
 .page { position: relative; z-index: 3; max-width: 1440px; margin: 0 auto; padding: 20px 24px 80px; }
+
+/* Cromaz logo wrapper — large, prominent, emerald halo */
+.cromaz-logo {
+  width: clamp(110px, 12vw, 156px);
+  height: clamp(110px, 12vw, 156px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(0,230,130,0.30), transparent 60%), #0a0c10;
+  border: 1.5px solid rgba(0,230,130,0.45);
+  box-shadow:
+    0 0 60px rgba(0,230,130,0.32),
+    0 0 24px rgba(0,230,130,0.20),
+    0 0 0 1px rgba(180,200,210,0.12) inset;
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+}
+.cromaz-logo img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  filter: drop-shadow(0 0 8px rgba(0,230,130,0.35)) contrast(1.05) brightness(1.05);
+}
+/* Rotating emerald conic-gradient ring */
+.cromaz-logo::after {
+  content: "";
+  position: absolute; inset: -3px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: conic-gradient(from 0deg, transparent 0deg, var(--emerald) 80deg, var(--mint) 110deg, transparent 200deg, transparent 360deg);
+  animation: spin-slow 6s linear infinite;
+  -webkit-mask: radial-gradient(circle, transparent 47%, black 49%, black 51%, transparent 53%);
+          mask: radial-gradient(circle, transparent 47%, black 49%, black 51%, transparent 53%);
+  opacity: 0.85;
+  filter: blur(0.5px);
+}
+/* Outer breathing halo */
+.cromaz-logo::before {
+  content: "";
+  position: absolute; inset: -12px;
+  border-radius: 50%;
+  pointer-events: none;
+  border: 1px solid rgba(0,230,130,0.18);
+  animation: halo-breathe 3.4s ease-in-out infinite;
+}
+
+@media (max-width: 760px) {
+  .hide-sm { display: none; }
+}

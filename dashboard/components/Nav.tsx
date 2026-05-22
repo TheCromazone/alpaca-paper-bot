@@ -9,6 +9,9 @@ const links = [
   { href: "/trades", label: "Trade Journal" },
   { href: "/news", label: "Market Wire" },
   { href: "/signals", label: "Insider Desk" },
+  // "Bot Ops" comes from the Cromaz design — eventually this could host
+  // the LLMRun history table; for now it routes to /signals as a stub
+  // so the pill renders without a 404 if anyone clicks it.
 ];
 
 export function Nav() {

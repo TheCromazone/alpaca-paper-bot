@@ -9,6 +9,9 @@ export function LatestHeadlines({ limit = 8 }: { limit?: number }) {
   const { data } = useQuery<NewsRow[]>({
     queryKey: ["news", limit],
     queryFn: () => api.news(limit),
+    // research_tick scrapes news every 15 min around the clock; this keeps the
+    // panel fresh between scrapes without hammering the API.
+    refetchInterval: 30_000,
   });
   const news = data ?? [];
 

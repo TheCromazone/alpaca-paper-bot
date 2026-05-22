@@ -12,6 +12,8 @@ import { BotRibbon } from "@/components/BotRibbon";
 import { Leaderboard } from "@/components/Leaderboard";
 import { InsiderDesk } from "@/components/InsiderDesk";
 import { ThesisPanel } from "@/components/ThesisPanel";
+import { EarningsThisWeek } from "@/components/EarningsThisWeek";
+import { ManualTradePanel } from "@/components/ManualTradePanel";
 
 export default function Home() {
   const { data: summary } = useQuery<PortfolioSummary>({
@@ -34,12 +36,21 @@ export default function Home() {
 
   return (
     <div>
-      {/* Row 1: Lede — explanatory paragraph + bot ribbon + equity chart */}
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 28, marginTop: 24 }}>
+      {/* Row 1: Performance Overview — masthead → bot ribbon → tall equity chart.
+          Per the Cromaz design: NO lede paragraph, just the title + ribbon +
+          chart. The chart breathes at 560px so it's the page's centerpiece. */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(12, 1fr)",
+          gap: 28,
+          marginTop: 24,
+        }}
+      >
         <article style={{ gridColumn: "span 12", minWidth: 0 }}>
           <SectionHead
-            eyebrow="Portfolio v. S&P 500 — Thirty-Day View"
-            title="Where the money stands"
+            eyebrow="Portfolio v. S&P 500 — 30 Day"
+            title="Performance Overview"
             right={
               summary ? (
                 <span>
@@ -49,49 +60,16 @@ export default function Home() {
               ) : null
             }
           />
-          <p
-            style={{
-              fontSize: 15,
-              lineHeight: 1.55,
-              color: "var(--ink)",
-              maxWidth: "72ch",
-              marginTop: 0,
-            }}
-          >
-            <span
-              style={{
-                fontFamily: "var(--font-fraunces), Fraunces, serif",
-                fontSize: "3.2em",
-                lineHeight: 0.85,
-                float: "left",
-                padding: "0.05em 0.1em 0 0",
-                fontWeight: 600,
-                background:
-                  "linear-gradient(135deg, var(--cyan), var(--violet))",
-                WebkitBackgroundClip: "text",
-                backgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}
-            >
-              T
-            </span>
-            he bot runs five scheduled routines per weekday — pre-market
-            research at 07:00 ET, execute at market open, a midday risk scan,
-            a close wrap-up, and a Friday post-mortem. Each is a Claude Opus
-            tool-use loop that reads memory files, researches catalysts with
-            web search + our scraped news DB, and places trades with a 10%
-            trailing stop attached automatically. The dashed red line tracks
-            the S&amp;P 500 indexed to the same starting equity so relative
-            performance is visible at a glance.
-          </p>
           <BotRibbon />
-          <div style={{ marginTop: 20 }}>
+          <div style={{ marginTop: 8 }}>
             <EquityChart startEquity={baseEquity} />
           </div>
         </article>
       </section>
 
-      {/* Row 1.5: Today's thesis from research_log.md */}
+      {/* Row 2: Today's thesis from research_log.md — comes FIRST per the
+          design (Thesis → Manual → Earnings), so the morning's plan is the
+          first thing you scroll into after the chart. */}
       <section
         style={{
           display: "grid",
@@ -103,6 +81,36 @@ export default function Home() {
       >
         <div style={{ gridColumn: "span 12", paddingTop: 24 }}>
           <ThesisPanel />
+        </div>
+      </section>
+
+      {/* Row 3: Manual trade — user-driven escape hatch around the LLM */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(12, 1fr)",
+          gap: 28,
+          marginTop: 44,
+        }}
+        className="rule-top"
+      >
+        <div style={{ gridColumn: "span 12", paddingTop: 24 }}>
+          <ManualTradePanel />
+        </div>
+      </section>
+
+      {/* Row 1.7: Earnings calendar — held positions highlighted */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(12, 1fr)",
+          gap: 28,
+          marginTop: 44,
+        }}
+        className="rule-top"
+      >
+        <div style={{ gridColumn: "span 12", paddingTop: 24 }}>
+          <EarningsThisWeek />
         </div>
       </section>
 
@@ -173,17 +181,19 @@ export default function Home() {
               </a>
             }
           />
-          <RecentTrades limit={6} />
+          <RecentTrades limit={15} />
           <div
             className="mono smallcaps"
             style={{
-              fontSize: 9,
-              letterSpacing: "0.25em",
+              fontSize: 9.5,
+              letterSpacing: "0.22em",
               color: "var(--ink-faint)",
-              marginTop: 12,
+              marginTop: 14,
+              lineHeight: 1.6,
             }}
           >
-            ▸ hover any row to expand reasoning
+            ▸ hover any row for the full thesis &middot; composite &middot;
+            insider Δ
           </div>
         </article>
         <aside style={{ gridColumn: "span 4", minWidth: 0, paddingTop: 24 }}>
