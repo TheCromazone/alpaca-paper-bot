@@ -45,13 +45,34 @@ def _parse_published(entry) -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _fetch_one_feed(url: str, source: str):
+    """Pull one feed with up to 3 attempts on transient failure (DNS / 429 /
+    socket timeout). Off-hours scrapers used to drop ~5 jobs/14d on flaky
+    feeds; retrying inline keeps the batch healthy."""
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            parsed = feedparser.parse(url, request_headers={"User-Agent": "Mozilla/5.0"})
+            # feedparser swallows HTTP errors into ``parsed.bozo`` / ``status``
+            # rather than raising. Treat 5xx + network exceptions as retryable.
+            status = getattr(parsed, "status", 200)
+            if status and 500 <= status < 600:
+                raise RuntimeError(f"HTTP {status} from {source}")
+            return parsed
+        except Exception as exc:
+            last_exc = exc
+            if attempt < 2:
+                import time as _t
+                _t.sleep(2 ** attempt)  # 1s, 2s
+    logger.warning("feed {} failed after retries: {}", source, last_exc)
+    return None
+
+
 def fetch_all() -> list[FeedItem]:
     items: list[FeedItem] = []
     for source, url in FEEDS.items():
-        try:
-            parsed = feedparser.parse(url, request_headers={"User-Agent": "Mozilla/5.0"})
-        except Exception as exc:
-            logger.warning("feed {} failed: {}", source, exc)
+        parsed = _fetch_one_feed(url, source)
+        if parsed is None:
             continue
         for entry in parsed.entries[:50]:
             title = (getattr(entry, "title", "") or "").strip()

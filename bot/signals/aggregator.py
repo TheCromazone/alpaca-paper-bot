@@ -20,6 +20,7 @@ from sqlalchemy import select, and_
 
 from bot.config import (
     FULL_UNIVERSE,
+    POLITICIAN_WEIGHTS,
     WEIGHT_DIP_BONUS,
     WEIGHT_INVESTOR,
     WEIGHT_MOMENTUM,
@@ -78,10 +79,20 @@ def _politician_score(session, ticker: str) -> tuple[float, dict]:
     ).all()
     if not rows:
         return 0.0, {"trades": 0}
-    net = sum((r.amount or 0) * (1 if r.direction == "buy" else -1) for r in rows)
-    # Normalize: $500k net → +/- 1.0
+    # Apply per-politician conviction weight from meta (set by politicians.py
+    # / senate.py). Pelosi 2.0× counts more than a backbencher's 1.0×.
+    net = 0.0
+    weighted_count = 0
+    for r in rows:
+        meta = r.meta or {}
+        politician = meta.get("politician") or r.source or ""
+        w = POLITICIAN_WEIGHTS.get(politician, 1.0)
+        net += (r.amount or 0) * w * (1 if r.direction == "buy" else -1)
+        if w > 1.0:
+            weighted_count += 1
+    # Normalize: $500k weighted net → +/- 1.0
     score = max(-3.0, min(3.0, net / 500_000))
-    return score, {"trades": len(rows), "net_usd": net}
+    return score, {"trades": len(rows), "net_usd": round(net, 0), "weighted_n": weighted_count}
 
 
 def _investor_score(session, ticker: str) -> tuple[float, dict]:
@@ -92,10 +103,15 @@ def _investor_score(session, ticker: str) -> tuple[float, dict]:
     ).all()
     if not rows:
         return 0.0, {"changes": 0}
-    net = sum((r.amount or 0) * (1 if r.direction == "buy" else -1) for r in rows)
-    # 13F deltas are much larger; $50M → +/- 1.0
+    # Apply per-fund conviction weight from meta (set by investors.py).
+    net = 0.0
+    for r in rows:
+        meta = r.meta or {}
+        w = float(meta.get("weight") or 1.0)
+        net += (r.amount or 0) * w * (1 if r.direction == "buy" else -1)
+    # 13F deltas are much larger; $50M weighted → +/- 1.0
     score = max(-3.0, min(3.0, net / 50_000_000))
-    return score, {"changes": len(rows), "net_usd": net}
+    return score, {"changes": len(rows), "net_usd": round(net, 0)}
 
 
 def _momentum_score(session, ticker: str, spy_return: float) -> tuple[float, dict]:

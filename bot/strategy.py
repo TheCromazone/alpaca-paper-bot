@@ -113,16 +113,23 @@ def plan(scores: list[ScoreBreakdown], equity: float, cash: float,
             ))
             continue
 
-        # Rebalance trim
-        trim_dollars = should_trim_for_rebalance(ctx, ticker)
-        if trim_dollars > 0:
-            r = f"rebalance trim: position is {pos.market_value/ctx.equity:.1%} of portfolio"
-            orders.append(PlannedOrder(ticker, "sell", trim_dollars, r, sb, "trim"))
-            decisions.append(Decision(
-                ticker=ticker, action="sell", composite_score=(sb.composite if sb else 0),
-                score_breakdown=(sb.components if sb else {}), reason=r,
-            ))
-            continue
+        # Rebalance trim — DISABLED 2026-05-07.
+        # This rule contradicted the fixed-income-floor rule below on AGG and
+        # caused 98 AGG trades + 39 RTX wash-rejections in week 1. The 5%-of-
+        # equity entry cap (LLM_MAX_POSITION_PCT) already prevents the kind
+        # of over-concentration this rule was meant to fix. If a future caller
+        # really wants reflexive trim, port it into the LLM tool layer with
+        # explicit no-op-against-recent-buy guards instead of resurrecting it
+        # here. Kept for reference.
+        # trim_dollars = should_trim_for_rebalance(ctx, ticker)
+        # if trim_dollars > 0:
+        #     r = f"rebalance trim: position is {pos.market_value/ctx.equity:.1%} of portfolio"
+        #     orders.append(PlannedOrder(ticker, "sell", trim_dollars, r, sb, "trim"))
+        #     decisions.append(Decision(
+        #         ticker=ticker, action="sell", composite_score=(sb.composite if sb else 0),
+        #         score_breakdown=(sb.components if sb else {}), reason=r,
+        #     ))
+        #     continue
 
         # Dip-add to winning thesis
         drawdown_from_cost = (pos.market_price / pos.avg_cost) - 1 if pos.avg_cost else 0
@@ -170,18 +177,23 @@ def plan(scores: list[ScoreBreakdown], equity: float, cash: float,
         ctx.cash -= size
         ctx.current_positions[sb.ticker] = size
 
-    # ---- 3. Fixed-income floor maintenance ----
-    fi_mv = sum(positions[t].market_value for t in FIXED_INCOME_UNIVERSE if t in positions)
-    fi_target = equity * FIXED_INCOME_FLOOR
-    if fi_mv < fi_target and ctx.cash > 0:
-        deficit = min(fi_target - fi_mv, ctx.cash * 0.9)
-        pick = "AGG"  # default: broad aggregate bond
-        r = f"fixed-income floor: bonds at {fi_mv/equity:.1%} below {FIXED_INCOME_FLOOR:.0%} target"
-        orders.append(PlannedOrder(pick, "buy", deficit, r, None, "buy"))
-        decisions.append(Decision(
-            ticker=pick, action="buy", composite_score=0,
-            score_breakdown={"kind": "fixed_income_floor"}, reason=r,
-        ))
+    # ---- 3. Fixed-income floor maintenance — DISABLED 2026-05-07. ----
+    # This rule fired AGG buys every cycle while the rebalance-trim rule
+    # above sold them, creating a 98-trade ping-pong on AGG in week 1.
+    # strategy.md's current policy is "bond ETFs are opt-in only" — the LLM
+    # may buy bonds on a deliberate rate/duration thesis but there is no
+    # automatic floor. Block kept for reference, not executed.
+    # fi_mv = sum(positions[t].market_value for t in FIXED_INCOME_UNIVERSE if t in positions)
+    # fi_target = equity * FIXED_INCOME_FLOOR
+    # if fi_mv < fi_target and ctx.cash > 0:
+    #     deficit = min(fi_target - fi_mv, ctx.cash * 0.9)
+    #     pick = "AGG"
+    #     r = f"fixed-income floor: bonds at {fi_mv/equity:.1%} below {FIXED_INCOME_FLOOR:.0%} target"
+    #     orders.append(PlannedOrder(pick, "buy", deficit, r, None, "buy"))
+    #     decisions.append(Decision(
+    #         ticker=pick, action="buy", composite_score=0,
+    #         score_breakdown={"kind": "fixed_income_floor"}, reason=r,
+    #     ))
 
     with SessionLocal.begin() as s:
         for d in decisions:

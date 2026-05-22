@@ -16,7 +16,7 @@ from xml.etree import ElementTree as ET
 import requests
 from loguru import logger
 
-from bot.config import FULL_UNIVERSE, TRACKED_INVESTORS, settings
+from bot.config import FULL_UNIVERSE, INVESTOR_WEIGHTS, TRACKED_INVESTORS, settings
 from bot.db import JobRun, Signal, SessionLocal
 
 
@@ -166,6 +166,7 @@ def _persist(trades: Iterable[InvestorTrade]) -> int:
     count = 0
     with SessionLocal.begin() as s:
         for t in trades:
+            weight = INVESTOR_WEIGHTS.get(t.investor, 1.0)
             s.add(Signal(
                 ticker=t.ticker,
                 kind="investor",
@@ -173,7 +174,13 @@ def _persist(trades: Iterable[InvestorTrade]) -> int:
                 direction=t.direction,
                 amount=t.amount,
                 as_of=t.traded_on,
-                meta={"source_url": t.source_url},
+                meta={
+                    "source_url": t.source_url,
+                    # Aggregator multiplies amount by `weight` from meta —
+                    # Berkshire's $5M move counts more than a multi-strat's.
+                    "weight": weight,
+                    "investor": t.investor,
+                },
             ))
             count += 1
     return count

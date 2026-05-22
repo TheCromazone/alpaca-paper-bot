@@ -169,20 +169,28 @@ def refresh_house(limit_filings: int = 50) -> int:
     return new_signals
 
 
-def _persist_signals(trades: Iterable, kind: str) -> int:
+def _persist_signals(trades: Iterable, kind: str, *, chamber: str = "house") -> int:
     count = 0
     with SessionLocal.begin() as s:
         for t in trades:
             # Dedup by (kind, source, ticker, direction, date)
             key_as_of = getattr(t, "traded_on", None) or datetime.now(timezone.utc)
+            politician = getattr(t, "politician", None)
             s.add(Signal(
                 ticker=t.ticker,
                 kind=kind,
-                source=t.politician if kind == "politician" else t.investor,
+                source=politician if kind == "politician" else getattr(t, "investor", ""),
                 direction=t.direction,
                 amount=float(getattr(t, "amount", 0) or 0),
                 as_of=key_as_of,
-                meta={"source_url": getattr(t, "source_url", "")},
+                meta={
+                    "source_url": getattr(t, "source_url", ""),
+                    # Aggregator reads `politician` + `chamber` to apply
+                    # POLITICIAN_WEIGHTS. Stored on every row so a Pelosi
+                    # PTR is weighted higher than a backbencher's.
+                    "politician": politician,
+                    "chamber": chamber,
+                },
             ))
             count += 1
     return count

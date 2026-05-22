@@ -215,5 +215,49 @@ class AlpacaClient:
         return out
 
     @_NETWORK_RETRY
+    def closed_orders(self, days: int = 30, limit: int = 200) -> list[dict]:
+        """Return Alpaca's closed (filled / partially_filled / canceled) orders
+        from the last ``days`` days. We use this to surface trailing-stop SELL
+        fills in the dashboard — those execute on Alpaca's side and never
+        write a row to our local ``Trade`` table because the LLM didn't
+        place them.
+        """
+        from datetime import datetime, timedelta, timezone
+
+        after = datetime.now(timezone.utc) - timedelta(days=days)
+        req = GetOrdersRequest(
+            status=QueryOrderStatus.CLOSED,
+            after=after,
+            limit=limit,
+            direction="desc",
+        )
+        try:
+            orders = self.trading.get_orders(filter=req)
+        except Exception as exc:
+            logger.warning("closed_orders failed: {}", exc)
+            return []
+        out: list[dict] = []
+        for o in orders:
+            # Skip non-filled (rejected/canceled with no fill — noise on the trade tape)
+            filled_qty = float(o.filled_qty or 0)
+            if filled_qty <= 0:
+                continue
+            avg_price = float(o.filled_avg_price or 0)
+            out.append({
+                "id": str(o.id),
+                "client_order_id": str(o.client_order_id) if o.client_order_id else None,
+                "symbol": o.symbol,
+                "qty": filled_qty,
+                "side": str(o.side.value if hasattr(o.side, "value") else o.side),
+                "type": str(o.order_type.value if hasattr(o.order_type, "value") else o.order_type),
+                "status": str(o.status.value if hasattr(o.status, "value") else o.status),
+                "price": avg_price,
+                "notional": filled_qty * avg_price,
+                "submitted_at": o.submitted_at.isoformat() if o.submitted_at else None,
+                "filled_at": o.filled_at.isoformat() if o.filled_at else None,
+            })
+        return out
+
+    @_NETWORK_RETRY
     def market_is_open(self) -> bool:
         return bool(self.trading.get_clock().is_open)

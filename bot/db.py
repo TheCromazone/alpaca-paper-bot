@@ -192,6 +192,52 @@ class LLMRun(Base):
     error = Column(Text)
 
 
+class MarketRegime(Base):
+    """Daily macro snapshot the LLM consults to size + select trades.
+
+    One row per UTC date. Computed once a day after price_refresh.
+    """
+    __tablename__ = "market_regime"
+    id = Column(Integer, primary_key=True)
+    as_of = Column(DateTime(timezone=True), index=True, nullable=False)
+    vix = Column(Float)                    # spot VIX close
+    vix_5d_change = Column(Float)          # absolute change vs 5 trading days ago
+    spy_trend = Column(Float)              # SPY 50d MA / 200d MA - 1.0; >0 = uptrend
+    t10y2y = Column(Float)                 # FRED 10Y - 2Y treasury spread
+    breadth_pct = Column(Float)            # % of EQUITY_UNIVERSE above 50d MA
+    regime_label = Column(String(16))      # "risk_on" | "neutral" | "risk_off"
+    meta = Column(JSON, default=dict)      # diagnostics
+
+
+class EarningsCalendar(Base):
+    """Upcoming earnings dates. Refreshed daily; old rows retained for history."""
+    __tablename__ = "earnings_calendar"
+    id = Column(Integer, primary_key=True)
+    ticker = Column(String(16), index=True, nullable=False)
+    report_date = Column(DateTime(timezone=True), index=True, nullable=False)
+    time_of_day = Column(String(8))        # "bmo" | "amc" | "tnt" | null
+    eps_estimate = Column(Float)
+    fetched_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    __table_args__ = (
+        UniqueConstraint("ticker", "report_date", name="uq_earnings_cal_ticker_date"),
+    )
+
+
+class EarningsHistory(Base):
+    """Prior-quarter EPS surprise history per ticker."""
+    __tablename__ = "earnings_history"
+    id = Column(Integer, primary_key=True)
+    ticker = Column(String(16), index=True, nullable=False)
+    quarter = Column(String(16), nullable=False)  # "2025-Q4" etc.
+    eps_actual = Column(Float)
+    eps_estimate = Column(Float)
+    surprise_pct = Column(Float)
+    fetched_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    __table_args__ = (
+        UniqueConstraint("ticker", "quarter", name="uq_earnings_hist_ticker_q"),
+    )
+
+
 def _migrate_sqlite() -> None:
     """Tiny migration helper: add new columns to existing tables without
     re-creating them. SQLite is permissive about ALTER TABLE ADD COLUMN.

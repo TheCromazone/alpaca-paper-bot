@@ -11,13 +11,22 @@ from apscheduler.triggers.cron import CronTrigger
 from loguru import logger
 
 from bot.alpaca_client import AlpacaClient
-from bot.config import FIXED_INCOME_UNIVERSE, EQUITY_UNIVERSE, FULL_UNIVERSE, ROOT, settings
+from bot.config import (
+    FIXED_INCOME_UNIVERSE,
+    EQUITY_UNIVERSE,
+    FULL_UNIVERSE,
+    LLM_TRAILING_STOP_PCT,
+    ROOT,
+    settings,
+)
 from bot.db import (
+    Decision,
     JobRun,
     Position,
     PortfolioSnapshot,
     PriceHistory,
     SessionLocal,
+    Trade,
     init_db,
 )
 from bot.executor import execute
@@ -26,8 +35,11 @@ from bot.news.rss_scraper import fetch_all, persist_new
 from bot.signals import aggregator
 from bot.signals.sentiment import rescore_scraped_articles, score_unscored
 from bot.strategy import plan
+from bot.signals import earnings as earnings_job
 from bot.signals import investors as investor_job
 from bot.signals import politicians as politician_job
+from bot.signals import regime as regime_job
+from bot.signals import senate as senate_job
 
 
 _nyse = mcal.get_calendar("NYSE")
@@ -76,6 +88,11 @@ def _sync_account_and_positions(alpaca: AlpacaClient) -> None:
         ))
 
     live_positions = {p.symbol: p for p in alpaca.positions()}
+    # Synthetic-stop candidates collected here so we can sell *outside* the
+    # `with SessionLocal.begin()` block — submitting an Alpaca order while
+    # holding a write transaction risks deadlock if the order callback also
+    # touches the DB.
+    synthetic_sells: list[tuple[str, float, float, float]] = []  # (sym, qty, peak, mkt)
     with SessionLocal.begin() as s:
         existing = {p.ticker: p for p in s.query(Position).all()}
         for sym, lp in live_positions.items():
@@ -96,10 +113,67 @@ def _sync_account_and_positions(alpaca: AlpacaClient) -> None:
                 if lp.market_price > (row.peak_price or 0):
                     row.peak_price = lp.market_price
                 row.updated_at = datetime.now(timezone.utc)
+
+                # --- Synthetic trailing stop (added 2026-05-07) ---
+                # Alpaca rejects GTC trailing stops on fractional positions, so
+                # the LLM's place_buy auto-stop fails on most buys (13/14 had
+                # no stop_order_id as of audit). The midday 7%-from-cost rule
+                # is the only safety net, and it can't catch overnight gaps.
+                # This synthetic stop fires every 5 min: if the position has
+                # no Alpaca-side stop, we drift its peak up with price, and
+                # if price falls more than LLM_TRAILING_STOP_PCT below peak,
+                # we force-close at market. ~5 min noise window before stop
+                # is armed, to avoid flushing fresh entries on a tick wiggle.
+                _ARM_AGE_S = 300  # 5 min
+                if (
+                    not settings.dry_run
+                    and not row.stop_order_id
+                    and lp.market_price > 0
+                    and (row.peak_price or 0) > 0
+                    and lp.market_price < (row.peak_price or 0) * (1 - LLM_TRAILING_STOP_PCT)
+                    and row.opened_at is not None
+                    and (
+                        datetime.now(timezone.utc)
+                        - (row.opened_at if row.opened_at.tzinfo else row.opened_at.replace(tzinfo=timezone.utc))
+                    ).total_seconds() > _ARM_AGE_S
+                ):
+                    synthetic_sells.append(
+                        (sym, float(lp.qty or 0), float(row.peak_price or 0), float(lp.market_price))
+                    )
         # Remove rows that Alpaca no longer reports (fully closed positions).
         for sym in list(existing.keys()):
             if sym not in live_positions:
                 s.delete(existing[sym])
+
+    # Fire any synthetic-stop sells outside the DB transaction.
+    for sym, qty, peak, mkt in synthetic_sells:
+        try:
+            # Defensive: pre-cancel any open opposite-side order on the symbol
+            # the same way the LLM's place_sell does, to avoid Alpaca's
+            # wash-trade rejection on rapid cancel-then-sell.
+            for o in alpaca.open_orders():
+                if o.get("symbol") == sym and (o.get("side") or "").lower() == "buy":
+                    alpaca.cancel_order_by_id(o["id"])
+            order_id = alpaca.submit_market(sym, qty, "sell")
+            drop_pct = (peak - mkt) / peak * 100 if peak else 0
+            logger.warning(
+                "synthetic trailing stop fired: {} sold {} @ ~${} (peak ${} → {:.2f}% drop). order_id={}",
+                sym, qty, mkt, peak, drop_pct, order_id,
+            )
+            with SessionLocal.begin() as s:
+                s.add(Trade(
+                    ticker=sym, side="sell", qty=qty, price=mkt,
+                    notional=qty * mkt, status="submitted", alpaca_order_id=order_id,
+                    dry_run=False,
+                ))
+                s.add(Decision(
+                    ticker=sym, action="sell", composite_score=0.0,
+                    score_breakdown={"kind": "synthetic_trailing_stop"},
+                    reason=f"synthetic trailing stop: ${mkt:.2f} fell >{LLM_TRAILING_STOP_PCT:.0%} from peak ${peak:.2f}",
+                    dry_run=False,
+                ))
+        except Exception as exc:
+            logger.exception("synthetic stop for {} failed: {}", sym, exc)
 
 
 def _refresh_price_history(alpaca: AlpacaClient) -> None:
@@ -179,8 +253,31 @@ def daily_politician_refresh() -> None:
     _log_job("politicians_daily", politician_job.run)
 
 
+def daily_senate_refresh() -> None:
+    _log_job("senate_daily", senate_job.run)
+
+
 def weekly_investor_refresh() -> None:
     _log_job("investors_weekly", investor_job.run)
+
+
+def daily_regime_refresh() -> None:
+    _log_job("regime_daily", regime_job.run)
+
+
+def daily_earnings_refresh() -> None:
+    _log_job("earnings_daily", earnings_job.run)
+
+
+def sync_account_job() -> None:
+    """Standalone account+positions sync. Was previously called only from
+    the retired ``tick()``; when the quant strategy was retired in Phase 5
+    the local DB stopped being refreshed and drifted 7+ days out of date.
+    This job restores the sync as a first-class scheduled job, independent
+    of the LLM routines, so PortfolioSnapshot history keeps rolling and the
+    /positions DB-fallback stays warm.
+    """
+    _log_job("sync_account", lambda: _sync_account_and_positions(AlpacaClient()))
 
 
 # --- Phase 5: LLM routines (gated on settings.llm_routines_enabled) ---
@@ -293,6 +390,31 @@ def main(run_once: bool = False) -> None:
     scheduler.add_job(weekly_investor_refresh, CronTrigger(
         day_of_week="sun", hour="6", minute="0", timezone="UTC"),
         id="investors")
+
+    # Daily Senate PTR refresh — 07:30 UTC, half hour after House so the
+    # eFD's session cookie won't collide with the politician scrape.
+    scheduler.add_job(daily_senate_refresh, CronTrigger(
+        hour="7", minute="30", timezone="UTC"),
+        id="senate")
+
+    # Daily market-regime snapshot — 21:00 UTC, after the 20:30 price refresh
+    # so SPY closes are loaded before we compute MA crosses + breadth.
+    scheduler.add_job(daily_regime_refresh, CronTrigger(
+        hour="21", minute="0", timezone="UTC"),
+        id="regime")
+
+    # Daily earnings calendar + surprise-history refresh — 22:00 UTC.
+    scheduler.add_job(daily_earnings_refresh, CronTrigger(
+        hour="22", minute="0", timezone="UTC"),
+        id="earnings")
+
+    # Account + positions sync — every 5 min, all hours. Cheap (one Alpaca
+    # account+positions call) and keeps PortfolioSnapshot history rolling
+    # so the equity chart never goes stale. The /positions and
+    # /portfolio/summary endpoints hit Alpaca live anyway, but this snapshot
+    # is what the equity chart and the DB-fallback path read.
+    scheduler.add_job(sync_account_job, CronTrigger(minute="*/5", timezone="UTC"),
+                      id="sync_account", max_instances=1, coalesce=True)
 
     logger.info("scheduler started (DRY_RUN={})", settings.dry_run)
     signal.signal(signal.SIGINT, lambda *_: scheduler.shutdown())
