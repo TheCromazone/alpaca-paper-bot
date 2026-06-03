@@ -161,16 +161,24 @@ def _sync_account_and_positions(alpaca: AlpacaClient) -> None:
                 sym, qty, mkt, peak, drop_pct, order_id,
             )
             with SessionLocal.begin() as s:
-                s.add(Trade(
+                trade = Trade(
                     ticker=sym, side="sell", qty=qty, price=mkt,
                     notional=qty * mkt, status="submitted", alpaca_order_id=order_id,
                     dry_run=False,
-                ))
+                )
+                s.add(trade)
+                # Flush to populate trade.id BEFORE creating the Decision, then
+                # link via trade_id. Without this the Decision is orphaned and
+                # /trades (which reads trade.decisions) shows the sell with no
+                # reason — this was the bug that hid every synthetic-stop
+                # rationale on the dashboard prior to 2026-06.
+                s.flush()
                 s.add(Decision(
                     ticker=sym, action="sell", composite_score=0.0,
                     score_breakdown={"kind": "synthetic_trailing_stop"},
                     reason=f"synthetic trailing stop: ${mkt:.2f} fell >{LLM_TRAILING_STOP_PCT:.0%} from peak ${peak:.2f}",
                     dry_run=False,
+                    trade_id=trade.id,
                 ))
         except Exception as exc:
             logger.exception("synthetic stop for {} failed: {}", sym, exc)
