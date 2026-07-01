@@ -1511,3 +1511,832 @@ Rationale: this week’s biggest analytical gap is not idea quality; it is that 
 - **COST** — earnings May 28, 2026 after close; EPS estimate $4.91. Watch comp sales, traffic, renewal rates, and merchandise margin.
 - **PANW** — fiscal Q3 earnings June 2, 2026 after close; EPS estimate $0.43. Watch NGS ARR, RPO, platformization count, CyberArk/Chronosphere integration commentary.
 - **AVGO** — earnings June 3, 2026 after close; EPS estimate $2.02. Watch AI networking/custom silicon demand, VMware synergy/margin, and forward guide.
+## 2026-06-13
+### Pre-market
+Macro context: FOMC is within 7 days (Jun 16-17, 14:00 ET decision / 14:30 ET presser); risk_on regime with breadth 61.7%, but avoid adding rate-sensitive exposure aggressively ahead of the SEP/presser. Note: `web_search` is not available in the current tool namespace, so this pre-market uses memory, local scraped-news/signal feeds, price snapshot, and known company/IR URLs rather than fresh web_search results.
+
+- **MU** (~$2,500): Earnings-drift candidate into Micron's Jun 24 after-close report, giving the book a datable memory-cycle catalyst after the current holdings show no earnings in the next 7 days.
+  - Why mispriced: At ~$992, the stock already embeds a strong AI-memory cycle, but consensus may still underweight HBM pricing durability and DRAM/NAND supply discipline if hyperscaler capex remains resilient into summer.
+  - What market is missing: MU is a cleaner near-term earnings catalyst than adding more broad semi beta; if management raises HBM commentary and margin trajectory on Jun 24, the stock can work even if mega-cap semis consolidate.
+  - Datable catalyst: Fiscal earnings on June 24, 2026 after close per `get_upcoming_earnings(days=30)`, with EPS estimate $19.40; key checkpoints are HBM revenue, gross margin, capex, and next-quarter guide.
+  - Key risk (what makes this wrong): Semi exposure is already meaningful through AVGO/TSM/AAPL hardware adjacency, and any FOMC-driven multiple compression or weak HBM guide could turn this into a crowded late-cycle memory trade.
+  - Sources: https://investors.micron.com/; https://investors.micron.com/news-releases; local earnings tool: MU Jun 24 AMC, EPS estimate $19.40.
+
+- **UNH** (~$2,500): Healthcare rebound/watchlist candidate supported by a fresh Maria Elvira Salazar disclosed buy and a sector-diversification role versus the book's tech/consumer cyclicality.
+  - Why mispriced: Managed-care names have been treated as structurally impaired by utilization, Medicare Advantage margin pressure, and policy risk, so a politician buy after the drawdown may signal the bad-news bar is now low.
+  - What market is missing: If management can stabilize medical-cost commentary into the next quarterly update, UNH offers a non-tech large-cap recovery catalyst with lower direct sensitivity to the Jun 16-17 FOMC than semis or high-multiple software.
+  - Datable catalyst: Next quarterly earnings window is expected in mid-July, within the 1-8 week swing horizon; before then, FOMC Jun 16-17 and any managed-care policy/utilization updates are the near-term checkpoints.
+  - Key risk (what makes this wrong): A politician buy is not a thesis by itself; if medical-cost trend, Medicare Advantage reimbursement, or regulatory headlines worsen, the stock can keep derating despite apparently cheap valuation.
+  - Sources: local Signal DB: Maria Elvira Salazar disclosed UNH buy, 2026-06-13; https://www.unitedhealthgroup.com/investors.html; https://www.unitedhealthgroup.com/investors/financial-reports.html.
+
+- **V** (~$2,000): Payments/financial-quality watchlist candidate after a fresh David J. Taylor disclosed buy, potentially benefiting if the FOMC preserves the risk-on consumer/credit backdrop.
+  - Why mispriced: The market may lump Visa with rate-sensitive financials ahead of the Jun 16-17 FOMC, but its network model is more tied to nominal spend, cross-border volumes, and operating leverage than bank-style credit risk.
+  - What market is missing: A high-margin payments compounder can diversify the book away from semis while still participating in a risk_on tape; the politician buy adds an independent positioning signal without requiring a large starter size.
+  - Datable catalyst: FOMC Jun 16-17 is the macro checkpoint for discount-rate and consumer-spend expectations; the next company earnings cycle in late July is the 1-8 week fundamental checkpoint for cross-border and volume trends.
+  - Key risk (what makes this wrong): The datable company catalyst is not as near as MU's, and a hawkish FOMC or weaker consumer-spend data could compress payment multiples before the earnings checkpoint arrives.
+  - Sources: local Signal DB: David J. Taylor disclosed V buy, 2026-06-13; https://investor.visa.com/; https://investor.visa.com/news/default.aspx.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- None. `get_upcoming_earnings(days=7)` returned no events, and the held positions in the latest portfolio snapshot do not report within the next 5 trading days.
+### Execute
+
+Live state at open: equity $54,912.24, cash $36,306.58, buying power $197,322.16, and 7 live positions before new orders. Regime is risk_on, breadth 62%, cash is ample, and there was substantial room under the 25-position hard cap. Today's pre-market section from 2026-06-13 contained three actionable ideas: MU, UNH, and V. Because the strategy caps truly new tickers at two per day, I used the two strongest catalyst/fit ideas and left V in reserve.
+
+**Bought / submitted (2/2 fresh-name daily cap used):**
+- **MU** submitted. Order id 368b6817-544b-46e5-ae8f-494c9ddc115e. Target notional $2,500; tool estimated 2.37 sh at ~$1,054.44. Thesis copied from pre-market: fiscal earnings Jun 24 AMC, EPS estimate $19.40; HBM revenue, gross margin, capex, and guide are the checkpoints; variant view is that durable HBM pricing and DRAM/NAND discipline can support a post/into-print drift even if broader semis consolidate. Key risk is FOMC-driven multiple compression or a weak HBM guide turning this into a crowded memory trade.
+- **UNH** submitted. Order id af05f866-d51d-4f7f-bbda-e0c9c8770654. Target notional $2,500; tool estimated 6.15 sh at ~$406.19. Thesis copied from pre-market: Maria Elvira Salazar disclosed buy plus expected mid-July earnings window; variant view is that managed-care bad-news expectations are too low and stabilization in medical-cost commentary can drive a non-tech rebound. Key risk is worsening utilization, Medicare Advantage reimbursement, or regulatory headlines.
+
+**Skipped:**
+- **V**: skipped solely due to the max-2-new-tickers/day discipline. The Taylor disclosed buy and payments-quality thesis remain reasonable, but the company-specific catalyst is less near-term than MU's Jun 24 earnings and UNH's recovery/politician-signal setup.
+- No top-ups to existing positions. AGG remains a legacy bond ETF without an active rate thesis, but this execute routine has no sell tool and buys were the only permitted action.
+
+**Post-execute snapshot:** equity $54,914.20, cash $36,306.58, buying power $192,294.12, 7 live positions shown in the immediate refresh. MU and UNH orders were submitted but not yet reflected in the position/cash table at the time portfolio.md was written; monitor the next routine to confirm fills and attached stops.
+## 2026-06-15
+### Midday
+- Ran midday risk scan from live Alpaca portfolio. No holdings were down 7% or more from average cost, so no stop-loss forced exits were placed.
+- Winners up 15%+ from average cost: GS and TSM. Attempted to tighten GS trailing stop to 7%, but Alpaca rejected the replacement with `fractional orders must be DAY orders`; no retry/hack attempted. Successfully tightened TSM trailing stop to 7% to lock in gains.
+- Continued to avoid opening fresh positions per midday routine instructions.
+### Close
+Day P/L: -$63.29 (-0.11%) from execute-time equity $55,044.13 to close equity $54,980.84. Top winner: MU +$32.63 on the day; top loser: HD -$32.28 on the day. Watch tomorrow: DIS remains the largest unrealized drag and is near the -7% midday risk threshold, while the portfolio still has ample cash for selective catalyst adds if risk_on breadth persists. vs SPY since inception: +3.9 pts
+## 2026-06-16
+### Pre-market
+Macro context: FOMC is within 7 days — Jun 16-17 meeting, 14:00 ET decision / 14:30 ET presser, with SEP refresh; risk_on breadth (67%) supports selective adds, but rate-sensitive/higher-multiple entries should be sized normally or smaller until Powell/Warsh path and dots are digested. Note: the requested `web_search` tool is not available in the current tool namespace, so sources below use company/IR URLs plus local scraped-news/signal/earnings feeds rather than fresh web-search URLs.
+
+- **V** (~$2,500): Payments-quality sleeve candidate after a fresh David J. Taylor disclosed $8k buy, with FOMC as the near-term macro checkpoint for consumer/discount-rate sentiment.
+  - Why mispriced: The market may still bucket Visa with rate-sensitive financials into the FOMC/SEP, but Visa’s network economics are primarily driven by nominal spend, cross-border volume, and operating leverage rather than credit losses or deposit beta.
+  - What market is missing: A risk_on tape plus sticky nominal spending can support payment-volume growth even if the Fed stays higher-for-longer, and the politician buy gives an independent positioning signal in a sector where the current book has no pure payments exposure.
+  - Datable catalyst: FOMC decision/SEP on Jun 17, 2026, followed by Visa’s next earnings window in late July as the 1-8 week checkpoint for payment volume, cross-border trends, and expense leverage.
+  - Key risk (what makes this wrong): If the FOMC is hawkish enough to pressure consumer-spend expectations or compress quality-growth multiples, Visa could lag before the company-specific late-July earnings catalyst arrives.
+  - Sources: https://investor.visa.com/; https://investor.visa.com/news/default.aspx; local Signal DB: David J. Taylor disclosed V buy, 2026-06-13.
+
+- **AMAT** (~$2,500): Semi-cap equipment candidate as a non-held way to express AI infrastructure capex if the Jun 17 FOMC does not trigger broad multiple compression.
+  - Why mispriced: Recent semi-equipment reactions have repeatedly sold strong prints on “already priced” expectations, but that can obscure the fundamental setup: AI/HBM/foundry capex remains structurally elevated and tool demand can stay resilient even if mega-cap semis consolidate.
+  - What market is missing: AMAT offers equipment-cycle leverage that is distinct from the current MU memory catalyst and TSM foundry exposure; if FOMC volatility clears without a rates shock, investors may rotate back into capex beneficiaries ahead of the next semi earnings cycle.
+  - Datable catalyst: Jun 17, 2026 FOMC/SEP as the immediate risk-clearing event; the next 1-8 week checkpoint is analyst/order commentary and semi capex revisions into the July earnings cycle.
+  - Key risk (what makes this wrong): This is still semi beta in a book that already holds MU and TSM, and a hawkish SEP or any hyperscaler capex-cut headline would hit AMAT before a company-specific earnings event arrives.
+  - Sources: https://ir.appliedmaterials.com/; https://ir.appliedmaterials.com/news-releases; local scraped-news/signal feeds returned no fresh AMAT items today.
+
+- **HD** (~$1,500 top-up candidate): Existing housing-retail position with a fresh David J. Taylor disclosed $8k buy and a post-earnings drift setup, but only add if FOMC does not pressure housing-rate expectations.
+  - Why mispriced: Higher-for-longer rates keep investors focused on weak housing turnover, but HD’s pro/repair-remodel mix can stabilize before big-ticket discretionary demand fully recovers.
+  - What market is missing: The politician buy adds a positioning tailwind, and a small top-up would deepen exposure to a non-semi, cash-generative retail compounder rather than adding more AI beta.
+  - Datable catalyst: Jun 17, 2026 FOMC/SEP as the rate-sensitivity checkpoint; late-June housing data and post-print estimate revisions are the 1-8 week drift checkpoints for demand stabilization.
+  - Key risk (what makes this wrong): If the SEP pushes mortgage rates higher or management/sector data show continued big-ticket remodeling weakness, HD can remain a value trap despite the post-print/politician signal.
+  - Sources: https://ir.homedepot.com/financial-reports; https://ir.homedepot.com/news-releases; local Signal DB: David J. Taylor disclosed HD buy, 2026-06-13.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- None. `get_upcoming_earnings(days=7)` returned no events for the held book. MU is held and reports Jun 24 after close per the 30-day earnings tool (EPS estimate $19.40), which is just outside the current 5-trading-day earnings-prep requirement; prepare bull/base/bear scenarios later this week as the report enters the window.
+### Execute
+
+Live state at open: equity $55,006.88, cash $31,317.79, buying power $191,600.62, and 9 live positions. Regime remains risk_on with breadth 67%, and there was ample cash plus room under the position cap. Today's pre-market section contained V, AMAT, and an HD top-up candidate; I used the two fresh-name slots for V and AMAT and skipped the HD top-up.
+
+**Bought / submitted (2/2 fresh-name daily cap used):**
+- **V** submitted. Order id ede4c4a3-9660-4a0e-b128-e032de238bfe. Target notional $2,500; tool estimated 7.69 sh at ~$325.12. Thesis copied from pre-market: FOMC/SEP on Jun 17 and late-July earnings are the checkpoints; Visa’s network economics are tied to nominal spend, cross-border volume, and operating leverage rather than credit losses, with David J. Taylor’s disclosed buy as an independent signal. Key risk is a hawkish FOMC pressuring consumer-spend expectations or quality-growth multiples before the late-July catalyst.
+- **AMAT** submitted. Order id b2d0478b-5f02-4656-b13e-d30c0d147745. Target notional $2,500; tool estimated 4.17 sh at ~$598.83. Thesis copied from pre-market: Jun 17 FOMC/SEP is the risk-clearing event for semi-cap equipment exposure; AI/HBM/foundry capex remains structurally elevated, and AMAT adds equipment-cycle leverage distinct from MU memory and TSM foundry exposure. Key risk is that this is still semi beta and a hawkish SEP or hyperscaler capex-cut headline would hit before a company-specific event.
+
+**Skipped:**
+- **HD top-up**: skipped because V and AMAT used the max-2-new-tickers/day allowance and HD is already held with a gain. Adding to housing-rate sensitivity immediately before the FOMC/SEP was lower priority than adding pure payments exposure and the semi-equipment catalyst sleeve.
+- No other top-ups. AGG remains a legacy bond ETF without an active rate thesis, but this execute routine has no sell tool.
+
+**Post-execute snapshot:** equity $55,022.04, cash $31,317.79, buying power $186,688.87, 9 live positions plus pending V and AMAT market buy orders. TSM trailing stop remains open from the prior tightening. Wrote portfolio.md with the live snapshot and noted that V/AMAT were still open orders at the time of refresh, so positions/cash may update once fills complete.
+## 2026-06-16
+### Midday
+- Per midday risk scan, reviewed live Alpaca portfolio for positions down 7%+ from average cost and winners up 15%+ from average cost; no fresh positions opened.
+- Stop-loss action: DIS was down approximately 7.71% from avg cost at the scan and was sold in full under the midday stop-loss rule.
+- Winner protection: TSM was up approximately 17.8% from avg cost and its trailing stop was tightened to 7% to lock in gains.
+- GS was up approximately 17.6% from avg cost, so a 7% trailing-stop tighten was attempted, but the broker/API returned an error and no further retry was made.
+- Other holdings did not meet the -7% forced-exit or +15% tighten thresholds at the post-action snapshot.
+### Close
+Day P/L: -$180.72 (-0.33%) from execute-time equity $54,974.42 to close equity $54,793.70. Top winner: V +$9.72 on the day; top loser: MU -$59.21 on the day. Watch tomorrow: semiconductor/AI-exposed holdings (MU, TSM, AMAT) drove most of today’s mark-to-market weakness, so monitor whether this is ordinary consolidation in a risk-on tape or the start of a broader rotation out of high-beta chip winners. vs SPY since inception: +4.09 pts
+## 2026-06-17
+### Pre-market
+Macro context: FOMC is today (Jun 17, 14:00 ET decision / 14:30 ET presser with SEP); risk_on regime supports selective adds, but avoid aggressive rate-sensitive sizing until the dots and presser are digested. Note: the requested `web_search` tool is not available in the current tool namespace, so I could not perform the 2-3 fresh web searches; sources below use company/IR URLs plus local scraped-news/signal/earnings feeds.
+
+- **MU** (~$2,500 top-up candidate): Existing memory-cycle position with a Jun 24 after-close earnings catalyst; use only if FOMC does not trigger semi multiple compression.
+  - Why mispriced: The market may treat MU as a fully priced AI-memory winner after the recent move, but consensus can still underweight HBM pricing durability, DRAM/NAND supply discipline, and margin expansion if hyperscaler capex remains resilient.
+  - What market is missing: MU gives a cleaner dated earnings catalyst than generic semi beta, and the key swing factor is management's HBM/gross-margin guide rather than the broad AI narrative already embedded in mega-cap semis.
+  - Datable catalyst: Fiscal earnings expected Jun 24, 2026 after close per prior 30-day earnings tool checks; HBM revenue, gross margin, capex, and next-quarter guide are the 1-week checkpoints.
+  - Key risk (what makes this wrong): Semi exposure is already meaningful through MU/TSM/AMAT/AAPL hardware adjacency, and a hawkish FOMC SEP or weak HBM guide could turn this into a crowded late-cycle memory trade.
+  - Sources: https://investors.micron.com/; https://investors.micron.com/news-releases; local scraped-news/signal feeds today returned no fresh MU items.
+
+- **HD** (~$1,500 top-up candidate): Existing Home Depot position with post-earnings drift plus a David J. Taylor disclosed $8k buy, but wait for FOMC rate reaction before adding housing-rate sensitivity.
+  - Why mispriced: Investors may over-penalize housing-linked retail for higher-for-longer rates, while HD's pro/repair-remodel mix can stabilize before big-ticket discretionary demand fully recovers.
+  - What market is missing: The politician buy is an independent positioning tailwind, and a small top-up would deepen non-semi, cash-generative retail exposure rather than adding more AI beta.
+  - Datable catalyst: Jun 17, 2026 FOMC/SEP is the immediate rate-sensitivity checkpoint; late-June housing data and post-print estimate revisions are the 1-8 week drift checkpoints.
+  - Key risk (what makes this wrong): If the SEP pushes mortgage rates higher or sector data show continued big-ticket remodeling weakness, HD can remain a value trap despite the post-print and politician signal.
+  - Sources: https://ir.homedepot.com/financial-reports; https://ir.homedepot.com/news-releases; local Signal DB: David J. Taylor disclosed HD buy, 2026-06-13.
+
+- **V** (~$1,500-$2,000 top-up candidate): Existing Visa position with David J. Taylor disclosed $8k buy; use as a quality payments add only if FOMC preserves the risk-on consumer/discount-rate backdrop.
+  - Why mispriced: The market may bucket Visa with rate-sensitive financials into FOMC, but its network model is driven more by nominal spend, cross-border volume, and operating leverage than credit losses or deposit beta.
+  - What market is missing: Sticky nominal spending can support payment-volume growth even under higher-for-longer rates, and Visa diversifies the book away from semis while maintaining high-margin quality exposure.
+  - Datable catalyst: Jun 17, 2026 FOMC/SEP is the immediate macro checkpoint; Visa's late-July earnings window is the 1-8 week fundamental checkpoint for payment volume, cross-border trends, and expense leverage.
+  - Key risk (what makes this wrong): A hawkish FOMC could pressure consumer-spend expectations and quality-growth multiples before the company-specific late-July catalyst arrives.
+  - Sources: https://investor.visa.com/; https://investor.visa.com/news/default.aspx; local Signal DB: David J. Taylor disclosed V buy, 2026-06-13.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- None. `get_upcoming_earnings(days=7)` returned no upcoming events, so no held position requires a bull/base/bear earnings scenario today. MU remains a forward watch for Jun 24 AMC based on prior 30-day earnings checks; prepare full scenarios once it appears in the 7-day/5-trading-day tool window.
+### Execute
+
+Live state at open: equity $55,081.87, cash $28,678.64, buying power $188,643.61, and 10 live positions. Regime is risk_on, but the FOMC decision/SEP and presser are today at 14:00/14:30 ET, which is the immediate macro checkpoint explicitly attached to all three pre-market ideas.
+
+**Decision: 0 buys.** The pre-market ideas were all conditional top-up candidates rather than urgent fresh entries, and each depended on FOMC not triggering rate or semi multiple compression. With the event still ahead, adding exposure at the open would violate the plan's "wait for FOMC reaction" condition.
+
+**Skipped:**
+- **MU top-up**: skipped pre-FOMC. MU already held and is near flat/slightly red; Jun 24 earnings remains the dated catalyst, but semi exposure already includes MU/TSM/AMAT/AAPL hardware adjacency and a hawkish SEP could pressure the group before the company catalyst.
+- **HD top-up**: skipped pre-FOMC. HD is already held with a gain, but housing-rate sensitivity makes it inappropriate to add before dots/presser clarify mortgage-rate expectations.
+- **V top-up**: skipped pre-FOMC. Visa is already held with a small gain and remains a quality payments sleeve, but the pre-market thesis explicitly required FOMC to preserve the consumer/discount-rate backdrop before adding.
+
+No fresh tickers were opened, no top-ups were placed, and no bond ETFs were added. Portfolio.md was refreshed from the live Alpaca snapshot.
+## 2026-06-17
+### Midday
+- Ran midday risk scan using live Alpaca portfolio. No positions were down 7% or more from average cost, so no stop-loss rule liquidations were required.
+- Positions up 15% or more from average cost: GS and TSM. Tightened TSM trailing stop to 7% to lock in gains. Attempted to tighten GS trailing stop to 7%, but Alpaca rejected the replacement because the fractional position/order constraint requires DAY orders; no retry or workaround attempted.
+- No fresh positions opened per midday routine instructions.
+### Close
+Day P/L: -$389.13 (-0.70%) from execute-time equity $55,204.19 to closing equity $54,815.06. Top winner: none positive intraday; AGG held up best at roughly -$11.39 versus execute snapshot. Top loser: HD, roughly -$79.10 versus execute snapshot as the book broadly faded into the close. Watch tomorrow: whether risk-on breadth can stabilize after today’s late drawdown, with extra attention to HD/TSM/GS gains and MU/PFE laggards around their catalyst paths. vs SPY since inception: +5.46 pts
+## 2026-06-18
+### Pre-market
+Macro context: no binary macro this week; Jun 16-17 FOMC is now behind us, and the next CPI / jobs / FOMC events are outside the 7-day window. Regime remains risk_on (VIX 16.4, breadth 55%, 10Y-2Y +0.38), but avoid over-adding semis ahead of MU's Jun 24 print. Note: the requested `web_search` tool is not available in the current tool namespace, so sources below use company/IR URLs plus local scraped-news/signal/earnings feeds rather than fresh web-search URLs.
+
+- **UNH** (~$1,500-$2,000 top-up): Managed-care rebound candidate supported by a fresh Maria Elvira Salazar disclosed $8k buy and a non-tech diversification role.
+  - Why mispriced: The market is still pricing managed care as structurally impaired by utilization, Medicare Advantage reimbursement pressure, and policy risk, while the current position is only slightly red and the bad-news bar looks low.
+  - What market is missing: A politician buy is not enough alone, but paired with a mid-July earnings window it creates a defined recovery setup where even stabilization in medical-cost commentary can re-rate the name.
+  - Datable catalyst: Expected mid-July earnings window, with medical-cost ratio, MA commentary, and 2026 guide confidence as the 1-8 week checkpoints.
+  - Key risk (what makes this wrong): If utilization, MA rates, or regulatory headlines worsen, the stock can keep derating despite apparently cheap valuation and the politician buy signal.
+  - Sources: https://www.unitedhealthgroup.com/investors.html; https://www.unitedhealthgroup.com/investors/financial-reports.html; local Signal DB: Maria Elvira Salazar disclosed UNH buy, 2026-06-18.
+
+- **V** (~$1,500-$2,000 top-up): Payments-quality continuation candidate after David J. Taylor disclosed an $8k buy, now that the Jun FOMC event risk has passed.
+  - Why mispriced: The market may still treat Visa as a rate-sensitive financial, but the network model is driven by nominal spend, cross-border volume, and operating leverage rather than credit losses or deposit beta.
+  - What market is missing: If risk_on breadth persists after FOMC, Visa can provide high-margin consumer/financial exposure without adding more semi beta, and the politician buy is an independent positioning tailwind.
+  - Datable catalyst: Late-July earnings window, with cross-border volume, payment volume, and expense leverage as the 1-8 week fundamental checkpoints.
+  - Key risk (what makes this wrong): If post-FOMC yields pressure quality-growth multiples or consumer-spend data softens, Visa could lag before the late-July company catalyst arrives.
+  - Sources: https://investor.visa.com/; https://investor.visa.com/news/default.aspx; local Signal DB: David J. Taylor disclosed V buy, 2026-06-18.
+
+- **MU** (~$0 new capital / hold, no top-up before print): Existing memory-cycle position with a Jun 24 after-close earnings catalyst; keep the catalyst exposure but do not add ahead of the binary unless execute routine explicitly wants an earnings-beat bet.
+  - Why mispriced: Consensus likely understands the AI-memory upcycle, but may still underweight HBM pricing durability and DRAM/NAND supply discipline if hyperscaler capex remains resilient.
+  - What market is missing: MU has the cleanest near-term dated event in the current book, and the key swing factor is HBM/gross-margin guidance rather than generic AI enthusiasm.
+  - Datable catalyst: Fiscal earnings on June 24, 2026 after close; EPS estimate $19.40 per `get_upcoming_earnings(days=7)`.
+  - Key risk (what makes this wrong): The position is already a semi/memory exposure into a high-expectations print; weak HBM commentary, margin guide disappointment, or sector multiple compression could hit the stock quickly.
+  - Sources: https://investors.micron.com/; https://investors.micron.com/news-releases; local earnings tool: MU Jun 24 AMC, EPS estimate $19.40.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- **MU** reports 2026-06-24 after close:
+  - Bull:  rev $14.8B (+80% YoY), EPS $21.50, key driver: HBM revenue ramp, DRAM/NAND pricing discipline, gross margin expansion above expectations.
+  - Base:  rev $14.2B (+73% YoY), EPS $19.40, key driver: in-line HBM growth and stable gross margin with constructive but not explosive next-quarter guide.
+  - Bear:  rev $13.5B (+65% YoY), EPS $17.50, key driver: weaker HBM shipment timing, softer NAND pricing, or capex/margin commentary that suggests the memory cycle is peaking.
+  - Action: hold current size through the print, but do not top up before earnings; the position is already in the book, semi exposure is meaningful through MU/TSM/AMAT/AAPL hardware adjacency, and a 10% trailing stop is in place to manage downside.
+### Execute
+
+Live state at open: equity $55,243.97, cash $28,678.64, buying power $189,097.47, and 10 live positions. Regime is risk_on and FOMC event risk is now behind us, but the current UNH and V positions were already near the 5% per-position cap.
+
+**Attempted buys / submitted:**
+- **UNH top-up**: attempted $1,800 using the pre-market managed-care rebound thesis and Salazar disclosed-buy signal. Rejected by the tool because adding $1,800 would make the position ~$4,272, above the 5% cap of ~$2,764. No retry or workaround attempted.
+- **V top-up**: attempted $1,800 using the pre-market payments-quality continuation thesis and David J. Taylor disclosed-buy signal. Rejected by the tool because adding $1,800 would make the position ~$4,343, above the 5% cap of ~$2,764. No retry or workaround attempted.
+
+**Bought:** none. Both ideas still have valid catalysts, but the existing positions are already sized close enough to the hard cap that top-ups are not allowed. MU was explicitly a hold/no-top-up idea ahead of the Jun 24 earnings binary, so no action there.
+
+**Skipped:**
+- **MU top-up**: skipped per pre-market plan; hold current size through Jun 24 print, do not add ahead of the binary.
+- Any other top-ups or fresh names: skipped because today’s pre-market plan only identified UNH/V as actionable adds and both were blocked by the 5% position cap.
+
+Post-execute book unchanged: equity $55,271.91, cash $28,678.64, 10 positions. Watch into midday: GS and TSM remain large winners; if either is still up 15%+ the routine should tighten/confirm 7% trails, while PFE remains the weakest but far from the -7% stop-loss threshold.
+## 2026-06-18
+### Midday
+- Ran midday risk scan using live Alpaca portfolio state. No positions were down 7% or more from average cost, so no stop-loss-rule forced sales were required.
+- Tightened winner protection where applicable: TSM was up more than 15% from average cost and its trailing stop was tightened to 7% successfully.
+- GS was also up more than 15% from average cost; attempted to tighten its trailing stop to 7%, but Alpaca/tooling returned an error (`fractional orders must be DAY orders`). No retry/hack attempted; position remains open.
+- No fresh positions opened, per midday routine instructions.
+### Close
+Close equity $55,329.59 vs execute-time snapshot $55,310.14: day P/L +$19.45 (+0.04%). Top intraday winner was TSM (+$50.47 vs snapshot; close $461.81), while top intraday loser was GS (-$20.63 vs snapshot; close $1,097.09). Watch PFE tomorrow: still the weakest open thesis at -5.38% unrealized and closest to the -7% midday risk threshold; also monitor whether semiconductor strength in TSM/MU/AMAT continues to offset financial/consumer softness. vs SPY since inception: +5.67 pts
+## 2026-06-19
+### Pre-market
+Macro context: no binary macro this week; Jun 16-17 FOMC is behind us, and the next CPI / jobs / FOMC events are outside the 7-day window. Current regime is risk_on, but MU reports Jun 24 AMC and the book already has meaningful semi exposure through MU/TSM/AMAT/AAPL hardware adjacency. Note: the requested `web_search` tool is not available in the current tool namespace, so I could not run the 2-3 fresh web searches; sources below use company/IR/Fed URLs plus local earnings/signal/news feeds.
+
+- **NKE** (~$2,000): Earnings-turnaround starter candidate into Nike's Jun 30 after-close report, sized smaller because the event is a binary print.
+  - Why mispriced: Consensus EPS of $0.11 implies the market is already braced for a trough quarter, so the stock may be pricing brand/margin deterioration as permanent rather than cyclical.
+  - What market is missing: If management shows inventory cleanup, gross-margin stabilization, and early direct-to-consumer momentum, even a modest beat/credible guide can re-rate a depressed global consumer brand.
+  - Datable catalyst: Fiscal earnings on June 30, 2026 after close per `get_upcoming_earnings(days=30)`; key checkpoints are North America revenue, China trends, inventory, gross margin, and FY guide tone.
+  - Key risk (what makes this wrong): A weak guide, continued wholesale/channel pressure, or China softness could confirm the turnaround is not yet investable and make the low EPS bar irrelevant.
+  - Sources: https://investors.nike.com/; https://investors.nike.com/investors/news-events-and-reports/; local earnings tool: NKE Jun 30 AMC, EPS estimate $0.11.
+
+- **JPM** (~$2,500): Bank-quality candidate into late-June stress-test/CCAR capital-return catalysts after FOMC cleared without a near-term risk-off regime shift.
+  - Why mispriced: The market may still treat large banks as purely rate-curve trades, but JPM's diversified fee, card, trading, and capital-return engine can work if stress-test results support buybacks/dividend growth.
+  - What market is missing: A risk_on tape with a still-positive 10Y-2Y spread can support bank earnings revisions, while DFAST/CCAR is a nearer datable catalyst than waiting for the July earnings cycle.
+  - Datable catalyst: Federal Reserve annual bank stress-test results / CCAR capital-return window expected in late June 2026, with the next JPM quarterly earnings window in mid-July as the follow-through checkpoint.
+  - Key risk (what makes this wrong): If stress-test capital requirements are tougher than expected, credit trends worsen, or the curve flattens after the post-FOMC move, capital-return upside could be muted and the stock may lag.
+  - Sources: https://www.federalreserve.gov/supervisionreg/stress-tests-capital-planning.htm; https://www.jpmorganchase.com/ir; https://www.jpmorganchase.com/ir/news.
+
+- **MU** (~$0 new capital / hold, no top-up before print): Existing memory-cycle position with a Jun 24 after-close earnings catalyst; keep the exposure but avoid adding ahead of the binary.
+  - Why mispriced: The market likely understands the AI-memory upcycle, but may still underweight HBM pricing durability, DRAM/NAND supply discipline, and gross-margin leverage if hyperscaler demand remains resilient.
+  - What market is missing: MU has the cleanest near-term dated event in the current book, and the key swing factor is HBM/gross-margin guidance rather than generic AI enthusiasm.
+  - Datable catalyst: Fiscal earnings on June 24, 2026 after close; EPS estimate $19.40 per `get_upcoming_earnings(days=7)`.
+  - Key risk (what makes this wrong): The position is already exposed to a high-expectations semi print; weak HBM commentary, margin-guide disappointment, or broad semi multiple compression could hit the stock quickly.
+  - Sources: https://investors.micron.com/; https://investors.micron.com/news-releases; local earnings tool: MU Jun 24 AMC, EPS estimate $19.40.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- **MU** reports 2026-06-24 after close:
+  - Bull:  rev $14.8B (+80%), EPS $21.50, key driver: HBM revenue ramp, DRAM/NAND pricing discipline, gross margin expanding above expectations.
+  - Base:  rev $14.2B (+73%), EPS $19.40, key driver: in-line HBM growth, stable gross margin, and constructive but not explosive next-quarter guide.
+  - Bear:  rev $13.5B (+65%), EPS $17.50, key driver: weaker HBM shipment timing, softer NAND pricing, or capex/margin commentary implying the memory cycle is peaking.
+  - Action: hold full current size through the print, but do not top up before earnings; position is already in the book, semi exposure is meaningful, and downside should be managed by the existing trailing stop/risk scan.
+### Execute
+
+Live state at open-window check: equity $55,331.44, cash $28,678.64, buying power $189,342.39, and 10 live positions. The pre-market plan identified NKE and JPM as the two actionable fresh-name candidates, with MU explicitly marked hold/no-top-up before its Jun 24 earnings print.
+
+**Attempted buys:**
+- **NKE** (~$2,000) using the Jun 30 earnings-turnaround thesis from pre-market: trough EPS expectations, inventory/gross-margin stabilization and DTC momentum as the variant view, with China/wholesale/channel pressure as the key risk. Tool rejected because the market is closed.
+- **JPM** (~$2,500) using the late-June stress-test/CCAR capital-return thesis from pre-market: diversified fee/card/trading engine and buyback/dividend potential as the variant view, with tougher capital requirements/credit/curve risk as the key risk. Tool rejected because the market is closed.
+
+**Bought:** none. Both place_buy calls returned the same validation error: `market is closed; buys can only be placed during regular session`. I did not retry or hack around the validation. This appears consistent with today being a market holiday/closed session despite the normal execute timestamp.
+
+**Skipped:**
+- **MU top-up**: skipped per pre-market plan; hold current size through Jun 24 earnings, do not add ahead of the binary.
+- Any other top-ups or fresh names: skipped after the market-closed validation. NKE and JPM remain candidates for the next regular-session execute window if the theses and risk regime still hold.
+
+Post-execute book unchanged from the live snapshot; portfolio.md refreshed with current holdings.
+
+### Midday
+- Ran midday risk scan using live Alpaca portfolio snapshot. No positions were down 7% or more from avg cost, so no stop-loss rule liquidations were required. Closest loser was PFE at roughly -5.4%, above the forced-sale threshold.
+- Winners up 15%+ from avg cost: GS (~+17.6%) and TSM (~+26.0%). Tightened TSM trailing stop to 7% to lock in gains. Attempted to tighten GS to 7%, but the tool/API returned an error for the fractional position, so no further action was retried.
+- No fresh positions opened, per midday routine instruction.
+### Close
+Close equity was $55,331.44 versus the execute-time snapshot at $55,331.44, for day P/L of $0.00 (0.00%). Top winner by unrealized P/L: TSM (+$666.94); top loser: PFE (-$135.09). Watch PFE drawdown risk and whether semiconductor leadership (TSM/MU/AMAT) keeps broadening in the next session. vs SPY since inception: +8.7 pts
+## Weekly review 2026-06-19
+
+### Numeric scorecard / hard performance anchor
+
+- **Since-inception performance from `get_performance` (authoritative):** account equity **$55,331.44** vs start equity $49,655.29 = **+11.43%**. SPY over the same period is **+2.72%**, so the strategy is ahead by **+8.71 percentage points** and is beating the benchmark.
+- **Realized-trade quality from `get_performance`:** 396 closed lots, **29.3% hit rate**, **1.17 profit factor**, realized P/L **+$137.80**, average win **+$8.06**, average loss **-$2.85**. Low hit rate but positive profit factor means winners are still larger than losers; process should keep cutting losers quickly and protect outsized winners.
+- **Best / worst realized trades from `get_performance`:** best closed trade remains **PANW +$814.77 / +34.82%**, exited by synthetic trailing stop after falling >10% from peak. Worst is **DIS -$194.22 / -7.77%**, exited by the midday stop-loss rule after breaking the -7% threshold.
+- **Recent closed lots from `get_performance`:** DIS -7.77% stop-loss, HON +2.40% trailing stop, DE -2.86% trailing stop, PANW +34.82% trailing stop, GOOGL -1.81% trailing stop. This confirms recent exits were mostly mechanical stop/risk-control events rather than discretionary thesis-break sells.
+- **Current live book from Alpaca:** equity **$55,331.44**, cash **$28,678.64** (~51.8%), 10 positions: AAPL, AGG, AMAT, GS, HD, MU, PFE, TSM, UNH, V. Largest unrealized winners are **TSM +$666.94**, **GS +$423.20**, **HD +$223.96**, **MU +$167.33**, **AAPL +$158.05**, **AMAT +$131.40**. Weakest open names are **PFE -$135.09**, **AGG -$16.68**, **UNH -$2.65**.
+- **This week’s logged LLM trades:** buys in **MU** and **UNH** on 2026-06-15; buys in **V** and **AMAT** on 2026-06-16; forced **DIS** sell on 2026-06-16 from the midday stop-loss rule. No executed NKE/JPM trades on 2026-06-19 because the market was closed.
+- **Week-over-week rough anchor from research log:** 2026-06-15 close equity $54,980.84 → 2026-06-19 close equity $55,331.44 = **+$350.60 / +0.64%**. This is secondary to the `get_performance` inception scorecard above, but it shows a modestly positive week despite FOMC and a holiday/closed-market day.
+
+### Hit-rate inventory of the week’s ideas
+
+1. **2026-06-13 / 2026-06-15 execute ideas: MU, UNH, V reserve.**
+   - Became actual buys: **MU** and **UNH**. **V** was correctly held in reserve because the max-2-new-tickers/day cap was already used.
+   - Current status: **MU is up +$167 / +6.6%** and thesis is active into the Jun 24 earnings print. **UNH is roughly flat/slightly red (-$3)**; the managed-care rebound/politician-signal thesis has not yet paid but has not failed.
+
+2. **2026-06-16 ideas: V, AMAT, HD top-up.**
+   - Became actual buys: **V** and **AMAT**. HD top-up was skipped because the two fresh-name slots were used and adding housing-rate sensitivity before FOMC was lower priority.
+   - Current status: **V is slightly green (+$14)** and **AMAT is green (+$131 / +5.3%)**. Both are early but validating: V held through FOMC without damage, and AMAT is participating in semi-equipment strength.
+
+3. **2026-06-17 ideas: MU/HD/V top-up candidates.**
+   - Became actual buys: **0**. Correctly skipped because all were conditional on digesting FOMC/SEP. This was process discipline, not missed opportunity.
+
+4. **2026-06-18 ideas: UNH/V top-ups, MU hold.**
+   - Became actual buys: **0**. Top-up attempts in UNH and V were rejected by the 5% per-position cap, and no workaround was attempted. This was correct: both positions were already close enough to max size.
+
+5. **2026-06-19 ideas: NKE and JPM fresh candidates, MU hold.**
+   - Became actual buys: **0** because the market was closed. NKE and JPM remain valid candidates for the next regular session only if the theses still hold and the earnings/catalyst windows remain appropriate.
+
+**Fresh-name idea-to-buy hit rate:** 4 executed fresh buys from 6 fresh candidates this week (MU, UNH, V, AMAT bought; NKE/JPM blocked by market closure). Excluding the holiday closure, the routine acted on 4 of 4 intended fresh candidates during regular sessions.
+
+### Thesis vs reality on closed positions / exits
+
+- **DIS — forced stop-loss exit on 2026-06-16.**
+  - Catalyst originally: post-Q2 FY26 streaming-profitability inflection, buyback increase, and FY26 EPS growth guide.
+  - Did the catalyst fire? **Yes, but the market rejected the follow-through.** The print happened and the thesis was coherent, but price action deteriorated into the -7% risk band.
+  - Exit assessment: This was a **genuine risk-control exit**, not necessarily a clean fundamental thesis break. The stop was appropriate because DIS became the weakest live name for multiple sessions and then crossed the hard threshold. This is exactly what the midday rule is designed to do: prevent a plausible thesis from turning into an unmanaged drawdown.
+
+- **HON / DE / GOOGL / PANW recent trailing-stop exits from `get_performance`.**
+  - These were not all initiated this week, but they matter for the scorecard. PANW was a major win that paid for many small losses; HON exited profitably; DE and GOOGL were modest losses. The pattern confirms the swing framework: let winners run until stops, tolerate small losses, and avoid manual averaging-down.
+  - Exit assessment: **PANW trailing stop was a success** even though it gave back from the peak; it captured a large realized gain. **DE and GOOGL look like premature/ordinary trailing-stop losses rather than thesis-break disasters**—small enough to be acceptable. No evidence suggests the stop discipline should be loosened.
+
+- **No discretionary exit lane was used beyond the DIS rule.**
+  - This week reinforces that the portfolio’s exits are mostly mechanical. That is good for discipline, but it also means weak-but-not-yet-stopped names like **PFE** and legacy holdings like **AGG** need explicit review so they do not linger indefinitely.
+
+### What worked
+
+1. **Benchmark alpha remains strong.** The hard `get_performance` scorecard shows **+8.71 percentage points of alpha vs SPY since inception**, despite only a 29.3% realized hit rate. The strategy is winning by allowing large winners to dominate many small losses.
+2. **MU is doing what it was bought to do.** The Jun 24 earnings catalyst is now inside the actionable window, and the position is up ~6.6% before the print. The pre-print thesis around HBM, DRAM/NAND discipline, and gross margin is being rewarded so far.
+3. **AMAT worked as a post-FOMC semi-equipment add.** It is up ~5% shortly after entry, suggesting the AI capex/equipment-cycle thesis remains viable even after FOMC risk.
+4. **Risk control worked on DIS.** The system cut the weakest position at -7% instead of letting a consumer/media thesis drift lower.
+5. **Top-up discipline improved.** UNH/V top-ups were rejected by the 5% cap and were not retried. MU was explicitly held without adding ahead of a binary print. That is consistent with avoiding concentration and binary-event over-sizing.
+
+### What did not work / process gaps
+
+1. **PFE remains an unresolved weak thesis.** It is the worst live position at **-$135 / about -5.4%**, close enough to the -7% line to matter. The original post-print/Vyndamax thesis has not been invalidated by a single event, but persistent underperformance means Monday needs a fresh thesis check.
+2. **AGG remains legacy dead weight.** It is small and only down ~$17, but the strategy explicitly says bond ETFs are opt-in only. There is still no current written duration/rate thesis for holding AGG.
+3. **GS stop-tightening repeatedly fails because of fractional-order constraints.** GS is up ~17.6%, but attempts to tighten the trailing stop to 7% keep failing. This is the same operational pattern seen in prior weeks: winners with fractional quantities can become harder to protect mechanically.
+4. **Holiday/market-closed handling cost no P&L, but process should recognize it earlier.** NKE and JPM orders were attempted on a closed market and properly rejected. Future Friday/holiday routines should confirm market session status before building an execution plan.
+
+### ONE concrete process change
+
+**Add a market-session check before any execute-day order plan.** Proposed concrete strategy.md diff:
+
+> Add under “Rules you enforce yourself”: “Before an execute routine places any order, confirm the market is open or scheduled for a regular session. If the market is closed or a holiday/early-close blocks execution, do not submit orders; carry valid ideas to the next regular-session pre-market and note that catalyst timing must be rechecked.”
+
+Rationale: 2026-06-19 NKE/JPM were valid ideas but could not be executed because the market was closed. A session check avoids predictable rejections and keeps the trade log cleaner.
+
+### Next week idea pipeline (3-5 names)
+
+1. **MU — held; earnings Jun 24 AMC.** Highest-priority catalyst. Refresh earnings prep before the print. Key metrics: HBM revenue, DRAM/NAND pricing, gross margin, capex, next-quarter guide. Current action bias: hold current size, no top-up before the binary.
+2. **NKE — watch; earnings Jun 30 AMC.** Turnaround starter candidate if market is open and thesis still holds. Key metrics: inventory cleanup, gross margin, North America, China, wholesale/channel pressure, FY guide tone.
+3. **JPM — watch; late-June stress-test/CCAR capital-return catalyst.** Candidate for bank-quality exposure. Key metrics/catalysts: DFAST/CCAR results, buyback/dividend commentary, curve, credit trends, July earnings setup.
+4. **PFE — held; thesis-review candidate.** Not a new buy. Needs a Monday check on whether Vyndamax/pipeline/dividend thesis still offsets persistent price weakness. If it approaches -7%, let the rule work; if new negative healthcare policy/utilization news appears, consider a discretionary exit if a sell-capable routine is available.
+5. **V / UNH — held; no top-up unless position value falls materially below cap and fresh signal appears.** Both remain portfolio diversifiers, but 5% cap rejections show they are already appropriately sized.
+
+### Proposed strategy.md edits (user applies manually)
+
+1. **Market-session check before orders:** add the execute-rule text above so closed-market days become “carry forward” notes, not rejected order attempts.
+2. **Fractional-winner protection rule:** if a position is up 15%+ and a 7% trailing-stop tighten fails due to fractional-order constraints twice, mark it for either a manual trim or whole-share cleanup at the next sell-capable opportunity; do not add to it until protection is fixed.
+3. **Legacy bond ETF cleanup:** if AGG/BND/TLT/etc. is held without an active written rate thesis for more than 5 trading days, prioritize exiting at the next sell-capable routine unless there is a documented reason to keep duration exposure.
+
+### Proposed catalysts.md additions (stock-specific only)
+
+- **MU** — earnings Jun 24, 2026 after close; EPS estimate $19.40. Watch HBM revenue, DRAM/NAND pricing, gross margin, capex, and next-quarter guide.
+- **NKE** — earnings Jun 30, 2026 after close; EPS estimate $0.11. Watch inventory, gross margin, North America, China, wholesale/DTC mix, and FY guide tone.
+- **JPM** — late-June 2026 Federal Reserve stress-test / CCAR capital-return window; watch capital requirement, buyback/dividend commentary, credit trends, and curve sensitivity.
+- **UNH** — expected mid-July 2026 earnings window; watch medical-cost ratio, Medicare Advantage reimbursement commentary, utilization trends, and 2026 guide confidence.
+- **V** — late-July 2026 earnings window; watch payment volume, cross-border volume, take rate, expense leverage, and consumer-spend commentary.
+## 2026-06-22
+### Pre-market
+Macro context: no binary macro this week. The Jun 16-17 FOMC is behind us, and the next FOMC, CPI, and jobs report are outside the next 7 days; regime is risk_on (VIX 18.44, breadth 56.4%, 10Y-2Y +0.27). Note: the requested `web_search` tool is not available in the current tool namespace, so I could not run the 2-3 fresh searches; sources below use company/Fed/IR URLs plus local earnings, news, and signal feeds.
+
+- **NKE** (~$2,000): Earnings-turnaround starter into Nike's Jun 30 after-close report, sized smaller because the catalyst is a binary print and EPS estimate is only $0.11.
+  - Why mispriced: Consensus appears braced for a trough quarter, so the stock may be pricing brand, China, wholesale, and margin deterioration as permanent rather than cyclical.
+  - What market is missing: If management shows inventory cleanup, gross-margin stabilization, and early direct-to-consumer momentum, even a modest beat or credible FY guide can re-rate a depressed global consumer brand.
+  - Datable catalyst: Fiscal earnings on June 30, 2026 after close per `get_upcoming_earnings(days=30)`; key checkpoints are North America revenue, China trends, inventory, gross margin, and FY guide tone.
+  - Key risk (what makes this wrong): A weak guide, continued wholesale/channel pressure, or China softness could confirm the turnaround is not yet investable and make the low EPS bar irrelevant.
+  - Sources: https://investors.nike.com/; https://investors.nike.com/investors/news-events-and-reports/; local earnings tool: NKE Jun 30 AMC, EPS estimate $0.11; local news/signal feeds returned no fresh NKE items today.
+
+- **JPM** (~$2,500): Bank-quality candidate into the late-June Federal Reserve stress-test / CCAR capital-return window after FOMC cleared without flipping the market out of risk_on.
+  - Why mispriced: The market may still treat large banks mainly as rate-curve trades, but JPM's fee, card, trading, credit, and capital-return mix can work if stress-test results support buybacks and dividend growth.
+  - What market is missing: A positive 10Y-2Y spread and risk_on breadth can support bank earnings revisions, while DFAST/CCAR is a nearer catalyst than waiting for the mid-July earnings cycle.
+  - Datable catalyst: Federal Reserve annual bank stress-test results / CCAR capital-return window expected in late June 2026, with JPM's mid-July earnings as the follow-through checkpoint.
+  - Key risk (what makes this wrong): If stress-test capital requirements are tougher than expected, credit trends worsen, or the curve flattens, capital-return upside could be muted and the stock may lag.
+  - Sources: https://www.federalreserve.gov/supervisionreg/stress-tests-capital-planning.htm; https://www.jpmorganchase.com/ir; https://www.jpmorganchase.com/ir/news; local news/signal feeds returned no fresh JPM items today.
+
+- **MU** (~$0 new capital / hold only): Existing memory-cycle position with Jun 24 after-close earnings catalyst; maintain exposure but do not top up ahead of the binary print.
+  - Why mispriced: The market likely understands the AI-memory upcycle, but may still underweight HBM pricing durability, DRAM/NAND supply discipline, and gross-margin leverage if hyperscaler demand remains resilient.
+  - What market is missing: MU has the cleanest near-term dated event in the current book, and the key swing factor is HBM/gross-margin guidance rather than generic AI enthusiasm.
+  - Datable catalyst: Fiscal earnings on June 24, 2026 after close; EPS estimate $19.40-$19.54 per `get_upcoming_earnings(days=7)`.
+  - Key risk (what makes this wrong): The position is already exposed to a high-expectations semi print; weak HBM commentary, margin-guide disappointment, or broad semi multiple compression could hit the stock quickly.
+  - Sources: https://investors.micron.com/; https://investors.micron.com/news-releases; local earnings tool: MU Jun 24 AMC, EPS estimate $19.40-$19.54; local news/signal feeds returned no fresh MU items today.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- **MU** reports 2026-06-24 after close:
+  - Bull:  rev $14.8B (+80%), EPS $21.50, key driver: HBM revenue ramp, DRAM/NAND pricing discipline, gross margin expanding above expectations.
+  - Base:  rev $14.2B (+73%), EPS $19.50, key driver: in-line HBM growth, stable gross margin, and constructive but not explosive next-quarter guide.
+  - Bear:  rev $13.5B (+65%), EPS $17.50, key driver: weaker HBM shipment timing, softer NAND pricing, or capex/margin commentary implying the memory cycle is peaking.
+  - Action: hold full current size through the print, but do not top up before earnings; position is already in the book, semi exposure is meaningful through MU/TSM/AMAT/AAPL hardware adjacency, and downside should be managed by the existing trailing stop plus midday risk scan.
+### Execute
+
+Live state at open: equity $55,597.68, cash $28,678.64, buying power $190,087.86, and 10 live positions. Regime is risk_on and cash/position capacity were ample. Today's pre-market plan contained two actionable fresh-name candidates (NKE, JPM) plus MU as hold/no-top-up into the Jun 24 earnings binary.
+
+**Bought / submitted (2/2 fresh-name daily cap used):**
+- **NKE** submitted. Order id 5fb6bfc6-c9a2-489e-bc90-8ae10eaf2e2a. Target notional $2,000; tool estimated 44.64 sh at ~$44.80. Thesis copied from pre-market: Catalyst: Fiscal earnings on June 30, 2026 after close per earnings tool; key checkpoints are North America revenue, China trends, inventory, gross margin, and FY guide tone. Why mispriced: Consensus appears braced for a trough quarter, so the stock may be pricing brand, China, wholesale, and margin deterioration as permanent rather than cyclical. Variant view: If management shows inventory cleanup, gross-margin stabilization, and early direct-to-consumer momentum, even a modest beat or credible FY guide can re-rate a depressed global consumer brand. Datable catalyst: Jun 30, 2026 AMC earnings with EPS estimate $0.11. Key risk: A weak guide, continued wholesale/channel pressure, or China softness could confirm the turnaround is not yet investable and make the low EPS bar irrelevant.
+- **JPM** submitted. Order id 181b20ef-f3ee-4682-ac72-170e23868b3c. Target notional $2,500; tool estimated 7.60 sh at ~$328.84. Thesis copied from pre-market: Catalyst: Federal Reserve annual bank stress-test results / CCAR capital-return window expected in late June 2026, with JPM's mid-July earnings as follow-through. Why mispriced: The market may still treat large banks mainly as rate-curve trades, but JPM's fee, card, trading, credit, and capital-return mix can work if stress-test results support buybacks and dividend growth. Variant view: A positive 10Y-2Y spread and risk_on breadth can support bank earnings revisions, while DFAST/CCAR is a nearer catalyst than waiting for the mid-July earnings cycle. Datable catalyst: late-June 2026 stress-test/CCAR capital-return window, then mid-July earnings. Key risk: If stress-test capital requirements are tougher than expected, credit trends worsen, or the curve flattens, capital-return upside could be muted and the stock may lag.
+
+**Skipped:**
+- **MU top-up**: skipped per pre-market plan. MU already has the Jun 24 after-close earnings catalyst exposure in the book and the plan explicitly said hold current size, do not add ahead of the binary.
+- Any other top-ups: skipped. Existing UNH/V are near enough to the 5% cap based on recent rejection experience, GS/TSM are winners requiring stop management rather than adds, and AGG remains a legacy bond ETF but this execute routine has no sell tool.
+
+**Post-execute snapshot:** equity $55,610.31, cash $28,678.64, buying power $185,616.04, 10 live positions. NKE and JPM buy orders were still open/new and not yet reflected in positions/cash when the snapshot was written to portfolio.md. Open orders also include the existing TSM trailing stop. Monitor next routine to confirm NKE/JPM fills and attached stops.
+## 2026-06-22
+### Midday
+- Ran midday risk scan with no fresh positions opened, per routine.
+- Stop-loss rule check: no holdings were down 7% or more from average cost, so no forced liquidations were required. Largest drawdowns were PFE (~-5.8%) and NKE (~-2.7%), both above the forced-sale threshold.
+- Winner tightening check: GS and TSM were up more than 15% from average cost. Successfully tightened TSM trailing stop to 7% to lock in gains. Attempted to tighten GS trailing stop to 7%, but Alpaca/tool layer rejected the order with `fractional orders must be DAY orders`; no workaround retry was made.
+- Post-scan posture: maintain current holdings, with TSM protected by a tighter 7% trail; continue monitoring GS as an outsized winner without changing position size midday.
+### Close
+Day P/L: +$25.16 (+0.05%) from the execute-time snapshot equity of $55,548.89 to close equity of $55,574.05. Top winner: AMAT, unrealized P/L improved by about +$59.76 as semi-equipment momentum held into the close. Top loser: AAPL, unrealized P/L declined by about -$28.40 from the execute-time snapshot. Watch tomorrow: risk-on tape remains supportive, but monitor whether AI/semiconductor leadership broadens or narrows after strong AMAT/MU/TSM action while PFE and NKE remain the weakest book drags. vs SPY since inception: +6.48 pts
+## 2026-06-23
+### Pre-market
+Macro context: no binary macro this week. The Jun 16-17 FOMC is behind us, and the next FOMC, CPI, and jobs report are outside the next 7 days; regime is risk_on. Note: the requested `web_search` tool is not available in the current tool namespace, so I could not run the 2-3 fresh web searches; sources below use company/Fed/IR URLs plus local earnings, news, and signal feeds. Local scraped news and signal checks for NKE, JPM, MU, and PANW returned no fresh actionable items today.
+
+- **NKE** (~$0-$1,000 add only if execute wants to average into the existing starter): Earnings-turnaround setup into Nike's Jun 30 after-close report, with the position already opened yesterday and still sized below a full 5% slot.
+  - Why mispriced: Consensus appears braced for a trough quarter, so the stock may be pricing brand, China, wholesale, and margin deterioration as permanent rather than cyclical.
+  - What market is missing: If management shows inventory cleanup, gross-margin stabilization, and early direct-to-consumer momentum, even a modest beat or credible FY guide can re-rate a depressed global consumer brand.
+  - Datable catalyst: Fiscal earnings on June 30, 2026 after close; key checkpoints are North America revenue, China trends, inventory, gross margin, and FY guide tone.
+  - Key risk (what makes this wrong): A weak guide, continued wholesale/channel pressure, or China softness could confirm the turnaround is not yet investable and make the low EPS bar irrelevant.
+  - Sources: https://investors.nike.com/; https://investors.nike.com/investors/news-events-and-reports/; local news/signal feeds returned no fresh NKE items today.
+
+- **JPM** (~$0-$1,000 add only if execute wants to deepen the existing starter): Bank-quality / capital-return setup into the late-June Federal Reserve stress-test and CCAR capital-return window.
+  - Why mispriced: The market may still treat large banks mainly as rate-curve trades, but JPM's fee, card, trading, credit, and capital-return mix can work if stress-test results support buybacks and dividend growth.
+  - What market is missing: A positive 10Y-2Y spread and risk_on breadth can support bank earnings revisions, while DFAST/CCAR is a nearer catalyst than waiting for the mid-July earnings cycle.
+  - Datable catalyst: Federal Reserve annual bank stress-test results / CCAR capital-return window expected in late June 2026, with JPM's mid-July earnings as the follow-through checkpoint.
+  - Key risk (what makes this wrong): If stress-test capital requirements are tougher than expected, credit trends worsen, or the curve flattens, capital-return upside could be muted and the stock may lag.
+  - Sources: https://www.federalreserve.gov/supervisionreg/stress-tests-capital-planning.htm; https://www.jpmorganchase.com/ir; https://www.jpmorganchase.com/ir/news; local news/signal feeds returned no fresh JPM items today.
+
+- **PANW** (~$2,000 watchlist only, no buy unless a new catalyst is confirmed): Cybersecurity quality re-entry candidate after the prior PANW trade proved the platformization thesis, but today's local feeds show no fresh news/signal and the next company print is not yet in the near catalyst window.
+  - Why mispriced: The market can over-penalize PANW for CyberArk integration cost risk and prior earnings volatility even though enterprise security budgets remain more resilient than generic software spend.
+  - What market is missing: Platformization, identity security, and large-deal consolidation can keep ARR durable if risk_on breadth persists and software multiples stabilize after the FOMC.
+  - Datable catalyst: Next quarterly earnings window is likely late August / early September, so this is not yet a clean 1-8 week catalyst; keep on watchlist until a nearer analyst day, large-deal update, or confirmed event appears.
+  - Key risk (what makes this wrong): Without a near-dated catalyst, this risks becoming a momentum re-entry rather than a strategy-compliant catalyst trade; PANW also historically gaps hard on earnings.
+  - Sources: https://www.paloaltonetworks.com/company/investor-relations; https://www.stocktitan.net/news/PANW/; local news/signal feeds returned no fresh PANW items today.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- **MU** reports 2026-06-24 after close:
+  - Bull:  rev $14.8B (+80%), EPS $21.50, key driver: HBM revenue ramp, DRAM/NAND pricing discipline, gross margin expanding above expectations.
+  - Base:  rev $14.2B (+73%), EPS $19.50, key driver: in-line HBM growth, stable gross margin, and constructive but not explosive next-quarter guide.
+  - Bear:  rev $13.5B (+65%), EPS $17.50, key driver: weaker HBM shipment timing, softer NAND pricing, or capex/margin commentary implying the memory cycle is peaking.
+  - Action: hold full current size through the print, but do not top up before earnings; MU is already a ~5% position with a strong unrealized gain, the book has related semi exposure through TSM/AMAT/AAPL hardware adjacency, and downside should be managed by the existing trailing stop plus the midday risk scan.
+## 2026-06-23
+### Midday
+- Ran mandated midday risk scan using live Alpaca portfolio state. No positions were down 7% or more from average cost, so no stop-loss rule liquidations were required.
+- GS was up more than 15% from average cost, so attempted to tighten the trailing stop to 7% to lock in gains. The tool returned an API error (`fractional orders must be DAY orders`), so no retry was made and the position remains open.
+- No fresh positions were opened, per midday routine instructions.
+### Close
+Day P/L: -$126.90 (-0.23%) from execute-time equity $54,855.17 to close equity $54,728.27. Top winner: UNH, +$11.04 vs execute snapshot as defensive healthcare held up into the close. Top loser: AAPL, -$42.94 vs execute snapshot after fading from midday levels. Watch tomorrow: PFE is near the -7% midday stop threshold and NKE remains weak, so monitor whether laggards stabilize or require risk reduction; vs SPY since inception: +6.29 pts.
+## 2026-06-24
+### Pre-market
+Macro context: no binary macro this week. Jun 16-17 FOMC is behind us; next CPI/jobs/FOMC are outside the next 7 days. Regime is risk_on (VIX ~17.3, breadth ~57%, 10Y-2Y +0.27), but MU reports tonight and the book already has semi exposure through MU/TSM/AMAT/AAPL hardware adjacency. Note: the requested `web_search` tool is not available in the current tool namespace, so I could not run the 2-3 fresh web searches; sources below use company/Fed/IR URLs plus local earnings, news, and signal feeds.
+
+- **JPM** (~$0-$1,000 add only if execute wants to deepen the existing starter): Bank-quality / capital-return setup into the late-June Federal Reserve stress-test and CCAR window.
+  - Why mispriced: The market may still treat large banks mainly as rate-curve trades, while JPM's fee, card, trading, credit, and capital-return mix can work if stress-test results support buybacks and dividend growth.
+  - What market is missing: A positive 10Y-2Y spread and risk_on breadth can support bank earnings revisions, and DFAST/CCAR is a nearer catalyst than waiting for the mid-July earnings cycle.
+  - Datable catalyst: Federal Reserve annual bank stress-test results / CCAR capital-return window expected in late June 2026, with JPM's mid-July earnings as follow-through.
+  - Key risk (what makes this wrong): Tougher-than-expected stress-test capital requirements, worsening credit trends, or curve flattening could mute capital-return upside and make the stock lag.
+  - Sources: https://www.federalreserve.gov/supervisionreg/stress-tests-capital-planning.htm; https://www.jpmorganchase.com/ir; https://www.jpmorganchase.com/ir/news; local news/signal feeds returned no fresh JPM items today.
+
+- **V** (~$0-$750 add only if position value remains below the 5% cap): Payments-quality continuation candidate after a fresh David J. Taylor disclosed $8k buy, with late-July earnings as the company checkpoint.
+  - Why mispriced: The market may bucket Visa with rate-sensitive financials, but its network economics are driven by nominal spend, cross-border volume, and operating leverage rather than credit losses or deposit beta.
+  - What market is missing: Sticky nominal spending in a risk_on tape can support payment-volume growth, and the politician buy adds an independent positioning tailwind in a high-quality payments compounder.
+  - Datable catalyst: Late-July earnings window, with cross-border volume, payment volume, and expense leverage as the 1-8 week fundamental checkpoints.
+  - Key risk (what makes this wrong): If yields pressure quality-growth multiples or consumer-spend data softens before the company-specific earnings catalyst, Visa could lag despite strong franchise quality.
+  - Sources: https://investor.visa.com/; https://investor.visa.com/news/default.aspx; local Signal DB: David J. Taylor disclosed V buy, 2026-06-24.
+
+- **PFE** (~$0 new capital / thesis-review only): Existing healthcare laggard; do not add, but use today to decide whether the post-print/Vyndamax thesis still justifies holding near the -7% risk threshold.
+  - Why mispriced: The market still appears to price Pfizer as a patent-cliff/yield-trap story, while the original thesis was that Vyndamax exclusivity extension and the acquired/oncology pipeline could stabilize the post-2028 growth profile.
+  - What market is missing: If the Vyndamax settlement and oncology pipeline cadence remain intact, a ~5% drawdown may be sentiment/sector beta rather than a broken fundamental thesis.
+  - Datable catalyst: Next quarterly earnings window expected in late July, with pipeline/regulatory updates before then as interim checkpoints; midday -7% risk scan is the immediate portfolio catalyst.
+  - Key risk (what makes this wrong): Persistent underperformance without fresh positive news could indicate the market is correctly discounting ex-Covid growth weakness, policy risk, and dividend sustainability concerns; if it breaks -7%, let the stop-loss rule work.
+  - Sources: https://investors.pfizer.com/; https://www.pfizer.com/news; local news/signal feeds returned no fresh PFE items today.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- **MU** reports 2026-06-24 after close:
+  - Bull:  rev $14.8B (+80%), EPS $21.50, key driver: HBM revenue ramp, DRAM/NAND pricing discipline, gross margin expanding above expectations; expected move +8% to +12% if next-quarter guide confirms AI-memory shortage economics.
+  - Base:  rev $14.2B (+73%), EPS $19.50, key driver: in-line HBM growth, stable gross margin, and constructive but not explosive next-quarter guide; expected move -2% to +3% because expectations are already elevated.
+  - Bear:  rev $13.5B (+65%), EPS $17.50, key driver: weaker HBM shipment timing, softer NAND pricing, or capex/margin commentary implying the memory cycle is peaking; expected move -8% to -12%.
+  - Action: hold full current size through the print, but do not top up before earnings; MU is already a ~5% position with a strong unrealized gain, the book has related semi exposure through TSM/AMAT/AAPL hardware adjacency, and downside should be managed by the existing trailing stop plus the midday risk scan.
+
+- **NKE** reports 2026-06-30 after close:
+  - Bull:  rev $12.0B (+2%), EPS $0.25, key driver: inventory cleanup, gross-margin stabilization, improving DTC momentum, and credible FY guide tone; expected move +10% to +15% because the EPS bar is very low.
+  - Base:  rev $11.7B (flat to -1%), EPS $0.11, key driver: trough-quarter delivery with mixed China/wholesale trends but no further guide cut; expected move -3% to +3%.
+  - Bear:  rev $11.3B (-4%), EPS -$0.05, key driver: continued wholesale/channel pressure, China softness, elevated inventory, or weak FY guide; expected move -10% to -15%.
+  - Action: hold current starter size, no top-up before the print unless execute explicitly wants a higher-risk earnings-beat bet; the position is already red and a weak guide would confirm that the turnaround is not yet investable.
+### Execute
+
+Live state at open: equity $54,750.74, cash $29,801.32, buying power $189,063.66, and 10 live positions. Regime is risk_on and the pre-market plan had no truly new tickers; it listed JPM and V as small adds only if still under the 5% cap, PFE as thesis-review/no new capital, and MU/NKE earnings prep notes.
+
+**Bought / submitted (top-ups only; 0/2 fresh-name cap used):**
+- **JPM** submitted. Order id d8fc1a64-8df9-4bf4-918d-415f3a73d208. Notional $150, estimated 0.46 sh. Thesis copied from pre-market: Catalyst: Federal Reserve annual bank stress-test results / CCAR capital-return window expected in late June 2026, with JPM's mid-July earnings as follow-through. Why mispriced: The market may still treat large banks mainly as rate-curve trades, while JPM's fee, card, trading, credit, and capital-return mix can work if stress-test results support buybacks and dividend growth. Variant view: A positive 10Y-2Y spread and risk_on breadth can support bank earnings revisions, and DFAST/CCAR is a nearer catalyst than waiting for the mid-July earnings cycle. Datable catalyst: late-June 2026 stress-test/CCAR capital-return window, then mid-July earnings. Key risk: Tougher-than-expected stress-test capital requirements, worsening credit trends, or curve flattening could mute capital-return upside and make the stock lag.
+- **V** submitted. Order id 1df43f39-6296-42d6-a78a-fe2ea2944a2c. Notional $150, estimated 0.47 sh. Thesis copied from pre-market: Catalyst: Late-July earnings window, with cross-border volume, payment volume, and expense leverage as the 1-8 week fundamental checkpoints. Why mispriced: The market may bucket Visa with rate-sensitive financials, but its network economics are driven by nominal spend, cross-border volume, and operating leverage rather than credit losses or deposit beta. Variant view: Sticky nominal spending in a risk_on tape can support payment-volume growth, and the politician buy adds an independent positioning tailwind in a high-quality payments compounder. Datable catalyst: late-July earnings window for payment volume, cross-border trends, and expense leverage. Key risk: If yields pressure quality-growth multiples or consumer-spend data softens before the company-specific catalyst, Visa could lag despite strong franchise quality.
+
+**Skipped:**
+- **PFE**: no add. It remains the weakest live thesis near the risk threshold but the pre-market plan explicitly called for thesis review only and to let the -7% risk scan work if it breaks.
+- **NKE**: no add before the Jun 30 print. It is already red and the pre-market earnings prep said hold current starter size unless explicitly taking a higher-risk earnings-beat bet.
+- **MU**: no add before tonight's earnings binary; held current exposure per the explicit pre-market action plan.
+- No new tickers and no other top-ups. AGG remains a legacy bond ETF without a rate thesis, but there is no sell tool in this execute routine.
+
+**Post-execute snapshot:** equity $54,787.56, cash $29,493.55, buying power $188,797.42, 10 positions. JPM and V position values are now close to the 5% cap after the small adds. Watch into midday: PFE drawdown vs -7% threshold, GS winner protection if still +15% with fractional-stop issue, and MU heading into tonight's earnings print.
+## 2026-06-24
+### Midday
+- Ran midday risk scan with no fresh positions opened.
+- Stop-loss action: PFE was down more than 7% from avg_cost at the initial scan ($24.115 vs. $26.652242, approximately -9.52%), so the full position was sold under the midday stop-loss rule.
+- Winner tightening: GS was up more than 15% from avg_cost at the scan ($1081.27 vs. $932.53, approximately +15.95%). Attempted to tighten the trailing stop to 7%, but the tool/API returned an error, so no trailing-stop change was confirmed.
+- No other positions met the -7% stop-loss or +15% trailing-stop tightening thresholds.
+### Close
+Day P/L: -$69.95 (-0.13%) from execute-time snapshot equity of $54,780.64 to close equity of $54,710.69. Top winner: HD +$17.89 intraday mark-to-market from the snapshot. Top loser: AMAT -$42.52 versus its snapshot value and no longer present in closing positions; among still-open names, AAPL was weakest at -$31.36. Watch tomorrow: NKE remains the largest open unrealized drag at -6.49% vs avg cost, close to the -7% midday risk trigger, while AMAT’s exit/removal reduces semiconductor exposure. vs SPY since inception: +6.34 pts
+## 2026-06-25
+### Pre-market
+Macro context: no binary macro this week. The Jun 16-17 FOMC is behind us; the next FOMC (Jul 28-29), next jobs report, and next CPI release are outside the next 7 days per the catalysts file. Regime is risk_on, but NKE reports Jun 30 AMC and the book has an open NKE position near the -7% risk threshold. Note: the requested `web_search` tool is not available in the current tool namespace, so I could not run the 2-3 fresh web searches; sources below use company/Fed/IR URLs plus local earnings, news, price, and signal feeds.
+
+- **NKE** (~$500-$700 add only if execute explicitly wants a higher-risk earnings beat): Earnings-turnaround setup into Nike's Jun 30 after-close report; current position is already open and down ~6.5%, so any add must be small and thesis-driven rather than averaging down mechanically.
+  - Why mispriced: Consensus EPS of $0.11 implies the market is braced for a trough quarter, and the stock around $42 appears to be pricing brand, China, wholesale, and margin deterioration as persistent rather than cyclical.
+  - What market is missing: If management shows inventory cleanup, gross-margin stabilization, and credible direct-to-consumer / product-cycle momentum, even a modest beat or constructive FY guide can re-rate a depressed global consumer brand.
+  - Datable catalyst: Fiscal earnings on June 30, 2026 after close; key checkpoints are North America revenue, China trends, inventory, gross margin, wholesale/DTC mix, and FY guide tone.
+  - Key risk (what makes this wrong): A weak guide, continued wholesale/channel pressure, or China softness would confirm the turnaround is not yet investable; if NKE is below the -7% loss line at midday, the risk rule should override the earnings thesis.
+  - Sources: https://investors.nike.com/; https://investors.nike.com/investors/news-events-and-reports/; local earnings tool: NKE Jun 30 AMC, EPS estimate $0.11; local news/signal feeds returned no fresh NKE items today.
+
+- **COST** (~$2,000): High-quality retail/staples watchlist candidate for early-July sales/traffic resilience, useful diversification if execute wants a fresh non-semi, non-bank large-cap and avoids adding to near-cap existing positions.
+  - Why mispriced: The market often treats COST's premium valuation as the main risk, but in a risk_on tape with sticky rates, resilient traffic and membership renewal can keep the multiple supported while weaker discretionary retailers struggle.
+  - What market is missing: Costco offers a cleaner defensive-consumer exposure than adding to NKE's binary turnaround; monthly sales and membership/traffic data can validate resilience before the next full quarterly earnings cycle.
+  - Datable catalyst: Next monthly sales update / early-July retail data checkpoint in the next 1-3 weeks, followed by the late-summer earnings cycle; monitor comp sales, traffic, renewal rates, and merchandise margin commentary.
+  - Key risk (what makes this wrong): At a high multiple, even steady comps may not be enough; any traffic slowdown, margin pressure, or weaker membership commentary could derate the stock despite its quality.
+  - Sources: https://investor.costco.com/; https://investor.costco.com/financials/quarterly-results/default.aspx; local scraped-news and signal feeds returned no fresh COST items today.
+
+- **JPM** (~$0-$100 top-up only / primarily hold): Bank-quality capital-return setup into the late-June Federal Reserve stress-test / CCAR window; position is already near the 5% cap, so this is mostly a hold rather than an actionable add.
+  - Why mispriced: The market may still treat large banks mainly as rate-curve trades, while JPM's fee, card, trading, credit, and capital-return mix can work if stress-test results support buybacks and dividend growth.
+  - What market is missing: A positive 10Y-2Y spread and risk_on breadth can support bank earnings revisions, and DFAST/CCAR is a nearer catalyst than waiting for the mid-July earnings cycle.
+  - Datable catalyst: Federal Reserve annual bank stress-test results / CCAR capital-return window expected in late June 2026, with JPM's mid-July earnings as the follow-through checkpoint.
+  - Key risk (what makes this wrong): Tougher-than-expected stress-test capital requirements, worsening credit trends, or curve flattening could mute capital-return upside and make the stock lag; position size is already near the per-position cap.
+  - Sources: https://www.federalreserve.gov/supervisionreg/stress-tests-capital-planning.htm; https://www.jpmorganchase.com/ir; https://www.jpmorganchase.com/ir/news; local news/signal feeds returned no fresh JPM items today.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- **NKE** reports 2026-06-30 after close:
+  - Bull:  rev $12.0B (+2%), EPS $0.25, key driver: inventory cleanup, gross-margin stabilization, improving DTC/product-cycle momentum, and credible FY guide tone; expected move +10% to +15% because the EPS bar is very low.
+  - Base:  rev $11.7B (flat to -1%), EPS $0.11, key driver: trough-quarter delivery with mixed China/wholesale trends but no further guide cut; expected move -3% to +3%.
+  - Bear:  rev $11.3B (-4%), EPS -$0.05, key driver: continued wholesale/channel pressure, China softness, elevated inventory, or weak FY guide; expected move -10% to -15%.
+  - Action: hold current starter size only; do not top up unless explicitly choosing a higher-risk earnings-beat bet. If the position breaches -7% at the midday risk scan before earnings, follow the forced-exit rule rather than defending the turnaround thesis.
+### Execute
+
+Live state at open: equity $54,731.25, cash $34,150.14, buying power $194,227.67, and 8 live positions. Regime is risk_on and cash/position capacity were ample. Today's pre-market had three ideas: NKE as a small add only if explicitly choosing a higher-risk earnings beat, COST as a fresh diversification candidate, and JPM as hold/near-cap top-up only.
+
+**Bought / submitted (1/2 fresh-name daily cap used):**
+- **COST** submitted. Order id ee777160-1779-43b4-8745-82bfad9982aa. Notional $2,000, estimated 2.1 sh at ~$950.63. Thesis copied from pre-market: Catalyst: Next monthly sales update / early-July retail data checkpoint in the next 1-3 weeks, followed by the late-summer earnings cycle. Why mispriced: The market often treats COST's premium valuation as the main risk, but in a risk_on tape with sticky rates, resilient traffic and membership renewal can keep the multiple supported while weaker discretionary retailers struggle. Variant view: Costco offers cleaner defensive-consumer exposure than adding to NKE's binary turnaround. Datable catalyst: early-July comp sales, traffic, renewal rates, and merchandise margin commentary. Key risk: High multiple; any traffic slowdown, margin pressure, or weaker membership commentary could derate the stock despite its quality.
+
+**Skipped:**
+- **NKE add**: skipped. NKE is already down about 6.5% and close to the -7% midday risk threshold; adding would be averaging into a weak pre-earnings turnaround rather than a cleaner catalyst bet. The pre-market plan said any add must be small and explicit; I chose not to increase risk before the Jun 30 binary print.
+- **JPM top-up**: skipped. JPM is already near the 5% position cap after yesterday's small add; the CCAR/stress-test thesis remains intact, but incremental capital would not materially improve the book.
+- No other top-ups. AGG remains a legacy bond ETF without a rate thesis, but this execute routine has no sell tool.
+
+**Post-execute snapshot:** equity $54,764.40, cash $34,150.14, buying power $192,324.27, 8 live positions in the immediate refresh. COST order was submitted but not yet reflected in positions/cash when portfolio.md was written, so the next routine should confirm fill and attached stop. Watch into midday: NKE versus the -7% forced-exit threshold, GS winner protection if still +15% with fractional-stop issue, and COST fill status.
+## 2026-06-25
+### Midday
+- Per midday risk scan, reviewed live Alpaca portfolio at 17:00 UTC. NKE was down more than 7% from average cost (44.720233 avg cost vs ~41.085 initial scan price, about -8.1%), triggering the mandatory stop-loss rule; submitted a sell-all order for 44.64 shares.
+- GS was up more than 15% from average cost (932.53 avg cost vs ~1080), so attempted to tighten the trailing stop to 7% to lock in gains. Tool returned an internal Alpaca fractional-order error; no replacement stop was confirmed.
+- No fresh positions opened, in line with midday routine. Other positions were not down 7%+ and not up 15%+: AGG, COST, HD, JPM, UNH, V.
+### Close
+Close wrap-up: equity finished at $54,586.66 versus the execute-time/midday snapshot of $54,658.87, for day P/L of -$72.21 (-0.13%). Top winner from the saved snapshot was HD (+$10.57 intraday mark-to-market), while top loser was V (-$39.74), narrowly worse than GS. Watch tomorrow whether financials/payment names stabilize after late-day weakness, especially GS/JPM/V given they remain meaningful open exposure. vs SPY since inception: +6.0 pts
+## 2026-06-26
+### Pre-market
+Macro context: Jobs report / NFP is within 7 days (first Friday, Jul 3, 08:30 ET); no FOMC or CPI event in the next 7 days per catalysts file. Current regime is risk_on, but avoid adding excessive consumer/rate beta ahead of payrolls. Note: the requested `web_search` tool is not available in the current tool namespace, so I could not run the 2-3 fresh web searches; sources below use company/Fed/IR URLs plus local earnings, news, and signal feeds.
+
+- **JPM** (~$0-$500 top-up only / primarily hold): Bank-quality capital-return setup into the late-June Federal Reserve stress-test / CCAR window.
+  - Why mispriced: The market may still treat large banks mainly as rate-curve trades, while JPM's fee, card, trading, credit, and capital-return mix can work if stress-test results support buybacks and dividend growth.
+  - What market is missing: A positive 10Y-2Y spread and risk_on breadth can support bank earnings revisions, and DFAST/CCAR is a nearer catalyst than waiting for the mid-July earnings cycle.
+  - Datable catalyst: Federal Reserve annual bank stress-test results / CCAR capital-return window expected in late June 2026, with JPM's mid-July earnings as the follow-through checkpoint.
+  - Key risk (what makes this wrong): Tougher-than-expected stress-test capital requirements, worsening credit trends, or curve flattening could mute capital-return upside; position size is already meaningful, so any add should be small.
+  - Sources: https://www.federalreserve.gov/supervisionreg/stress-tests-capital-planning.htm; https://www.jpmorganchase.com/ir; https://www.jpmorganchase.com/ir/news
+
+- **UNH** (~$0-$500 top-up only / primarily hold): Managed-care rebound setup supported by a fresh Maria Elvira Salazar disclosed buy and a mid-July earnings/utilization checkpoint.
+  - Why mispriced: The market is still pricing managed care as structurally impaired by utilization, Medicare Advantage reimbursement pressure, and policy risk, while the disclosed politician buy suggests the bad-news bar may now be low.
+  - What market is missing: If management can stabilize medical-cost commentary into the next quarterly update, UNH offers non-tech, lower-semi-beta recovery exposure in a book still carrying financials/payments and retail cyclicality.
+  - Datable catalyst: Expected mid-July earnings window, with medical-cost ratio, Medicare Advantage commentary, utilization trends, and 2026 guide confidence as 1-8 week checkpoints.
+  - Key risk (what makes this wrong): A politician buy is not enough by itself; if utilization, reimbursement, or regulatory headlines worsen, UNH can keep derating despite apparently cheap valuation.
+  - Sources: https://www.unitedhealthgroup.com/investors.html; https://www.unitedhealthgroup.com/investors/financial-reports.html; local Signal DB: Maria Elvira Salazar disclosed UNH buy, 2026-06-26.
+
+- **COST** (~$0 new capital / hold): High-quality retail/staples exposure into the early-July monthly sales and traffic checkpoint, useful as a defensive-consumer offset after NKE was stopped out.
+  - Why mispriced: The market often treats COST's premium valuation as the dominant risk, but resilient traffic, renewal rates, and membership economics can keep the multiple supported while weaker discretionary retailers struggle.
+  - What market is missing: Costco is cleaner defensive-consumer exposure than trying to re-enter a recently stopped-out turnaround like NKE; monthly sales and renewal/traffic data are nearer validation points than the next full quarterly cycle.
+  - Datable catalyst: Next monthly sales update / early-July retail data checkpoint in the next 1-3 weeks, followed by the late-summer earnings cycle; watch comp sales, traffic, renewal rates, and merchandise margin commentary.
+  - Key risk (what makes this wrong): At a high multiple, even steady comps may not be enough; any traffic slowdown, margin pressure, or weaker membership commentary could derate the stock despite franchise quality.
+  - Sources: https://investor.costco.com/; https://investor.costco.com/financials/quarterly-results/default.aspx; local scraped-news and signal feeds returned no fresh COST items today.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- None. `get_upcoming_earnings(days=7)` shows NKE reporting 2026-06-30 after close with EPS estimate $0.11, but NKE is not in the latest portfolio snapshot after yesterday's stop-loss exit. Current held positions in the latest portfolio snapshot do not report within 5 trading days.
+### Execute
+
+Live state at open: equity $54,628.03, cash $36,678.02, buying power $196,972.11, and 7 live positions. Regime is risk_on and cash/position capacity were ample. Today's pre-market plan listed JPM and UNH as small top-up/hold candidates and COST as hold-only; no new ticker was required.
+
+**Bought / submitted (top-up only; 0/2 fresh-name cap used):**
+- **UNH** submitted for $100. Order id 16b462c6-6f4e-4552-b7b0-4525a5a3bf5c. Estimated 0.24 sh at ~$417.46. Thesis copied from pre-market: Catalyst: expected mid-July earnings window plus fresh Maria Elvira Salazar disclosed UNH buy. Why mispriced: managed care is still priced as structurally impaired by utilization, MA reimbursement pressure, and policy risk. Variant view: stabilization in medical-cost commentary can re-rate this non-tech recovery exposure. Datable catalyst: mid-July earnings/utilization and 2026 guide checkpoints. Key risk: utilization, reimbursement, or regulatory headlines worsen and the derating continues.
+
+**Skipped:**
+- **JPM top-up**: skipped because the position was already ~$2.7k, essentially at the 5% per-position cap for current equity; incremental room was too small to matter and prior top-up attempts showed the cap constraint is binding.
+- **COST**: held only per pre-market; no fresh news/signal and the position is already a defensive-consumer sleeve into early-July sales/traffic checks.
+- No fresh tickers and no other top-ups. AGG remains a legacy bond ETF without a rate thesis, but this execute routine has no sell tool.
+
+Post-execute snapshot: equity $54,626.73, cash $36,577.68, buying power $196,848.07, and 7 positions. Watch into midday: GS winner protection if still +15% with fractional-stop issue, HD/UNH near 5% caps, and whether financials/payment names stabilize after yesterday's late weakness.
+## 2026-06-26
+### Midday
+Midday risk scan completed. No positions were down 7% or more from average cost, so no stop-loss liquidations were required. No positions were up 15% or more from average cost, so no trailing stops were tightened to 7%. Closest winner was HD at roughly +14.4%, below the tightening threshold; largest loser was AGG at roughly -0.2%, well above the forced-exit threshold.
+### Close
+Day P/L: -$65.99 (-0.12%) from execute-time equity $54,653.20 to close equity $54,587.21. Top winner: UNH (+$16.49 intraday, helped offset broader book softness). Top loser: GS (-$26.96 intraday) as financials gave back some gains into the close. Watch tomorrow: whether risk-on breadth holds and whether GS/JPM weakness is just end-of-week profit-taking or the start of a broader financials pause; vs SPY since inception: +6.6 pts.
+## Weekly review 2026-06-26
+
+### Numeric scorecard / hard performance anchor
+
+- **Authoritative since-inception scorecard from `get_performance`:** equity **$54,572.03** vs start equity $49,655.29 = **+9.90%**. SPY over the same period is **+3.48%**, so the strategy is ahead by **+6.43 percentage points** and still beating the benchmark.
+- **Realized-trade quality from `get_performance`:** 403 closed lots, **29.3% hit rate**, **0.87 profit factor**, realized P/L **-$169.73**, average win **+$9.61**, average loss **-$4.57**. The low hit rate remains acceptable only if winners are protected and allowed to dominate; this week’s realized profile slipped below 1.0 profit factor, so recent stop-outs are now costing more than the realized winners are contributing.
+- **Best / worst closed trades from `get_performance`:** best remains **PANW +$814.77 / +34.82%**, exited by synthetic trailing stop after falling >10% from peak. Worst is **PFE -$240.26 / -9.61%**, exited by the midday stop-loss rule after breaking the -7% threshold.
+- **Recent closed lots from `get_performance`:** **NKE -$165.39 / -8.27%** via midday stop-loss, multiple **AAPL** lots from synthetic trailing stop around -1.23% to +2.11%, and **AMAT -$98.12 / -3.93%** via synthetic trailing stop. These confirm recent exits were mostly mechanical risk-control exits rather than discretionary thesis-break sells.
+- **Current live book from Alpaca:** equity **$54,572.03**, cash **$36,577.68** (~67.0%), 7 positions: AGG, COST, GS, HD, JPM, UNH, V. Largest unrealized winners are **HD +$334**, **GS +$228**, **UNH +$150**, **V +$81**. COST is near flat, AGG is a small drag. There is no large single-name concentration; the book is very cash-heavy.
+- **Week-over-week log anchor:** 2026-06-22 close equity **$55,574.05** → 2026-06-26 close/live equity **$54,572.03** = **-$1,002 / -1.8%** for the logged week. This drawdown is consistent with the sequence of PFE/NKE stop-outs and apparent mechanical exits in semi/tech exposure. The strategy remains ahead since inception, but the week itself was poor.
+- **Market regime at review:** risk_on by tool (VIX 18.89, breadth 59.6%, 10Y-2Y +0.31), but VIX rose +2.49 over 5 days. The book ended the week defensively with 67% cash, which reduced risk but also means it did not fully participate in any risk-on rebound.
+
+### Hit-rate inventory of this week’s ideas
+
+1. **2026-06-22 pre-market: NKE, JPM, MU hold.**
+   - Became actual buys: **NKE** and **JPM**. MU was correctly held with no top-up ahead of its Jun 24 earnings binary.
+   - Current/closed status: **NKE was stopped out on 2026-06-25 at -8.27% per get_performance**, so the trough-quarter turnaround thesis did not pay before the risk rule fired. **JPM is roughly flat/slightly green** and remains held into the late-June stress-test/CCAR catalyst.
+
+2. **2026-06-23 pre-market: NKE/JPM small adds, PANW watch-only, MU earnings prep.**
+   - Became actual buys: **0**. Correctly avoided adding to NKE while it was weak and avoided PANW because no near-dated catalyst was confirmed. This was discipline rather than missed opportunity.
+
+3. **2026-06-24 pre-market: JPM/V small top-ups, PFE review, MU/NKE earnings prep.**
+   - Became actual buys: **small JPM and V top-ups** ($150 each). Both were near-cap, so the adds were intentionally tiny.
+   - Current/closed status: **JPM is flat**, **V is up modestly**, so the adds were harmless but not material. **PFE was force-sold the same day after breaking -7%**, and is now the worst realized trade in the scorecard.
+
+4. **2026-06-25 pre-market: COST fresh candidate, NKE possible add, JPM hold.**
+   - Became actual buys: **COST**. Correctly skipped NKE add because it was already close to the -7% line; midday then validated that caution by stopping it out.
+   - Current status: **COST is roughly flat/slightly green**. The early-July monthly sales/traffic thesis remains intact.
+
+5. **2026-06-26 pre-market: UNH small top-up, JPM/COST hold.**
+   - Became actual buys: **small UNH top-up** ($100). JPM was skipped due to cap proximity and COST was correctly held.
+   - Current status: **UNH is up +$150 total unrealized**, helped by today’s relative strength. This is the best active non-financial thesis in the book after HD.
+
+**Fresh-name idea-to-buy hit rate:** 3 fresh buys from 4 fresh candidates this week (**NKE, JPM, COST bought; PANW watch skipped**). Outcome so far: **NKE failed and was stopped**, **JPM flat**, **COST flat/slightly green**. The fresh-buy hit rate on realized/current outcomes is weak this week.
+
+### Thesis vs reality on closed positions / exits
+
+- **NKE — forced stop-loss exit on 2026-06-25.**
+  - Catalyst: Jun 30 earnings turnaround setup, with the market supposedly braced for a trough EPS quarter.
+  - Did the catalyst fire? **No.** The position was opened before the earnings event and failed before the print.
+  - Thesis-vs-reality: The market did not reward the “low bar / turnaround optionality” setup; price action deteriorated quickly enough to trigger the rule. This was not a post-catalyst thesis break; it was a **premature stop before the catalyst**, but the stop was still correct because the entry was too early/weak for a binary turnaround name already under pressure.
+
+- **PFE — forced stop-loss exit on 2026-06-24.**
+  - Catalyst: prior Q1 beat/reaffirmation, Vyndamax exclusivity extension, and oncology/acquired-product pipeline.
+  - Did the catalyst fire? **Yes, but it did not translate into price support.** The thesis was known for weeks and still failed to attract demand.
+  - Thesis-vs-reality: This was a **genuine thesis degradation via persistent price rejection**, not just a noisy stop. The market continued to treat PFE as a patent-cliff/yield-trap story despite the Vyndamax argument. Exiting under the midday rule was correct.
+
+- **AMAT — recent synthetic trailing stop loss per `get_performance`.**
+  - Catalyst: post-FOMC semi-cap equipment exposure and AI/HBM/foundry capex resilience.
+  - Did the catalyst fire? **Partly.** The broad capex narrative was valid, but the position appears to have been removed by trailing stop before meaningful follow-through.
+  - Thesis-vs-reality: This looks more like a **premature/mechanical stop in a volatile semi name** than a confirmed fundamental break. However, given MU’s earnings event and existing semi sensitivity, reducing AMAT also reduced correlated risk.
+
+- **AAPL — recent synthetic trailing stop lots.**
+  - Catalyst: earlier post-print buyback/services/China strength thesis.
+  - Did the catalyst fire? **Partly, earlier in the holding period.** Recent lots show small realized losses/gains rather than a major thesis outcome.
+  - Thesis-vs-reality: These were ordinary mechanical exits around flat-to-small gains/losses. No process change needed beyond accepting that stale post-print drifts should not be defended indefinitely.
+
+### What worked
+
+1. **Rule-based loss control worked.** NKE and PFE were both cut rather than defended. The realized losses hurt this week, but they prevented a weak consumer turnaround and a weak pharma thesis from becoming larger drawdowns.
+2. **Concentration risk is now low.** Current live positions are all roughly 0–5% allocations, with very high cash. The earlier single-name and semi-concentration problems are not present today.
+3. **HD and UNH are validating.** HD is the largest live winner (+$334) and UNH is improving (+$150) after the small top-up. These non-semi, non-megacap themes are doing useful diversification work.
+4. **COST was chosen over averaging down NKE.** That was the right relative decision. COST is flat/slightly green while NKE was stopped the same day.
+5. **Fresh top-ups stayed small near caps.** JPM/V/UNH adds were appropriately tiny where position values were already near the 5% entry cap.
+
+### What did not work / process gaps
+
+1. **Earnings-turnaround entries before confirmation are still dangerous.** NKE was bought for a Jun 30 turnaround print but failed before the catalyst. A low EPS bar is not enough if price action is already deteriorating.
+2. **PFE lingered too long as a weak thesis.** The position was repeatedly flagged near the -7% line before finally stopping out. A discretionary “thesis not being rewarded” review could have reduced the loss earlier.
+3. **Realized profit factor fell below 1.0.** The strategy is still beating SPY since inception, but recent realized trade quality deteriorated: many small stop-outs are not currently being offset by new realized winners.
+4. **AGG remains a non-catalyst legacy position.** It is small, but still violates the spirit of the bond ETF opt-in-only rule. With 67% cash, AGG is not needed for ballast or cash management.
+5. **High cash is now both safety and opportunity cost.** Ending the week ~67% cash lowers drawdown risk, but in a risk_on regime it can become a drag unless next week’s pipeline is executed selectively.
+
+### ONE concrete process change
+
+**Require price-confirmation for pre-earnings turnaround trades.** Proposed concrete strategy.md diff:
+
+> Add under “Rules you enforce yourself”: “For turnaround/broken-growth earnings trades entered before the print, require either (a) the position to be above its 5-day moving average / showing positive 3-day relative strength, or (b) size at half-normal notional and explicitly state that a -5% pre-print drawdown triggers thesis review. A low consensus bar alone is not sufficient.”
+
+Rationale: NKE had a datable catalyst and low expectations, but the tape kept rejecting it. A modest price-confirmation filter would have reduced or delayed the entry.
+
+### Next week idea pipeline (3-5 names)
+
+1. **COST — held; early-July monthly sales / traffic checkpoint.** Watch comp sales, traffic, membership renewal, and merchandise margin. Current action bias: hold; do not top up unless fresh sales data confirms resilience.
+2. **JPM — held; late-June stress-test / CCAR capital-return catalyst.** Watch Fed stress-test results, buyback/dividend commentary, credit trends, and curve. Current action bias: hold; no top-up near 5% cap.
+3. **UNH — held; mid-July earnings/utilization recovery setup.** Watch medical-cost ratio commentary, Medicare Advantage reimbursement, regulatory headlines, and any additional politician/insider signals. Current action bias: hold; small top-up only if position remains below cap and fresh positive signal appears.
+4. **V — held; late-July earnings payment-volume checkpoint.** Watch cross-border trends, payment volume, and consumer-spend data around the Jul 3 jobs report. Current action bias: hold.
+5. **NKE — stopped; do not re-enter before Jun 30 unless a materially new positive signal appears.** The catalyst remains datable, but the 3-day holding experience says the market is not rewarding the turnaround setup yet.
+
+### Proposed strategy.md edits (user applies manually)
+
+1. **Pre-earnings turnaround confirmation rule:** add the price-confirmation / half-size rule proposed above.
+2. **Weak-thesis review lane:** add: “If a position spends 3 consecutive sessions worse than -5% from cost without fresh positive news, write a thesis-review note and consider discretionary exit at the next sell-capable routine rather than waiting for -7%.”
+3. **Legacy bond ETF cleanup:** add or reaffirm: “If AGG/BND/TLT/etc. is held without an active written rate/duration thesis for more than 5 trading days, prioritize exiting at the next sell-capable routine unless there is a documented reason to keep duration exposure.”
+
+### Proposed catalysts.md additions (stock-specific only)
+
+- **JPM** — late-June 2026 Federal Reserve stress-test / CCAR capital-return window; watch capital requirement, buyback/dividend commentary, credit trends, and curve sensitivity.
+- **COST** — early-July 2026 monthly sales / traffic update; watch comp sales, traffic, renewal rates, merchandise margin, and membership commentary.
+- **UNH** — expected mid-July 2026 earnings window; watch medical-cost ratio, Medicare Advantage reimbursement commentary, utilization trends, and 2026 guide confidence.
+- **V** — late-July 2026 earnings window; watch payment volume, cross-border volume, take rate, expense leverage, and consumer-spend commentary.
+- **NKE** — Jun 30, 2026 after-close earnings; watch inventory, gross margin, North America, China, wholesale/DTC mix, and FY guide tone. Flag as watch-only after stop-out unless new evidence appears.
+## 2026-06-29
+### Pre-market
+Macro context: Jobs report / NFP is within 7 days (Fri Jul 3, 08:30 ET); no FOMC or CPI event inside the 7-day window. Regime remains risk_on (VIX 18.89, breadth 59.6%, 10Y-2Y +0.31), but VIX is up +2.49 over 5 days, so avoid chasing consumer/rate beta before payrolls. Note: the requested `web_search` tool is not available in the current tool namespace, so I could not run the 2-3 fresh searches; sources below use company/Fed/IR URLs plus local earnings/news/signal feeds.
+
+- **JPM** (~$0-$300 top-up only / primarily hold): Bank-quality capital-return setup into the late-June Federal Reserve stress-test / CCAR window.
+  - Why mispriced: The market may still treat large banks mainly as rate-curve trades, while JPM's diversified fee, card, trading, credit, and capital-return mix can work if stress-test results support buybacks and dividend growth.
+  - What market is missing: A positive 10Y-2Y spread and risk_on breadth can support bank earnings revisions, and DFAST/CCAR is a nearer catalyst than waiting for the mid-July earnings cycle.
+  - Datable catalyst: Federal Reserve annual bank stress-test results / CCAR capital-return window expected in late June 2026, with JPM's mid-July earnings as the follow-through checkpoint.
+  - Key risk (what makes this wrong): Tougher-than-expected stress-test capital requirements, worsening credit trends, or curve flattening could mute capital-return upside; local news/signal feeds returned no fresh JPM items today, so conviction is hold-first.
+  - Sources: https://www.federalreserve.gov/supervisionreg/stress-tests-capital-planning.htm; https://www.jpmorganchase.com/ir; https://www.jpmorganchase.com/ir/news
+
+- **UNH** (~$0-$300 top-up only / primarily hold): Managed-care rebound setup with a fresh Maria Elvira Salazar disclosed $8k buy and mid-July earnings/utilization checkpoint.
+  - Why mispriced: The market is still pricing managed care as structurally impaired by utilization, Medicare Advantage reimbursement pressure, and policy risk, while the disclosed politician buy suggests the bad-news bar may be lower after the drawdown.
+  - What market is missing: If management can stabilize medical-cost commentary into the next quarterly update, UNH offers non-tech recovery exposure that is less directly tied to the payrolls/rate-beta trade than semis or discretionary retail.
+  - Datable catalyst: Expected mid-July earnings window, with medical-cost ratio, Medicare Advantage commentary, utilization trends, and 2026 guide confidence as 1-8 week checkpoints.
+  - Key risk (what makes this wrong): A politician buy is not enough by itself; if utilization, reimbursement, or regulatory headlines worsen, UNH can keep derating despite apparently cheap valuation.
+  - Sources: https://www.unitedhealthgroup.com/investors.html; https://www.unitedhealthgroup.com/investors/financial-reports.html; local Signal DB: Maria Elvira Salazar disclosed UNH buy, 2026-06-29.
+
+- **COST** (~$0 new capital / hold): High-quality retail/staples exposure into early-July monthly sales and traffic checks, useful as a defensive-consumer offset after NKE was stopped out.
+  - Why mispriced: The market often treats COST's premium valuation as the dominant risk, but resilient traffic, renewal rates, and membership economics can keep the multiple supported while weaker discretionary retailers struggle.
+  - What market is missing: Costco is cleaner defensive-consumer exposure than trying to re-enter a recently stopped-out turnaround like NKE; monthly sales and renewal/traffic data are nearer validation points than the next full quarterly cycle.
+  - Datable catalyst: Next monthly sales update / early-July retail data checkpoint in the next 1-3 weeks, followed by the late-summer earnings cycle; watch comp sales, traffic, renewal rates, and merchandise margin commentary.
+  - Key risk (what makes this wrong): At a high multiple, even steady comps may not be enough; any traffic slowdown, margin pressure, or weaker membership commentary could derate the stock despite franchise quality.
+  - Sources: https://investor.costco.com/; https://investor.costco.com/financials/quarterly-results/default.aspx; local scraped-news and signal feeds returned no fresh COST items today.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- None. `get_upcoming_earnings(days=7)` shows NKE reporting 2026-06-30 after close with EPS estimate $0.11, but NKE is not in the latest portfolio snapshot after the stop-loss exit. Current held positions in the latest portfolio snapshot (AGG, COST, GS, HD, JPM, UNH, V) do not report within 5 trading days.
+### Execute
+
+Live state at open: equity $54,629.70, cash $36,577.67, buying power $196,856.37, and 7 live positions. Regime is risk_on, but the pre-market plan contained no fresh-ticker buys: JPM and UNH were small top-up/primarily-hold candidates, and COST was hold-only.
+
+**Bought:** none.
+
+**Skipped:**
+- **JPM top-up**: skipped. Position value is already ~$2,650, close to the 5% per-position cap (~$2,731), and local feeds showed no fresh JPM-specific catalyst today beyond the existing late-June stress-test/CCAR setup. A tiny add would not materially improve expected return.
+- **UNH top-up**: skipped despite the Salazar disclosed-buy signal. Position value is already ~$2,716, essentially at the 5% cap, leaving only de minimis room; adding would risk a tool rejection for little portfolio benefit.
+- **COST**: held per plan. Early-July monthly sales/traffic checkpoint remains intact, but no new capital was warranted today.
+- **AGG**: still a legacy bond ETF without an active rate thesis, but this execute routine has no sell tool; carried forward as a housekeeping item for the next sell-capable routine.
+
+Post-execute book unchanged: 7 positions and ~67% cash. Watch into midday: HD is up ~13.6% and GS ~10.5%, both below the +15% trail-tighten threshold; AGG/COST/JPM are near flat; no position is near the -7% forced-exit line.
+### Midday
+- Ran midday risk scan on current Alpaca portfolio at 2026-06-29T17:00:00Z.
+- Stop-loss rule check: no positions were down 7% or more from average cost, so no forced sells were placed.
+- Winner-tightening check: no positions were up 15% or more from average cost, so no trailing stops were tightened to 7%.
+- Portfolio remains invested in AGG, COST, GS, HD, JPM, UNH, and V with cash unchanged absent any midday trades.
+### Close
+Day P/L: +$3.48 (+0.01%) versus execute-time equity of $54,597.32. Top winner: HD +$18.44 on a mark-to-market basis into the close. Top loser: JPM -$19.79 as the bank sleeve gave back some execute-time gains. Watch tomorrow: whether risk-on breadth can keep supporting cyclicals/financials while protecting gains in extended winners HD and GS. vs SPY since inception: +5.0 pts
+## 2026-06-30
+### Pre-market
+Macro context: Jobs report / NFP is within 7 days (Fri Jul 3, 08:30 ET); no FOMC or CPI event inside the 7-day window, so avoid adding excessive consumer/rate beta before payrolls despite the risk_on regime. Note: the requested `web_search` tool is not available in the current tool namespace, so I could not run the 2-3 fresh searches; sources below use company/Fed/IR URLs plus local earnings/news/signal feeds.
+
+- **UNH** (~$0-$300 top-up only / primarily hold): Managed-care rebound setup now has two fresh politician-buy signals, Maria Elvira Salazar and Gilbert Cisneros, both disclosed $8k buys today.
+  - Why mispriced: The market is still treating managed care as structurally impaired by utilization, Medicare Advantage reimbursement pressure, and policy risk, while repeated disclosed buys suggest the bad-news bar may now be low.
+  - What market is missing: If management stabilizes medical-cost commentary into the mid-July earnings window, UNH offers non-tech recovery exposure that is less directly tied to the Jul 3 payrolls/rate-beta trade than cyclicals or semis.
+  - Datable catalyst: Expected mid-July earnings window, with medical-cost ratio, Medicare Advantage commentary, utilization trends, and 2026 guide confidence as 1-8 week checkpoints.
+  - Key risk (what makes this wrong): Politician buys are not enough by themselves; if utilization, reimbursement, or regulatory headlines worsen, UNH can keep derating despite apparently cheap valuation and repeat buy signals.
+  - Sources: https://www.unitedhealthgroup.com/investors.html; https://www.unitedhealthgroup.com/investors/financial-reports.html; local Signal DB: Salazar and Cisneros UNH buys disclosed 2026-06-30.
+
+- **SHW** (~$2,000-$2,500 fresh candidate): Paint/coatings quality cyclical with a fresh Maria Elvira Salazar disclosed $8k buy and a late-July earnings window that can validate housing/remodel stabilization.
+  - Why mispriced: The market may be over-penalizing housing-linked materials for higher-for-longer rates and sluggish turnover, even though coatings demand can be steadier through maintenance, pro repaint, and pricing mix.
+  - What market is missing: SHW offers a non-bank, non-semi way to express a risk_on tape and potential repair/remodel stabilization, and the fresh politician buy gives an independent positioning signal without averaging into an existing near-cap holding.
+  - Datable catalyst: Expected late-July earnings window, with same-store paint demand, contractor/pro channel trends, raw-material margin, and FY guide tone as the 1-8 week checkpoints.
+  - Key risk (what makes this wrong): If Jul 3 payrolls or subsequent housing data pressure mortgage/remodel expectations, SHW could trade as a rate-sensitive housing proxy before the company-specific earnings catalyst arrives.
+  - Sources: https://investors.sherwin-williams.com/; https://investors.sherwin-williams.com/news-events/press-releases; local Signal DB: Maria Elvira Salazar SHW buy disclosed 2026-06-30.
+
+- **COST** (~$0 new capital / hold): High-quality retail/staples exposure into early-July monthly sales and traffic checks, useful as a defensive-consumer offset after NKE was stopped out.
+  - Why mispriced: The market often treats Costco's premium valuation as the dominant risk, but resilient traffic, renewal rates, and membership economics can keep the multiple supported while weaker discretionary retailers struggle.
+  - What market is missing: Costco is cleaner defensive-consumer exposure than re-entering a recently stopped-out turnaround like NKE; monthly sales and renewal/traffic data are nearer validation points than the next full quarterly cycle.
+  - Datable catalyst: Next monthly sales update / early-July retail data checkpoint in the next 1-3 weeks, followed by the late-summer earnings cycle; watch comp sales, traffic, renewal rates, and merchandise margin commentary.
+  - Key risk (what makes this wrong): At a high multiple, even steady comps may not be enough; any traffic slowdown, margin pressure, or weaker membership commentary could derate the stock despite franchise quality.
+  - Sources: https://investor.costco.com/; https://investor.costco.com/financials/quarterly-results/default.aspx; local scraped-news and signal feeds returned no fresh COST items today.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- None. `get_upcoming_earnings(days=7)` shows NKE reporting 2026-06-30 after close with EPS estimate $0.11, but NKE is not in the latest portfolio snapshot after the stop-loss exit. Current held positions in the latest portfolio snapshot (AGG, COST, GS, HD, JPM, UNH, V) do not report within 5 trading days.
+### Execute
+
+Live state at open: equity $54,592.90, cash $36,577.67, buying power $196,753.32, and 7 live positions. Regime is risk_on and cash/position capacity were ample. Today's pre-market plan listed UNH as top-up/primarily-hold, SHW as the only fresh candidate, and COST as hold-only.
+
+**Bought / submitted (1/2 fresh-name daily cap used):**
+- **SHW** submitted. Order id 3ff1861c-8ac9-438c-afa8-6c7e8caf2fa5. Notional $2,300; tool estimated 6.69 sh at ~$343.68. Thesis copied from pre-market: Catalyst is the expected late-July earnings window, with same-store paint demand, contractor/pro channel trends, raw-material margin, and FY guide tone as checkpoints. Why mispriced: the market may be over-penalizing housing-linked materials for higher-for-longer rates and sluggish turnover, even though coatings demand can be steadier through maintenance, pro repaint, and pricing mix. Variant view: SHW offers a non-bank, non-semi way to express a risk_on tape and potential repair/remodel stabilization, plus a fresh Maria Elvira Salazar disclosed buy. Key risk is that Jul 3 payrolls or housing data pressure mortgage/remodel expectations before the company-specific catalyst arrives.
+
+**Skipped:**
+- **UNH top-up**: skipped despite two politician-buy signals because the live position was already ~$2.70k, essentially at the 5% per-position cap for current equity. Incremental room was de minimis and likely to risk a cap rejection.
+- **COST**: held per plan. Early-July monthly sales/traffic checkpoint remains intact, but there was no fresh news/signal requiring more capital.
+- **AGG**: still a legacy bond ETF without an active rate thesis, but this execute routine has no sell tool; carried forward as a housekeeping item.
+
+**Post-execute snapshot:** equity $54,578.48, cash $36,577.67, buying power $194,398.27, 7 live positions. SHW order was submitted but not yet reflected in positions/cash when portfolio.md was written, so the next routine should confirm fill and attached stop. Watch into midday: HD and GS winner thresholds, SHW fill status, and whether payrolls-risk concerns pressure housing-linked names (HD/COST/SHW).
+## 2026-06-30
+### Midday
+- Completed midday risk scan using live Alpaca portfolio at 17:00 UTC.
+- Stop-loss rule check: no positions were down 7% or more from average cost, so no forced exits were placed.
+- Winner tightening check: no positions were up 15% or more from average cost. HD was the closest at roughly +14.84%, so no 7% trailing-stop tightening was applied.
+- No fresh positions opened, consistent with midday routine instructions.
+### Close
+Day P/L: -$28.91 (-0.05%) from execute-time equity $54,571.80 to closing equity $54,542.89. Top winner: SHW, +$11.97 intraday unrealized P/L improvement. Top loser: JPM, -$17.89 intraday unrealized P/L decline. Watch tomorrow: risk-on backdrop remains supportive, but monitor whether financials (JPM) stabilize while keeping focus on dated catalysts and avoiding unnecessary bond-ETF exposure. vs SPY since inception: +4.1 pts
+## 2026-07-01
+### Pre-market
+Macro context: Jobs report / NFP is within 7 days (Fri Jul 3, 08:30 ET); no FOMC or CPI event inside the 7-day window. Regime is risk_on, but avoid adding excessive consumer/rate beta before payrolls. Note: the requested `web_search` tool is not available in the current tool namespace, so I could not run the 2-3 fresh web searches; sources below use company/Fed/IR URLs plus local earnings, news, and signal feeds.
+
+- **UNH** (~$0-$300 top-up only / primarily hold): Managed-care rebound setup now has repeat politician-buy support, with Maria Elvira Salazar and Gilbert Cisneros each disclosing $8k buys in the local signal feed today.
+  - Why mispriced: The market is still treating managed care as structurally impaired by utilization, Medicare Advantage reimbursement pressure, and policy risk, while repeated disclosed buys suggest the bad-news bar may now be low.
+  - What market is missing: If management stabilizes medical-cost commentary into the mid-July earnings window, UNH offers non-tech recovery exposure that is less directly tied to the Jul 3 payrolls/rate-beta trade than cyclicals or semis.
+  - Datable catalyst: Expected mid-July earnings window, with medical-cost ratio, Medicare Advantage commentary, utilization trends, and 2026 guide confidence as 1-8 week checkpoints.
+  - Key risk (what makes this wrong): Politician buys are not enough by themselves; if utilization, reimbursement, or regulatory headlines worsen, UNH can keep derating despite apparently cheap valuation and repeat buy signals.
+  - Sources: https://www.unitedhealthgroup.com/investors.html; https://www.unitedhealthgroup.com/investors/financial-reports.html; local Signal DB: Salazar and Cisneros UNH buys disclosed 2026-07-01.
+
+- **SHW** (~$0-$300 top-up only / primarily hold): Paint/coatings quality cyclical with a fresh Maria Elvira Salazar disclosed $8k buy and a late-July earnings window that can validate housing/remodel stabilization.
+  - Why mispriced: The market may be over-penalizing housing-linked materials for higher-for-longer rates and sluggish turnover, even though coatings demand can be steadier through maintenance, pro repaint, and pricing mix.
+  - What market is missing: SHW offers a non-bank, non-semi way to express a risk_on tape and potential repair/remodel stabilization, and the politician buy gives an independent positioning signal without adding more financials exposure.
+  - Datable catalyst: Expected late-July earnings window, with same-store paint demand, contractor/pro channel trends, raw-material margin, and FY guide tone as the 1-8 week checkpoints.
+  - Key risk (what makes this wrong): If Jul 3 payrolls or subsequent housing data pressure mortgage/remodel expectations, SHW could trade as a rate-sensitive housing proxy before the company-specific earnings catalyst arrives.
+  - Sources: https://investors.sherwin-williams.com/; https://investors.sherwin-williams.com/news-events/press-releases; local Signal DB: Maria Elvira Salazar SHW buy disclosed 2026-07-01.
+
+- **COST** (~$0 new capital / hold): High-quality retail/staples exposure into early-July monthly sales and traffic checks, useful as a defensive-consumer offset after NKE was stopped out.
+  - Why mispriced: The market often treats Costco's premium valuation as the dominant risk, but resilient traffic, renewal rates, and membership economics can keep the multiple supported while weaker discretionary retailers struggle.
+  - What market is missing: Costco is cleaner defensive-consumer exposure than re-entering a recently stopped-out turnaround like NKE; monthly sales and renewal/traffic data are nearer validation points than the next full quarterly cycle.
+  - Datable catalyst: Next monthly sales update / early-July retail data checkpoint in the next 1-3 weeks, followed by the late-summer earnings cycle; watch comp sales, traffic, renewal rates, and merchandise margin commentary.
+  - Key risk (what makes this wrong): At a high multiple, even steady comps may not be enough; any traffic slowdown, margin pressure, or weaker membership commentary could derate the stock despite franchise quality.
+  - Sources: https://investor.costco.com/; https://investor.costco.com/financials/quarterly-results/default.aspx; local scraped-news and signal feeds returned no fresh COST items today.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- None. `get_upcoming_earnings(days=7)` returned no events, so no held position requires a bull/base/bear earnings scenario today.
+### Execute
+
+Live state at open-window check: equity $54,585.43, cash $36,898.45, buying power $197,117.35, and 7 live positions. Regime is risk_on, but NFP is due Jul 3, so I avoided aggressive new consumer/rate-beta deployment. Today's pre-market plan contained UNH and SHW as top-up/primarily-hold candidates and COST as hold-only; no truly new ticker was required.
+
+**Bought / submitted (top-up only; 0/2 fresh-name cap used):**
+- **SHW** submitted and reflected in the refreshed portfolio. Order id e96c42bf-ef94-4bb1-b610-a1cbb5af024e. Notional $300, filled/position reflected as SHW total qty 7.56 at avg cost $343.36. Thesis copied from pre-market: Catalyst is expected late-July earnings, with same-store paint demand, contractor/pro trends, raw-material margin, and FY guide as checkpoints. Why mispriced: market may be over-penalizing housing-linked materials for higher-for-longer rates and sluggish turnover, while coatings demand can be steadier through maintenance/pro repaint/pricing mix. Variant view: SHW offers non-bank, non-semi exposure to risk_on and repair/remodel stabilization with a fresh Salazar buy signal. Key risk is Jul 3 payrolls or housing data pressuring mortgage/remodel expectations before the company catalyst.
+
+**Skipped:**
+- **UNH top-up**: skipped despite repeat Salazar/Cisneros buy signals because the live position was already $2.67k, close to the 5% per-position cap (~$2.73k). Incremental room was de minimis and a larger add would likely be rejected.
+- **COST**: held per plan. Early-July monthly sales/traffic checkpoint remains intact, but no fresh capital was warranted.
+- **AGG**: legacy bond ETF without an active rate thesis remains a housekeeping item, but this execute routine has no sell tool.
+
+**Post-execute snapshot:** equity $54,546.84, cash $36,599.39, buying power $196,650.43, and 7 live positions. Watch into midday: HD is the main winner and could approach the +15% trail-tighten threshold; SHW/UNH are close to 5% caps; no position is near the -7% forced-exit line.
+### Midday
+- Ran midday risk scan per routine. No positions were down 7% or more from average cost, so no stop-loss liquidations were required.
+- HD was up more than 15% from average cost and qualified for a tighter 7% trailing stop to lock in gains; the trailing-stop tool returned an API error (`fractional orders must be DAY orders`), so no retry or workaround was attempted.
+- Other positions were below the +15% tightening threshold and above the -7% stop-loss threshold; no fresh positions were opened.
+### Close
+Day P/L: -$55.91 (-0.10%) from execute-time equity $54,752.01 to close equity $54,696.10. Top intraday winner: UNH (+$10.13 market value vs execute snapshot); top intraday loser: HD (-$32.99). Watch tomorrow: confirm whether risk-on breadth can keep supporting cyclicals/financials while COST and AGG remain the main unrealized laggards in the book; vs SPY since inception: +4.54 pts.
