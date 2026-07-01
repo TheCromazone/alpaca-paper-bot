@@ -145,15 +145,20 @@ def _convert_tools(tools: list[dict]) -> list[dict]:
     return out
 
 
-def _extract_output(resp: Any) -> tuple[list[dict], bool, int]:
+def _extract_output(output_items: Any) -> tuple[list[dict], bool, int]:
     """OpenAI Responses output → Anthropic-shape content blocks.
 
     Returns (content_blocks, has_tool_call, reasoning_tokens).
+
+    ``output_items`` is the list of completed output items. On the OAuth Codex
+    endpoint the non-streaming ``resp.output`` comes back EMPTY even on a
+    completed response, so the runner collects items from the stream's
+    ``response.output_item.done`` events and passes them here.
     """
     content: list[dict] = []
     has_tool_call = False
     reasoning_toks = 0
-    for item in getattr(resp, "output", []) or []:
+    for item in output_items or []:
         itype = getattr(item, "type", None)
         if itype == "message":
             # item.content is a list of {output_text|text} blocks.
@@ -233,9 +238,25 @@ class CodexClient:
         if oai_tools:
             kwargs["tools"] = oai_tools
 
-        resp = self.client.responses.create(**kwargs)
+        # MUST stream. On the ChatGPT-OAuth Codex endpoint a non-streaming
+        # responses.create() returns status=completed with an EMPTY
+        # ``resp.output`` array — even though the model produced a message or
+        # function_call. The actual items only arrive as
+        # ``response.output_item.done`` events. Reading the non-stream
+        # ``resp.output`` is why every routine logged tools=0 and the bot
+        # stopped trading after the May-20 cutover. We collect the completed
+        # items off the stream and grab usage from ``response.completed``.
+        output_items: list[Any] = []
+        final_resp: Any = None
+        stream = self.client.responses.create(**kwargs, stream=True)
+        for ev in stream:
+            etype = getattr(ev, "type", "")
+            if etype == "response.output_item.done":
+                output_items.append(ev.item)
+            elif etype == "response.completed":
+                final_resp = getattr(ev, "response", None)
 
-        usage = getattr(resp, "usage", None)
+        usage = getattr(final_resp, "usage", None)
         in_tok = int(getattr(usage, "input_tokens", 0) or 0)
         out_tok = int(getattr(usage, "output_tokens", 0) or 0)
         # Fold reasoning tokens into output_tokens for accounting parity with
@@ -243,13 +264,12 @@ class CodexClient:
         details = getattr(usage, "output_tokens_details", None)
         if details is not None:
             r_tok = int(getattr(details, "reasoning_tokens", 0) or 0)
-            # Some SDK versions already include reasoning in output_tokens.
-            # Only add if not already counted (best-effort heuristic: if the
-            # detail value exceeds the headline output, trust the detail).
+            # output_tokens already includes reasoning on this endpoint; only
+            # override if the detail somehow exceeds the headline figure.
             if r_tok > 0 and r_tok > out_tok:
                 out_tok = r_tok
 
-        content, _has_tool_call, _ = _extract_output(resp)
+        content, _has_tool_call, _ = _extract_output(output_items)
 
         # stop_reason mirrors Anthropic's convention so the runner can use it
         # the same way: "tool_use" when there are pending function_calls,
