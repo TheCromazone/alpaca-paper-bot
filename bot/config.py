@@ -51,6 +51,14 @@ class Settings(BaseSettings):
     # end-to-end smoke runs. Ignored in production (never committed as true).
     schedule_debug_fast: bool = Field(False, alias="SCHEDULE_DEBUG_FAST")
 
+    # ---------- Gemini (dashboard aesthetics ONLY) ----------
+    # Google AI Studio key for bot/llm/gemini_client.py — reserved for
+    # visual-asset generation (e.g. dashboard imagery). Explicitly NOT used
+    # by any trading routine or LLM tool; trading runs through the runner's
+    # configured backend (Codex OAuth / Anthropic).
+    google_ai_api_key: str = Field("", alias="GOOGLE_AI_API_KEY")
+    gemini_model: str = Field("gemini-2.5-flash", alias="GEMINI_MODEL")
+
 
 settings = Settings()
 
