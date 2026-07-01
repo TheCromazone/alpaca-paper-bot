@@ -5,9 +5,11 @@ runs a **Claude/GPT tool-use loop five times a week**, reads markdown
 "memory" files like a portfolio manager would, researches catalysts using
 scraped news + politician trades + 13F filings + market-regime snapshots,
 and places trades — every cap enforced server-side in the Python tool layer
-so the model can't ever evade them. A separate Next.js dashboard renders
-the live portfolio, trade journal with reasoning, signal feed, and LLM-run
-ledger.
+so the model can't ever evade them. It also **scores itself against the
+market**: realized P&L and total return vs SPY (alpha) are computed in one
+place and shared by the API, the dashboard, and the weekly self-review. A
+separate Next.js dashboard renders the live portfolio, trade journal with
+reasoning, signal feed, performance scorecard, and LLM-run ledger.
 
 > ⚠️ **Paper only.** Pointed at `paper-api.alpaca.markets`. No real money is at risk.
 >
@@ -30,7 +32,7 @@ in SQLite. Times are anchored to `America/New_York`, so DST is automatic.
 | Routine | ET time | What it can do |
 |---|---|---|
 | `premarket` | Mon–Fri **07:00** | Research only — `web_search` (Anthropic path), read scraped news + signals, read upcoming earnings + market regime, append a dated section to `memory/research_log.md` with 2–3 catalyst-driven ideas. No trades. |
-| `execute` | Mon–Fri **09:30** | The only buy window — reads today's pre-market ideas, calls `place_buy(symbol, notional, thesis)`. Hard caps enforced in code: 5%/position, 2 fresh tickers/day, 25-position max, 10% trailing stop attached automatically (best-effort). |
+| `execute` | Mon–Fri **09:30** | The only buy window — reads today's pre-market ideas, calls `place_buy(symbol, notional, thesis)`. Hard caps enforced in code: 5%/position (**halved to 2.5% in a `risk_off` regime**), 2 fresh tickers/day (**1/day when `risk_off`**), 25-position max, 10% trailing stop attached automatically (best-effort), plus an **earnings-blackout refusal** on names reporting within the next few days. |
 | `midday` | Mon–Fri **13:00** | The only sell window — force-closes anything ≥7% under cost, tightens stops on big winners. |
 | `close` | Mon–Fri **16:00** | Log only — appends day P/L, top winner, top loser, one thing to watch tomorrow. |
 | `weekly_review` | Fri **17:00** | Post-mortem — reads last 5 days, scores hit-rate, proposes (in plain text) up to 3 edits to `memory/strategy.md`. The user applies them manually. |
@@ -40,9 +42,14 @@ in SQLite. Times are anchored to `America/New_York`, so DST is automatic.
 `bot/llm/tools.py` is the **enforcement point**, not the prompt. Every cap
 lives in handler code:
 
-- Max 5% of equity per new position at entry
+- Max 5% of equity per new position at entry — **automatically halved to
+  2.5% when the latest market-regime label is `risk_off`**
+- Max 2 fresh tickers per day — **tightened to 1/day when `risk_off`** (the
+  regime read fails open: an unreadable regime table falls back to the normal
+  caps rather than blocking the routine)
 - Max 25 open positions
-- Max 2 fresh tickers per day
+- **Earnings blackout** — `place_buy` refuses a name reporting earnings within
+  the next few days
 - 10% trailing stop attached to every buy (best-effort — Alpaca rejects GTC
   trailing stops on fractional positions, so a synthetic stop runs every
   5 min in `_sync_account_and_positions`)
@@ -83,6 +90,12 @@ Both paths go through the same runner (`bot/llm/runner.py`), the same tool
 registry (`bot/llm/tools.py`), and the same memory files. Swapping is one
 env-var change.
 
+> **Gemini is not a trading provider.** `bot/llm/gemini_client.py` and the
+> `GOOGLE_AI_API_KEY` / `GEMINI_MODEL` env vars exist **only** for dashboard
+> visual-asset generation. No tool in `bot/llm/tools.py` may call it, and it
+> never touches Alpaca, the DB, or the memory files. Trading always runs
+> through the Codex/Anthropic runner above.
+
 ### Signal pipeline feeding the LLM
 
 Every signal source is its own scheduled job. The LLM reads the resulting
@@ -102,6 +115,26 @@ Politician and investor signals carry per-source conviction weights
 (`POLITICIAN_WEIGHTS`, `INVESTOR_WEIGHTS` in `bot/config.py`) so
 Pelosi/Berkshire moves count more than backbenchers / multi-strats.
 
+### Performance analytics — does it beat the market?
+
+`bot/performance.py` is the single source of truth for "how are we doing" —
+read-only over the trade DB, and shared three ways so the API, the dashboard,
+and the LLM all derive the same numbers from one place:
+
+- **Benchmark vs SPY** — bot total return vs SPY total return since the first
+  portfolio snapshot, plus `alpha_pct` (bot − SPY). The project's headline KPI.
+- **Realized P&L** — FIFO-matched closed lots with hit rate, profit factor,
+  avg win/loss, and best/worst trade; each closing lot paired with its entry
+  thesis and exit reason, so the review can see which theses actually worked.
+- **Signal attribution** — realized P&L bucketed by the signal kind
+  (politician / investor / …) present on the ticker before entry. Co-occurrence,
+  not causation.
+
+It surfaces as `GET /performance/summary` (API → dashboard **Performance
+Scorecard**) and as the `get_performance_stats` tool, which `premarket`,
+`midday`, `close`, and `weekly_review` now call **first** so every routine
+reasons from its real standing vs SPY.
+
 ---
 
 ## Three processes
@@ -110,7 +143,7 @@ Pelosi/Berkshire moves count more than backbenchers / multi-strats.
 |---|---|---|---|
 | Bot scheduler | — | APScheduler `BlockingScheduler` (`python -m bot.main`) running the 5 LLM routines + signal jobs | `scripts\run_bot.bat` |
 | FastAPI service | `127.0.0.1:8765` | Read-only API over the SQLite DB | `scripts\run_bot.bat` |
-| Next.js dashboard | `http://localhost:3001` | Live UI — portfolio, trade journal with reasoning, LLM run history, cost card, regime, earnings, signals | `scripts\run_bot.bat` |
+| Next.js dashboard | `http://localhost:3001` | Live UI — portfolio, trade journal with reasoning, **performance scorecard (return vs SPY)**, LLM run history, cost card, regime, earnings, signals | `scripts\run_bot.bat` |
 
 `scripts\run_bot.bat` launches all three together. `scripts\run_dashboard.bat`
 just brings up API + dashboard for UI work without the trading bot.
@@ -189,6 +222,7 @@ schtasks /Delete /TN AlpacaBot /F
 | `LLM_PROVIDER` | `codex_oauth` | `codex_oauth` (free under Plus) or `anthropic` (paid per-token). |
 | `LLM_DAILY_USD_BUDGET` | `12.00` | Hard cap on Anthropic spend per day. Routine halts with `status='budget_halt'` when exceeded. Ignored on the Codex path (flat-fee subscription). |
 | `ALPACA_BASE_URL` | `https://paper-api.alpaca.markets/v2` | Never change this. |
+| `GOOGLE_AI_API_KEY` / `GEMINI_MODEL` | empty / `gemini-2.5-flash` | **Dashboard aesthetics only.** Optional key for visual-asset generation via `bot/llm/gemini_client.py`. Never touched by any trading routine. Leave blank if you don't generate assets. |
 
 ---
 
@@ -201,11 +235,13 @@ alpaca paper trading/
 │   ├── alpaca_client.py          # Alpaca SDK wrapper
 │   ├── config.py                 # Universe, caps, signal weights
 │   ├── db.py                     # SQLAlchemy models (LLMRun, Trade, etc.)
+│   ├── performance.py            # Read-only analytics: SPY benchmark, realized P&L, attribution
 │   ├── strategy.py               # RETIRED composite-score quant tick
 │   ├── llm/
 │   │   ├── runner.py             # Tool-use loop driver (provider-aware)
 │   │   ├── anthropic_client.py   # Anthropic Messages API wrapper
 │   │   ├── openai_client.py      # OpenAI Codex/OAuth adapter (codex-auth)
+│   │   ├── gemini_client.py      # Aesthetics-only Gemini client (NOT trading)
 │   │   ├── prompts.py            # System + per-routine user prompts
 │   │   ├── tools.py              # The trust boundary
 │   │   └── memory.py             # read/write/append the memory/*.md files
@@ -216,7 +252,9 @@ alpaca paper trading/
 │   └── main.py                   # FastAPI on 127.0.0.1:8765
 ├── dashboard/                    # Next.js 16 + React 19
 │   ├── app/                      # Pages — front page, positions, trades, etc.
-│   ├── components/               # BotRibbon, ThesisPanel, LLMCostCard, ...
+│   ├── components/               # BotRibbon, ThesisPanel, PerformanceScorecard,
+│   │                             # RoutineReel, Reveal, LLMCostCard, ...
+│   ├── design/                   # Redesign design-docs (storyboard, decisions, spec)
 │   ├── e2e/                      # Playwright suite, chromium-only
 │   └── playwright.config.ts
 ├── memory/                       # The bot's persistent state
