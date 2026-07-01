@@ -33,6 +33,11 @@ from bot.db import (
 )
 from bot.llm import memory as llm_memory
 from bot.manual_trade import ManualTradeError, manual_trade
+from bot.performance import (
+    benchmark_since_inception,
+    realized_performance,
+    signal_attribution,
+)
 
 # Lazy import — `AlpacaClient.__init__` constructs an SDK client on each
 # instance so we keep one alive at module scope for the API's live calls.
@@ -136,6 +141,11 @@ def portfolio_summary() -> dict:
     """
     from bot.config import SECTOR_MAP
 
+    # Benchmark (bot vs SPY since inception) — derived from the snapshot
+    # series, so it's available regardless of the live/fallback branch below.
+    with SessionLocal() as _bs:
+        bench = benchmark_since_inception(_bs)
+
     try:
         acct = _alpaca().account()
         live_positions = _alpaca().positions()
@@ -157,6 +167,10 @@ def portfolio_summary() -> dict:
             "invested": acct.equity - acct.cash,
             "unrealized_pnl": total_unrealized,
             "spy_close": spy_close,
+            "bot_return_pct": bench.get("bot_return_pct"),
+            "spy_return_pct": bench.get("spy_return_pct"),
+            "alpha_pct": bench.get("alpha_pct"),
+            "inception_at": bench.get("inception_at"),
             "as_of": _iso_utc(datetime.now(timezone.utc)),
             "source": "alpaca_live",
             "position_count": len(live_positions),
@@ -193,6 +207,10 @@ def portfolio_summary() -> dict:
                 "invested": latest.equity - latest.cash,
                 "unrealized_pnl": total_unrealized,
                 "spy_close": latest.spy_close,
+                "bot_return_pct": bench.get("bot_return_pct"),
+                "spy_return_pct": bench.get("spy_return_pct"),
+                "alpha_pct": bench.get("alpha_pct"),
+                "inception_at": bench.get("inception_at"),
                 "as_of": _iso_utc(latest.at),
                 "source": "db_fallback",
                 "position_count": len(positions),
@@ -218,6 +236,29 @@ def portfolio_history(days: int = Query(30, ge=1, le=365)) -> list[dict]:
         {"at": _iso_utc(r.at), "equity": r.equity, "spy_close": r.spy_close}
         for r in rows
     ]
+
+
+@app.get("/performance/summary")
+def performance_summary() -> dict:
+    """The bot's scorecard: alpha vs SPY since inception + realized-trade stats.
+
+    ``benchmark`` answers the project's core question — did the bot beat the
+    market — from the equity-vs-SPY snapshot series. ``realized`` is the
+    FIFO-matched closed-lot record (hit rate, profit factor, avg win/loss in
+    dollars and percent, best/worst trade, and the most recent closed lots
+    paired with their entry thesis + exit reason). ``signal_attribution`` is
+    the best-effort per-signal-kind P&L rollup (additive field — existing
+    dashboard types are untouched). All read-only; no Alpaca calls, no
+    orders. Datetimes inside are already explicit-UTC ISO strings — the
+    performance module tags them via its ``_aware`` helper (same contract as
+    ``_iso_utc``).
+    """
+    with SessionLocal() as s:
+        return {
+            "benchmark": benchmark_since_inception(s),
+            "realized": realized_performance(s, recent_limit=12),
+            "signal_attribution": signal_attribution(s),
+        }
 
 
 @app.get("/positions")

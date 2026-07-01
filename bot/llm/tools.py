@@ -1,9 +1,11 @@
 """Tool registry + validators — the trust boundary.
 
 The LLM *proposes* via tool calls; handlers here *verify and execute*. Every
-hard cap (5% size, 25-position count, 10% trailing stop, 7% midday cut, 3-day
-wash window, 20-char thesis minimum) is enforced here in code, never in
-prompts. Prompt constraints are best-effort guidance; these are guarantees.
+hard cap (5% size — halved to 2.5% plus a 1-fresh-name/day limit when the
+regime is risk_off, 25-position count, 10% trailing stop, 7% midday cut,
+3-day wash window, 2-day earnings blackout on buys, 20-char thesis minimum)
+is enforced here in code, never in prompts. Prompt constraints are
+best-effort guidance; these are guarantees.
 
 Each tool entry is:
 
@@ -41,8 +43,21 @@ from bot.config import (
     LLM_WASH_TRADE_LOOKBACK_DAYS,
     settings,
 )
-from bot.db import Decision, NewsItem, Position, Signal, SessionLocal, Trade
+from bot.db import (
+    Decision,
+    EarningsCalendar,
+    NewsItem,
+    Position,
+    Signal,
+    SessionLocal,
+    Trade,
+)
 from bot.llm import memory
+from bot.performance import (
+    benchmark_since_inception,
+    realized_performance,
+    signal_attribution,
+)
 from bot.signals import earnings as earnings_mod
 from bot.signals import regime as regime_mod
 
@@ -183,6 +198,49 @@ def _recent_opposite_trade(ticker: str, side: str) -> Trade | None:
 def _append_trade_log(line: str) -> None:
     """Internal-only helper so trade_log.md stays append-only."""
     memory.append("trade_log", line)
+
+
+def _current_regime_label() -> str | None:
+    """Latest regime label, or None when no snapshot / read failure.
+
+    Fail-open on purpose: regime data tightens caps (risk_off → smaller,
+    fewer buys); an unreadable regime table falls back to the normal caps
+    rather than blocking the routine.
+    """
+    try:
+        snap = regime_mod.latest()
+    except Exception:  # pragma: no cover — DB read, exceptions unexpected
+        return None
+    return (snap or {}).get("regime_label")
+
+
+EARNINGS_BLACKOUT_DAYS = 2
+
+
+def _check_earnings_blackout(symbol: str, days: int = EARNINGS_BLACKOUT_DAYS) -> None:
+    """Raise ToolError when ``symbol`` reports earnings within the next
+    ``days`` calendar days per the local earnings_calendar table. Passes
+    silently when the calendar has no row for the symbol — the calendar only
+    covers universe tickers and is best-effort, so absence isn't proof of
+    safety, just absence of a known landmine."""
+    now = datetime.now(timezone.utc)
+    window_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    window_end = now + timedelta(days=days)
+    with SessionLocal() as s:
+        row = s.scalars(
+            select(EarningsCalendar)
+            .where(EarningsCalendar.ticker == symbol)
+            .where(EarningsCalendar.report_date >= window_start)
+            .where(EarningsCalendar.report_date <= window_end)
+            .order_by(EarningsCalendar.report_date.asc())
+            .limit(1)
+        ).first()
+    if row is not None:
+        rd = row.report_date.date().isoformat() if row.report_date else "unknown date"
+        raise ToolError(
+            f"earnings blackout: {symbol} reports on {rd} — buying within "
+            f"{days} days of earnings is not allowed"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -364,6 +422,53 @@ def _h_get_market_regime(args: dict) -> dict:
     return {"available": True, **snap}
 
 
+def _h_get_performance(args: dict) -> dict:
+    """The bot's own scorecard, so the post-mortem reasons from numbers.
+
+    Returns alpha vs SPY since inception plus FIFO-matched realized-trade
+    stats (hit rate, profit factor, avg win/loss, best/worst). Token-conscious:
+    aggregates only, plus a few recent closed lots with truncated reasons.
+    Read-only — never touches Alpaca or places orders.
+    """
+    def _short(v: Any, n: int = 90) -> Any:
+        return v[:n] + "…" if isinstance(v, str) and len(v) > n else v
+
+    with SessionLocal() as s:
+        bench = benchmark_since_inception(s)
+        rp = realized_performance(s, recent_limit=5)
+        attribution = signal_attribution(s)
+
+    def _slim(lot: dict | None) -> dict | None:
+        if not lot:
+            return None
+        return {
+            "ticker": lot["ticker"],
+            "pnl": lot["pnl"],
+            "pnl_pct": lot["pnl_pct"],
+            "exit_reason": _short(lot.get("exit_reason")),
+        }
+
+    return {
+        "benchmark": bench,
+        "realized": {
+            "closed_lots": rp["closed_lots"],
+            "hit_rate_pct": rp["hit_rate_pct"],
+            "profit_factor": rp["profit_factor"],
+            "realized_pnl": rp["realized_pnl"],
+            "avg_win": rp["avg_win"],
+            "avg_loss": rp["avg_loss"],
+            "avg_win_pct": rp["avg_win_pct"],
+            "avg_loss_pct": rp["avg_loss_pct"],
+            "best_trade": _slim(rp["best_trade"]),
+            "worst_trade": _slim(rp["worst_trade"]),
+            "recent": [_slim(l) for l in rp["recent"]],
+        },
+        # {kind: {lots, wins, pnl, hit_rate_pct}} — co-occurrence attribution,
+        # small dict (≤ a handful of kinds), safe for the token budget.
+        "signal_attribution": attribution,
+    }
+
+
 def _h_get_upcoming_earnings(args: dict) -> dict:
     """Upcoming earnings reports for universe tickers.
 
@@ -425,17 +530,28 @@ def _h_place_buy(args: dict) -> dict:
     if not c.market_is_open():
         raise ToolError("market is closed; buys can only be placed during regular session")
 
+    # Earnings blackout — no new money into a name reporting within the next
+    # 2 calendar days. Binary-event roulette isn't the strategy.
+    _check_earnings_blackout(symbol)
+
     # Re-query portfolio *right now* to avoid stale-local caps.
     snap = _portfolio_snapshot()
     equity = snap["equity"]
     if equity <= 0:
         raise ToolError("Alpaca reports equity <= 0; refusing to trade")
 
-    max_notional = equity * LLM_MAX_POSITION_PCT
+    # Regime-aware sizing: risk_off halves the per-position cap (2.5% of
+    # equity instead of 5%) and tightens the fresh-name cap to 1/day below.
+    # Enforced here — not in prompts — per the trust-boundary rule.
+    regime_label = _current_regime_label()
+    risk_off = regime_label == "risk_off"
+    max_position_pct = LLM_MAX_POSITION_PCT / 2 if risk_off else LLM_MAX_POSITION_PCT
+    max_notional = equity * max_position_pct
     if notional > max_notional + 0.01:
+        cap_note = " — regime is risk_off, which halves the normal 5% cap" if risk_off else ""
         raise ToolError(
-            f"notional ${notional:.2f} exceeds 5% cap ${max_notional:.2f} "
-            f"(equity ${equity:.2f})"
+            f"notional ${notional:.2f} exceeds {max_position_pct:.1%} cap "
+            f"${max_notional:.2f} (equity ${equity:.2f}){cap_note}"
         )
     if snap["buying_power"] < notional:
         raise ToolError(
@@ -454,18 +570,21 @@ def _h_place_buy(args: dict) -> dict:
         if post_mv > max_notional + 0.01:
             raise ToolError(
                 f"adding ${notional:.2f} to {symbol} would make it "
-                f"${post_mv:.2f}, exceeding 5% cap ${max_notional:.2f}"
+                f"${post_mv:.2f}, exceeding {max_position_pct:.1%} cap ${max_notional:.2f}"
             )
 
     # Daily fresh-name cap. After last week's quant strategy did 579 trades
     # in 8 days on 3 tickers, we're forcing patience: at most N truly new
     # tickers per day, regardless of conviction. Adds (top-ups) don't count.
+    # risk_off tightens the cap to 1 fresh name/day.
     if is_new_name:
+        max_new_today = 1 if risk_off else LLM_MAX_NEW_POSITIONS_PER_DAY
         new_today = _new_position_buys_today()
-        if new_today >= LLM_MAX_NEW_POSITIONS_PER_DAY:
+        if new_today >= max_new_today:
+            cap_note = " — regime is risk_off, which caps fresh names at 1/day" if risk_off else ""
             raise ToolError(
                 f"already opened {new_today} new positions today (cap "
-                f"{LLM_MAX_NEW_POSITIONS_PER_DAY}); save other ideas for tomorrow"
+                f"{max_new_today}{cap_note}); save other ideas for tomorrow"
             )
 
     # Wash-trade window.
@@ -832,6 +951,24 @@ def _build_registry() -> dict[str, ToolSpec]:
             handler=_h_get_market_regime,
             routines=frozenset({"premarket", "execute", "midday", "close", "weekly_review"}),
         ),
+        "get_performance_stats": ToolSpec(
+            definition={
+                "name": "get_performance_stats",
+                "description": (
+                    "The bot's own scorecard. Returns alpha vs SPY since "
+                    "inception (bot_return_pct, spy_return_pct, alpha_pct, "
+                    "beating_market) plus FIFO-matched realized-trade stats "
+                    "(hit_rate_pct, profit_factor, avg win/loss in $ and %, "
+                    "best/worst trade, recent closed lots with exit reasons) "
+                    "and per-signal-kind P&L attribution. Ground your "
+                    "post-mortem in these numbers — don't estimate P&L from "
+                    "memory."
+                ),
+                "input_schema": {"type": "object", "properties": {}},
+            },
+            handler=_h_get_performance,
+            routines=frozenset({"premarket", "midday", "close", "weekly_review"}),
+        ),
         "get_upcoming_earnings": ToolSpec(
             definition={
                 "name": "get_upcoming_earnings",
@@ -878,7 +1015,10 @@ def _build_registry() -> dict[str, ToolSpec]:
                 "description": (
                     "Open or add to a position. Enforces 5% equity cap, "
                     "25-position max, wash-trade window, and auto-attaches "
-                    "a 10% trailing stop. Thesis must be ≥20 chars."
+                    "a 10% trailing stop. Thesis must be ≥20 chars. Extra "
+                    "hard rules: in a risk_off regime the cap halves to 2.5% "
+                    "and only 1 fresh name/day is allowed; buys are rejected "
+                    "within 2 days of the symbol's earnings report."
                 ),
                 "input_schema": {
                     "type": "object",

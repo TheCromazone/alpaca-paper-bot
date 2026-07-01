@@ -44,12 +44,60 @@ export type PortfolioSummary = {
   invested: number;
   unrealized_pnl: number;
   spy_close: number | null;
+  /** Bot/SPY total return since inception + alpha (pts). Null until ≥2 snapshots. */
+  bot_return_pct?: number | null;
+  spy_return_pct?: number | null;
+  alpha_pct?: number | null;
+  inception_at?: string | null;
   as_of: string;
   /** "alpaca_live" when the API hit Alpaca directly, "db_fallback" when it
    *  served from a stale local snapshot (Alpaca unreachable). */
   source?: "alpaca_live" | "db_fallback";
   position_count: number;
   sector_breakdown: { sector: string; market_value: number; weight: number }[];
+};
+
+export type ClosedLot = {
+  ticker: string;
+  qty: number;
+  entry_price: number;
+  exit_price: number;
+  entry_at: string | null;
+  exit_at: string | null;
+  pnl: number;
+  pnl_pct: number;
+  entry_thesis: string | null;
+  exit_reason: string | null;
+};
+
+export type PerformanceSummary = {
+  benchmark: {
+    available: boolean;
+    note?: string;
+    inception_at?: string;
+    as_of?: string;
+    start_equity?: number;
+    equity?: number;
+    bot_return_pct?: number;
+    spy_return_pct?: number | null;
+    alpha_pct?: number | null;
+    beating_market?: boolean;
+  };
+  realized: {
+    closed_lots: number;
+    wins: number;
+    losses: number;
+    hit_rate_pct: number;
+    realized_pnl: number;
+    gross_profit: number;
+    gross_loss: number;
+    profit_factor: number | null;
+    avg_win: number;
+    avg_loss: number;
+    best_trade: ClosedLot | null;
+    worst_trade: ClosedLot | null;
+    recent: ClosedLot[];
+  };
 };
 
 export type HistoryPoint = {
@@ -286,6 +334,7 @@ export type ManualTradeResult = {
 
 export const api = {
   summary: () => get<PortfolioSummary>("/portfolio/summary"),
+  performance: () => get<PerformanceSummary>("/performance/summary"),
   history: (days = 30) => get<HistoryPoint[]>(`/portfolio/history?days=${days}`),
   positions: () => get<PositionRow[]>("/positions"),
   trades: (limit = 100) => get<TradeRow[]>(`/trades?limit=${limit}`),

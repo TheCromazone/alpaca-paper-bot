@@ -105,12 +105,15 @@ Do the following in order:
 2. Call get_portfolio to confirm live account state. Do NOT trust stale
    portfolio.md — always get fresh numbers from the tool.
 3. For each idea you still believe, call place_buy(symbol, notional_usd,
-   thesis). A 10% trailing stop is attached automatically. If place_buy
-   returns is_error=true, read the reason and move on — do not hack around
-   the validation. The thesis arg must be ≥120 chars (handler-enforced)
-   and follow the playbook §1 5-field structure: catalyst, why-mispriced,
-   variant view, datable catalyst, key risk. Lift it from your Pre-market
-   research_log entry — don't paraphrase, copy.
+   thesis). A 10% trailing stop is attached
+   automatically. Two handler-enforced hard rules: in a risk_off regime the
+   per-buy cap halves to 2.5% of equity and only 1 fresh name/day is
+   allowed; buys are rejected within 2 days of the symbol's earnings
+   report. If place_buy returns is_error=true, read the reason and move on
+   — do not hack around the validation. The thesis arg must be ≥120 chars
+   (handler-enforced) and follow the playbook §1 5-field structure:
+   catalyst, why-mispriced, variant view, datable catalyst, key risk. Lift
+   it from your Pre-market research_log entry — don't paraphrase, copy.
 4. After all buys, call write_memory('portfolio', <markdown snapshot>) with
    the fresh book. Format:
 
@@ -146,6 +149,9 @@ Do the following:
    this routine).
 3. Append a Close subsection to research_log.md with: day P/L (dollars and
    percent), top winner, top loser, one thing to watch going into tomorrow.
+   End the line with cumulative standing from get_performance_stats — e.g.
+   "vs SPY since inception: +X.X pts" — so the daily note tracks the only
+   number that matters.
 4. Regenerate portfolio.md with the closing state.
 """
 
@@ -153,11 +159,16 @@ WEEKLY_REVIEW_PROMPT = """Routine: Friday weekly review. Post-mortem on the week
 
 Do the following:
 1. read_memory('playbook') — §4 has the weekly-review rubric. Apply it.
-2. read_memory('research_log') and read_memory('trade_log') — look at the
+2. Call get_performance_stats FIRST — it returns your hard numbers: alpha
+   vs SPY since inception, hit rate, profit factor, avg win/loss, and your
+   best/worst closed trades with exit reasons. Anchor the whole review in
+   these; do NOT estimate P&L from memory.
+3. read_memory('research_log') and read_memory('trade_log') — look at the
    last five trading days' entries.
-3. Score the week per playbook §4: hit-rate inventory, thesis-vs-reality
-   on closed positions, ONE concrete process change, and the next week's
-   3-5 idea pipeline.
+4. Score the week per playbook §4: reconcile get_performance_stats' numbers
+   against your theses — which catalysts actually paid, which exits were
+   premature stops vs genuine thesis breaks, ONE concrete process change,
+   and the next week's 3-5 idea pipeline.
 4. (Optional) web_search for narratives you may have missed — earnings
    surprises, sector rotations you weren't positioned for.
 5. Append a `## Weekly review YYYY-MM-DD` section to research_log.md
