@@ -5,7 +5,8 @@
       "name": "dashboard",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "dashboard"],
-      "port": 3000
+      "port": 3001,
+      "autoPort": false
     },
     {
       "name": "api",

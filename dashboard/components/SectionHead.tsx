@@ -2,10 +2,13 @@ export function SectionHead({
   eyebrow,
   title,
   right,
+  scene,
 }: {
   eyebrow?: string;
   title: string;
   right?: React.ReactNode;
+  /** Act number ("01"…"05") — renders the cinematic scene marker chip. */
+  scene?: string;
 }) {
   return (
     <div
@@ -30,12 +33,13 @@ export function SectionHead({
               marginBottom: 6,
             }}
           >
+            {scene && <span className="scene-no">ACT {scene}</span>}
             <span className="accent-bar" />
             {eyebrow}
           </div>
         )}
         <h2
-          className="display"
+          className="display wipe"
           style={{
             margin: 0,
             fontSize: "clamp(18px, 1.7vw, 24px)",

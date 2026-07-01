@@ -76,7 +76,7 @@
   --color-paper-deep: var(--bg-2);
   --color-paper-edge: var(--bg-3);
   --font-display: var(--font-cinzel);
-  --font-body: var(--font-inter);
+  --font-body: var(--font-archivo);
   --font-mono: var(--font-jetbrains);
 }
 
@@ -87,7 +87,7 @@ html, body {
   padding: 0;
   background: var(--bg-0);
   color: var(--ink);
-  font-family: var(--font-inter), "Inter", system-ui, sans-serif;
+  font-family: var(--font-archivo), "Archivo", system-ui, sans-serif;
   min-height: 100vh;
   overflow-x: hidden;
 }
@@ -154,7 +154,7 @@ body::after {
   font-weight: 600;
 }
 .display-num {
-  font-family: var(--font-inter), "Inter", system-ui, sans-serif;
+  font-family: var(--font-archivo), "Archivo", system-ui, sans-serif;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
@@ -470,3 +470,209 @@ a:hover { color: var(--emerald); }
 @media (max-width: 760px) {
   .hide-sm { display: none; }
 }
+
+/* ============================================================
+   Cinematic layer — command-bridge composition (design/compiled-spec.md)
+   ============================================================ */
+
+:root { --grain-opacity: 0.05; }
+
+/* Film grain — SVG turbulence, flickers in 4 steps like projected stock */
+.film-grain {
+  position: fixed; inset: -60px;
+  pointer-events: none; z-index: 2;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: var(--grain-opacity);
+  mix-blend-mode: overlay;
+  animation: grain-jitter 1.1s steps(4) infinite;
+}
+@keyframes grain-jitter {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(-18px, 12px); }
+  50%  { transform: translate(14px, -20px); }
+  75%  { transform: translate(-10px, -8px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* Vignette — pulls the eye to the stage */
+.vignette {
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 2;
+  background: radial-gradient(ellipse 130% 95% at 50% 28%, transparent 55%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+/* --- Scroll entrances -----------------------------------------
+   A Reveal wrapper sets data-in when the element first intersects.
+   Hidden state lives on [data-fx="..."]:not([data-in]); the shared
+   transition below animates to the natural state. --d staggers. */
+[data-fx] {
+  transition:
+    opacity 800ms cubic-bezier(0.2, 0.7, 0.2, 1) var(--d, 0ms),
+    transform 800ms cubic-bezier(0.2, 0.7, 0.2, 1) var(--d, 0ms),
+    clip-path 900ms cubic-bezier(0.2, 0.7, 0.2, 1) var(--d, 0ms),
+    filter 800ms ease var(--d, 0ms);
+}
+[data-fx="clip-up"]:not([data-in]) { clip-path: inset(100% 0 0 0); transform: translateY(26px); }
+[data-fx="clip-up"][data-in]       { clip-path: inset(-90px -90px -90px -90px); }
+[data-fx="slide-l"]:not([data-in]) { transform: translateX(-48px); opacity: 0; }
+[data-fx="slide-r"]:not([data-in]) { transform: translateX(48px); opacity: 0; }
+[data-fx="blur-in"]:not([data-in]) { filter: blur(14px); opacity: 0; }
+
+/* Title wipe — any .wipe child of a revealed [data-fx] unmasks L→R */
+[data-fx] .wipe {
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 800ms cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--d, 0ms) + 140ms);
+}
+[data-fx][data-in] .wipe { clip-path: inset(0 -3% 0 0); }
+
+/* Reel — child frames advance in from the right like film through a gate */
+[data-fx="reel"] .reel-frame {
+  opacity: 0;
+  transform: translateX(56px);
+  transition:
+    opacity 700ms cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--i, 0) * 80ms),
+    transform 700ms cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--i, 0) * 80ms);
+}
+[data-fx="reel"][data-in] .reel-frame { opacity: 1; transform: none; }
+
+/* --- ACT numbering on section heads --- */
+.scene-no {
+  font-family: var(--font-jetbrains), "JetBrains Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: var(--chrome-3);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 2px 7px 2px 9px;
+  margin-right: 12px;
+  vertical-align: middle;
+  background: rgba(180, 200, 210, 0.04);
+}
+
+/* --- The Stage — ACT 01's fused instrument (HUD / chart / verdict rail) --- */
+.stage { padding: 0; }
+.stage-backdrop {
+  position: absolute; inset: 0; z-index: 0;
+  pointer-events: none;
+  background: url("/stage-atmosphere.jpg") center 38% / cover no-repeat;
+  opacity: 0.3;
+  mix-blend-mode: screen;
+  mask-image: linear-gradient(180deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 48%, transparent 88%);
+  -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 48%, transparent 88%);
+}
+.stage-hud, .stage-chart, .stage-rail { position: relative; z-index: 1; }
+.stage-hud { padding: 22px 26px 0; }
+.stage-chart {
+  padding: 0 10px;
+  position: relative;
+}
+.stage-chart::after {
+  /* bottom fade so the curve dissolves into the verdict rail */
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: 0; height: 46px;
+  background: linear-gradient(180deg, transparent, rgba(5, 6, 8, 0.55));
+  pointer-events: none;
+}
+.stage-rail {
+  padding: 18px 26px 22px;
+  border-top: 1px solid var(--rule-hair);
+  background: linear-gradient(180deg, rgba(0, 230, 130, 0.03), rgba(5, 6, 8, 0.2));
+}
+
+/* --- Ops bar — asymmetric HUD strip (replaces the 4-equal-card row) --- */
+.ops-bar {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1.2fr;
+  gap: 12px;
+  margin: 16px 0 20px;
+}
+.ops-bar > * { animation: rise 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.ops-bar > *:nth-child(2) { animation-delay: 90ms; }
+.ops-bar > *:nth-child(3) { animation-delay: 180ms; }
+.ops-bar > *:nth-child(4) { animation-delay: 270ms; }
+@media (max-width: 980px) {
+  .ops-bar { grid-template-columns: 1fr 1fr; }
+}
+
+/* --- Routine Reel — LLM runs as film frames --- */
+.reel {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 6px 2px 14px;
+  scrollbar-width: thin;
+}
+.reel-frame {
+  --frame: var(--chrome-3);
+  position: relative;
+  min-width: 236px;
+  max-width: 236px;
+  padding: 26px 16px 24px;
+  border: 1px solid var(--panel-br);
+  border-radius: 6px;
+  background: rgba(10, 12, 16, 0.72);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 34px -16px rgba(0, 0, 0, 0.7);
+  transition: transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1), border-color 220ms, box-shadow 220ms;
+}
+.reel-frame:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in oklab, var(--frame) 45%, transparent);
+  box-shadow: 0 16px 40px -16px rgba(0, 0, 0, 0.8), 0 0 22px -6px var(--frame);
+}
+/* sprocket holes top + bottom */
+.reel-frame::before,
+.reel-frame::after {
+  content: "";
+  position: absolute; left: 10px; right: 10px; height: 7px;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(180, 200, 210, 0.22) 0 7px,
+    transparent 7px 21px
+  );
+  border-radius: 2px;
+  opacity: 0.55;
+}
+.reel-frame::before { top: 9px; }
+.reel-frame::after { bottom: 9px; }
+.reel-frame.ok        { --frame: var(--emerald); }
+.reel-frame.running   { --frame: var(--mint); }
+.reel-frame.failed    { --frame: var(--rose); }
+.reel-frame.budget_halt { --frame: var(--amber); }
+.reel-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--frame);
+  text-shadow: 0 0 10px color-mix(in oklab, var(--frame) 60%, transparent);
+}
+.reel-status .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--frame);
+  box-shadow: 0 0 8px var(--frame);
+}
+.reel-frame.running .dot { animation: pulse-dot 1.4s ease-in-out infinite; }
+.tool-tick {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--rule-hair);
+  border-radius: 3px;
+  background: rgba(180, 200, 210, 0.04);
+  color: var(--ink-muted);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* --- Accessibility: kill all motion for reduced-motion users --- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; }
+  [data-fx], [data-fx] .wipe, [data-fx="reel"] .reel-frame {
+    transition: none !important;
+    clip-path: none !important;
+    transform: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+  }
+  .draw-in { stroke-dashoffset: 0 !important; }
+  .film-grain { display: none; }
+}
+/* (compiled-spec v1.1 — stage backdrop plate) */

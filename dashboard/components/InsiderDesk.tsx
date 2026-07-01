@@ -118,7 +118,7 @@ export function InsiderDesk({ limit = 12 }: { limit?: number }) {
                 style={{
                   fontSize: 11.5,
                   color: "var(--ink-muted)",
-                  fontFamily: "var(--font-inter), Inter, sans-serif",
+                  fontFamily: "var(--font-archivo), Archivo, sans-serif",
                   marginTop: 2,
                   whiteSpace: "nowrap",
                   overflow: "hidden",

@@ -185,7 +185,7 @@ function ThesisBody({ body }: { body: string }) {
   return (
     <div
       style={{
-        fontFamily: "var(--font-inter), Inter, sans-serif",
+        fontFamily: "var(--font-archivo), Archivo, sans-serif",
         fontSize: 14,
         lineHeight: 1.65,
         color: "var(--ink)",

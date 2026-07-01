@@ -219,7 +219,7 @@ export function RecentTrades({ limit = 6 }: { limit?: number }) {
                   fontSize: 13.5,
                   color: "var(--ink-muted)",
                   lineHeight: 1.55,
-                  fontFamily: "var(--font-inter), Inter, sans-serif",
+                  fontFamily: "var(--font-archivo), Archivo, sans-serif",
                 }}
               >
                 {t.reason}

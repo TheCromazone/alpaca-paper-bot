@@ -34,7 +34,7 @@ function StatCard({
       >
         {label}
       </div>
-      <div style={{ fontFamily: "var(--font-inter), Inter, sans-serif", fontSize: 14 }}>
+      <div style={{ fontFamily: "var(--font-archivo), Archivo, sans-serif", fontSize: 14 }}>
         {children}
       </div>
     </div>
@@ -68,15 +68,7 @@ export function BotRibbon() {
   const stale = ageMin != null && ageMin > 30;
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4, 1fr)",
-        gap: 12,
-        marginBottom: 20,
-        marginTop: 16,
-      }}
-    >
+    <div className="ops-bar">
       <StatCard label="Bot status" accent={stale ? "var(--amber, #f59e0b)" : "var(--lime)"}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
           <LiveDot on={running && !stale} color={stale ? "var(--amber, #f59e0b)" : running ? "var(--lime)" : "var(--ink-faint)"} />

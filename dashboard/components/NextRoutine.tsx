@@ -73,7 +73,7 @@ export function NextRoutine() {
       </div>
       <div
         style={{
-          fontFamily: "var(--font-inter), Inter, sans-serif",
+          fontFamily: "var(--font-archivo), Archivo, sans-serif",
           fontSize: 14,
           color: "var(--ink)",
           marginBottom: 4,

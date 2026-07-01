@@ -63,7 +63,7 @@ export function LatestHeadlines({ limit = 8 }: { limit?: number }) {
                 fontWeight: 500,
                 lineHeight: 1.4,
                 color: "var(--ink)",
-                fontFamily: "var(--font-inter), Inter, sans-serif",
+                fontFamily: "var(--font-archivo), Archivo, sans-serif",
               }}
             >
               {n.title}

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Cinzel, Inter, JetBrains_Mono } from "next/font/google";
+import { Cinzel, Archivo, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { TickerStrip } from "@/components/TickerStrip";
@@ -16,10 +16,13 @@ const cinzel = Cinzel({
   display: "swap",
 });
 
-const inter = Inter({
+// Archivo: grotesk body/UI face — tighter, more characterful than the old
+// Inter while staying legible at dashboard densities. Numerals stay tabular
+// via font-variant-numeric where it matters.
+const archivo = Archivo({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-inter",
+  variable: "--font-archivo",
   display: "swap",
 });
 
@@ -74,10 +77,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${cinzel.variable} ${inter.variable} ${jetbrains.variable}`}
+      className={`${cinzel.variable} ${archivo.variable} ${jetbrains.variable}`}
     >
       <body className="antialiased">
         <div className="scanline" aria-hidden="true" />
+        <div className="film-grain" aria-hidden="true" />
+        <div className="vignette" aria-hidden="true" />
         <AmbientCandles />
         <Providers>
           <TickerStrip />

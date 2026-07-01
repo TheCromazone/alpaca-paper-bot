@@ -14,7 +14,23 @@ import { InsiderDesk } from "@/components/InsiderDesk";
 import { ThesisPanel } from "@/components/ThesisPanel";
 import { EarningsThisWeek } from "@/components/EarningsThisWeek";
 import { ManualTradePanel } from "@/components/ManualTradePanel";
+import { PerformanceScorecard } from "@/components/PerformanceScorecard";
+import { RoutineReel } from "@/components/RoutineReel";
+import { Reveal } from "@/components/Reveal";
 
+/**
+ * Overview — staged as five acts (design/storyboard.md).
+ *
+ * ACT 01  The Stage    — ops HUD + equity curve + verdict rail fused into one
+ *                        full-bleed instrument. The page's signature shot.
+ * ACT 02  The Machine  — the Routine Reel: LLM runs as film frames.
+ * ACT 03  The Playbook — thesis, manual override, earnings watch.
+ * ACT 04  The Book     — sector exposure + best/worst ledgers.
+ * ACT 05  The Wire     — orders, headlines, insider flow.
+ *
+ * Entrances vary per act (clip-up / reel / blur-in / slide-l / slide-r via
+ * the Reveal wrapper) — adjacent acts never reveal the same way.
+ */
 export default function Home() {
   const { data: summary } = useQuery<PortfolioSummary>({
     queryKey: ["summary"],
@@ -36,147 +52,126 @@ export default function Home() {
 
   return (
     <div>
-      {/* Row 1: Performance Overview — masthead → bot ribbon → tall equity chart.
-          Per the Cromaz design: NO lede paragraph, just the title + ribbon +
-          chart. The chart breathes at 560px so it's the page's centerpiece. */}
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(12, 1fr)",
-          gap: 28,
-          marginTop: 24,
-        }}
-      >
-        <article style={{ gridColumn: "span 12", minWidth: 0 }}>
-          <SectionHead
-            eyebrow="Portfolio v. S&P 500 — 30 Day"
-            title="Performance Overview"
-            right={
-              summary ? (
-                <span>
-                  Cash {fmtUSD(summary.cash, { compact: true })} · Invested{" "}
-                  {fmtUSD(summary.invested, { compact: true })}
-                </span>
-              ) : null
-            }
-          />
-          <BotRibbon />
-          <div style={{ marginTop: 8 }}>
+      {/* ═══ ACT 01 — THE STAGE ═══ */}
+      <Reveal fx="clip-up" style={{ marginTop: 24 }}>
+        <section className="panel stage">
+          {/* Gemini-generated night-trading-floor plate, screen-blended at low
+              opacity so only the emerald glows read through the obsidian. */}
+          <div className="stage-backdrop" aria-hidden="true" />
+          <div className="stage-hud">
+            <SectionHead
+              scene="01"
+              eyebrow="Portfolio v. S&P 500 — 30 Day"
+              title="Performance Overview"
+              right={
+                summary ? (
+                  <span>
+                    Cash {fmtUSD(summary.cash, { compact: true })} · Invested{" "}
+                    {fmtUSD(summary.invested, { compact: true })}
+                  </span>
+                ) : null
+              }
+            />
+            <BotRibbon />
+          </div>
+          <div className="stage-chart">
             <EquityChart startEquity={baseEquity} />
           </div>
-        </article>
-      </section>
+          <div className="stage-rail">
+            <PerformanceScorecard />
+          </div>
+        </section>
+      </Reveal>
 
-      {/* Row 2: Today's thesis from research_log.md — comes FIRST per the
-          design (Thesis → Manual → Earnings), so the morning's plan is the
-          first thing you scroll into after the chart. */}
+      {/* ═══ ACT 02 — THE MACHINE ═══ */}
+      <Reveal fx="reel" style={{ marginTop: 52 }}>
+        <SectionHead
+          scene="02"
+          eyebrow="LLM Ops — every routine, its cost, its tools"
+          title="The Machine"
+          right={<span>newest first</span>}
+        />
+        <RoutineReel limit={12} />
+      </Reveal>
+
+      {/* ═══ ACT 03 — THE PLAYBOOK ═══ */}
+      <Reveal fx="blur-in" style={{ marginTop: 52 }}>
+        <SectionHead
+          scene="03"
+          eyebrow="Research → Override → Watchlist"
+          title="The Playbook"
+        />
+        <ThesisPanel />
+      </Reveal>
+
+      <Reveal fx="slide-l" style={{ marginTop: 36 }}>
+        <ManualTradePanel />
+      </Reveal>
+
+      <Reveal fx="slide-r" style={{ marginTop: 36 }}>
+        <EarningsThisWeek />
+      </Reveal>
+
+      {/* ═══ ACT 04 — THE BOOK ═══ */}
       <section
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(12, 1fr)",
           gap: 28,
-          marginTop: 44,
+          marginTop: 52,
         }}
-        className="rule-top"
       >
-        <div style={{ gridColumn: "span 12", paddingTop: 24 }}>
-          <ThesisPanel />
-        </div>
-      </section>
-
-      {/* Row 3: Manual trade — user-driven escape hatch around the LLM */}
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(12, 1fr)",
-          gap: 28,
-          marginTop: 44,
-        }}
-        className="rule-top"
-      >
-        <div style={{ gridColumn: "span 12", paddingTop: 24 }}>
-          <ManualTradePanel />
-        </div>
-      </section>
-
-      {/* Row 1.7: Earnings calendar — held positions highlighted */}
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(12, 1fr)",
-          gap: 28,
-          marginTop: 44,
-        }}
-        className="rule-top"
-      >
-        <div style={{ gridColumn: "span 12", paddingTop: 24 }}>
-          <EarningsThisWeek />
-        </div>
-      </section>
-
-      {/* Row 2: Sector donut + gainers/draggers */}
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(12, 1fr)",
-          gap: 28,
-          marginTop: 44,
-        }}
-        className="rule-top"
-      >
-        <div
-          style={{
-            gridColumn: "span 12",
-            paddingTop: 24,
-            display: "grid",
-            gridTemplateColumns: "repeat(12, 1fr)",
-            gap: 28,
-          }}
+        <Reveal
+          fx="slide-l"
+          style={{ gridColumn: "span 4", minWidth: 0 }}
         >
-          <aside style={{ gridColumn: "span 4", minWidth: 0 }}>
-            <SectionHead eyebrow="Exposure" title="Sector weights" />
-            <SectorDonut />
-          </aside>
+          <SectionHead scene="04" eyebrow="Exposure" title="Sector weights" />
+          <SectorDonut />
+        </Reveal>
 
-          <div style={{ gridColumn: "span 8", minWidth: 0 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28 }}>
-              <div>
-                <SectionHead
-                  eyebrow="Gainers"
-                  title="Top of the book"
-                  right={<span>best 4</span>}
-                />
-                <Leaderboard rows={leaders} />
-              </div>
-              <div>
-                <SectionHead
-                  eyebrow="Draggers"
-                  title="Under the stop"
-                  right={<span>worst 4</span>}
-                />
-                <Leaderboard rows={laggards} />
-              </div>
-            </div>
+        <div style={{ gridColumn: "span 8", minWidth: 0 }}>
+          <div
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28 }}
+          >
+            <Reveal fx="slide-l" delay={120}>
+              <SectionHead
+                eyebrow="Gainers"
+                title="Top of the book"
+                right={<span>best 4</span>}
+              />
+              <Leaderboard rows={leaders} />
+            </Reveal>
+            <Reveal fx="slide-l" delay={240}>
+              <SectionHead
+                eyebrow="Draggers"
+                title="Under the stop"
+                right={<span>worst 4</span>}
+              />
+              <Leaderboard rows={laggards} />
+            </Reveal>
           </div>
         </div>
       </section>
 
-      {/* Row 3: Trades + Headlines + Insider */}
+      {/* ═══ ACT 05 — THE WIRE ═══ */}
       <section
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(12, 1fr)",
           gap: 28,
-          marginTop: 44,
+          marginTop: 52,
         }}
-        className="rule-top"
       >
-        <article style={{ gridColumn: "span 6", minWidth: 0, paddingTop: 24 }}>
+        <Reveal fx="blur-in" style={{ gridColumn: "span 6", minWidth: 0 }}>
           <SectionHead
+            scene="05"
             eyebrow="From the trade journal"
             title="Today's orders"
             right={
-              <a href="/trades" style={{ textDecoration: "underline", textUnderlineOffset: 3 }}>
+              <a
+                href="/trades"
+                style={{ textDecoration: "underline", textUnderlineOffset: 3 }}
+              >
                 see all
               </a>
             }
@@ -195,23 +190,34 @@ export default function Home() {
             ▸ hover any row for the full thesis &middot; composite &middot;
             insider Δ
           </div>
-        </article>
-        <aside style={{ gridColumn: "span 4", minWidth: 0, paddingTop: 24 }}>
+        </Reveal>
+        <Reveal
+          fx="blur-in"
+          delay={120}
+          style={{ gridColumn: "span 4", minWidth: 0 }}
+        >
           <SectionHead
             eyebrow="The Market Wire"
             title="Latest headlines"
             right={
-              <a href="/news" style={{ textDecoration: "underline", textUnderlineOffset: 3 }}>
+              <a
+                href="/news"
+                style={{ textDecoration: "underline", textUnderlineOffset: 3 }}
+              >
                 full feed
               </a>
             }
           />
           <LatestHeadlines limit={7} />
-        </aside>
-        <aside style={{ gridColumn: "span 2", minWidth: 0, paddingTop: 24 }}>
+        </Reveal>
+        <Reveal
+          fx="blur-in"
+          delay={240}
+          style={{ gridColumn: "span 2", minWidth: 0 }}
+        >
           <SectionHead eyebrow="Insider Desk" title="Flow" />
           <InsiderDesk limit={10} />
-        </aside>
+        </Reveal>
       </section>
     </div>
   );
