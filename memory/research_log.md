@@ -2340,3 +2340,248 @@ Live state at open-window check: equity $54,585.43, cash $36,898.45, buying powe
 - Other positions were below the +15% tightening threshold and above the -7% stop-loss threshold; no fresh positions were opened.
 ### Close
 Day P/L: -$55.91 (-0.10%) from execute-time equity $54,752.01 to close equity $54,696.10. Top intraday winner: UNH (+$10.13 market value vs execute snapshot); top intraday loser: HD (-$32.99). Watch tomorrow: confirm whether risk-on breadth can keep supporting cyclicals/financials while COST and AGG remain the main unrealized laggards in the book; vs SPY since inception: +4.54 pts.
+## 2026-07-02
+### Pre-market
+Macro context: Jobs report / NFP is within 7 days (Fri Jul 3, 08:30 ET); no FOMC or CPI event inside the 7-day window. Current regime is risk_on, but avoid adding excessive consumer/rate beta before payrolls. Note: the requested `web_search` tool is not available in the current tool namespace, so this section uses company/IR URLs plus local earnings/news/signal feeds rather than fresh web-search URLs.
+
+- **UNH** (~$0-$300 top-up only / primarily hold): Managed-care rebound setup with a fresh Gilbert Cisneros disclosed $8k buy and a mid-July earnings/utilization checkpoint.
+  - Why mispriced: The market is still treating managed care as structurally impaired by utilization, Medicare Advantage reimbursement pressure, and policy risk, while repeat disclosed buys suggest the bad-news bar may be lower after the drawdown.
+  - What market is missing: If management stabilizes medical-cost commentary into the mid-July earnings window, UNH offers non-tech recovery exposure that is less directly tied to the Jul 3 payrolls/rate-beta trade than cyclicals or semis.
+  - Datable catalyst: Expected mid-July earnings window, with medical-cost ratio, Medicare Advantage commentary, utilization trends, and 2026 guide confidence as 1-8 week checkpoints.
+  - Key risk (what makes this wrong): Politician buys are not enough by themselves; if utilization, reimbursement, or regulatory headlines worsen, UNH can keep derating despite apparently cheap valuation and repeat buy signals.
+  - Sources: https://www.unitedhealthgroup.com/investors.html; https://www.unitedhealthgroup.com/investors/financial-reports.html; local Signal DB: Gilbert Cisneros UNH buy disclosed 2026-07-02.
+
+- **SHW** (~$0-$300 top-up only / primarily hold): Paint/coatings quality cyclical with the existing late-July earnings thesis; use only as a small add if execute wants more housing/remodel exposure after yesterday's fill.
+  - Why mispriced: The market may be over-penalizing housing-linked materials for higher-for-longer rates and sluggish turnover, even though coatings demand can be steadier through maintenance, pro repaint, and pricing mix.
+  - What market is missing: SHW offers a non-bank, non-semi way to express a risk_on tape and potential repair/remodel stabilization, while avoiding incremental concentration in financials/payments ahead of payrolls.
+  - Datable catalyst: Expected late-July earnings window, with same-store paint demand, contractor/pro channel trends, raw-material margin, and FY guide tone as the 1-8 week checkpoints.
+  - Key risk (what makes this wrong): If Jul 3 payrolls or subsequent housing data pressure mortgage/remodel expectations, SHW could trade as a rate-sensitive housing proxy before the company-specific earnings catalyst arrives.
+  - Sources: https://investors.sherwin-williams.com/; https://investors.sherwin-williams.com/news-events/press-releases; local news/signal feeds returned no fresh SHW items today.
+
+- **COST** (~$0 new capital / hold): High-quality retail/staples exposure into early-July monthly sales and traffic checks, useful as a defensive-consumer offset after NKE was stopped out.
+  - Why mispriced: The market often treats Costco's premium valuation as the dominant risk, but resilient traffic, renewal rates, and membership economics can keep the multiple supported while weaker discretionary retailers struggle.
+  - What market is missing: Costco is cleaner defensive-consumer exposure than re-entering a recently stopped-out turnaround like NKE; monthly sales and renewal/traffic data are nearer validation points than the next full quarterly cycle.
+  - Datable catalyst: Next monthly sales update / early-July retail data checkpoint in the next 1-3 weeks, followed by the late-summer earnings cycle; watch comp sales, traffic, renewal rates, and merchandise margin commentary.
+  - Key risk (what makes this wrong): At a high multiple, even steady comps may not be enough; any traffic slowdown, margin pressure, or weaker membership commentary could derate the stock despite franchise quality.
+  - Sources: https://investor.costco.com/; https://investor.costco.com/financials/quarterly-results/default.aspx; local scraped-news and signal feeds returned no fresh COST items today.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- None. `get_upcoming_earnings(days=7)` returned no events, so no held position requires a bull/base/bear earnings scenario today.
+### Execute
+
+Live state at open: equity $54,784.57, cash $36,599.38, buying power $197,316.06, and 7 live positions. Regime is risk_on, but NFP is tomorrow (Jul 3 08:30 ET), and today's pre-market plan contained only top-up/hold candidates rather than fresh must-buy ideas.
+
+**Bought:** none.
+
+**Skipped:**
+- **UNH top-up**: skipped despite the fresh Gilbert Cisneros disclosed-buy signal. The live position value is $2,729.68 versus a 5% cap of roughly $2,739, leaving only de minimis room; a meaningful add would almost certainly violate the cap, and adding ahead of payrolls would not improve the risk/reward.
+- **SHW top-up**: skipped. The position is already $2,626.61, close to the 5% cap, and yesterday's $300 top-up already expressed the late-July earnings / housing-remodel stabilization thesis. Adding another tiny amount before NFP would be mostly noise.
+- **COST**: held per plan. Early-July monthly sales / traffic checkpoint remains intact, but no new capital was warranted without fresh news or signal support.
+- **AGG**: remains a legacy bond ETF without an active rate thesis, but this execute routine has no sell tool; carried forward as a housekeeping item for the next sell-capable routine.
+
+Post-execute book unchanged: 7 positions, ~67% cash. Watch into midday: HD is the main winner and was near the +15% trail-tighten threshold yesterday; UNH/V are close to 5% caps; no position is near the -7% forced-exit line.
+## 2026-07-02
+
+### Midday
+- Ran mandated midday risk scan. No positions were down 7% or more from average cost, so no stop-loss liquidations were required.
+- HD was up approximately 16.1% from average cost, meeting the +15% winner-tightening rule. Attempted to tighten its trailing stop to 7%, but the broker/tool returned an error (`fractional orders must be DAY orders`), so no further retry was made.
+- No fresh positions opened, consistent with the midday routine instruction.
+### Close
+Day P/L: +$80.45 (+0.15%) from the execute-time snapshot. Top winner: V (+$25.13 intraday mark-to-market); top loser: JPM (-$2.34). Watch tomorrow: risk-on tape remains supportive, but confirm breadth/VIX holds and monitor whether financials lag after JPM softened into the close. vs SPY since inception: +5.1 pts
+## 2026-07-03
+### Pre-market
+Macro context: **Jobs report / NFP today Fri Jul 3, 08:30 ET** is the binary macro event in the 7-day window; no FOMC or CPI inside the next 7 days per catalysts file. Regime is risk_on, but avoid adding excessive consumer/rate beta before payrolls. Note: the requested `web_search` tool is not available in the current tool namespace, so I could not run the 2-3 fresh web searches; sources below use company/Fed/IR URLs plus local earnings/news/signal feeds.
+
+- **PEP** (~$2,000): Defensive staples earnings-beat candidate into PepsiCo's Jul 9 pre-market report, with EPS estimate $2.19 per earnings tool.
+  - Why mispriced: The market may be overlooking high-quality staples because risk_on breadth has favored financials/housing cyclicals, but a steady snack/beverage print can re-rate if investors want lower-beta exposure after NFP.
+  - What market is missing: PEP offers a fresh non-bank, non-housing, non-semi catalyst that diversifies the current book and could benefit if payrolls volatility pushes investors toward predictable cash-flow staples.
+  - Datable catalyst: Q2 earnings on 2026-07-09 pre-market; key checkpoints are organic revenue, North America beverage/snack volumes, pricing/mix, margins, and FY guide tone.
+  - Key risk (what makes this wrong): Local scraped news and signal feeds showed no fresh PEP tailwind, and an in-line print may not be enough if staples remain out of favor in a risk_on tape.
+  - Sources: https://investors.pepsico.com/; https://investors.pepsico.com/news-releases; local earnings tool: PEP Jul 9 pre, EPS estimate $2.19.
+
+- **UNH** (~$0-$100 top-up only / primarily hold): Managed-care rebound setup with another fresh Gilbert Cisneros disclosed $8k buy and a mid-July earnings/utilization checkpoint.
+  - Why mispriced: The market is still treating managed care as structurally impaired by utilization, Medicare Advantage reimbursement pressure, and policy risk, while repeat disclosed buys suggest the bad-news bar may now be lower.
+  - What market is missing: If management stabilizes medical-cost commentary into the mid-July earnings window, UNH offers non-tech recovery exposure that is less directly tied to the Jul 3 payrolls/rate-beta trade than cyclicals or semis.
+  - Datable catalyst: Expected mid-July earnings window, with medical-cost ratio, Medicare Advantage commentary, utilization trends, and 2026 guide confidence as 1-8 week checkpoints.
+  - Key risk (what makes this wrong): Politician buys are not enough by themselves; if utilization, reimbursement, or regulatory headlines worsen, UNH can keep derating despite apparently cheap valuation and repeat buy signals.
+  - Sources: https://www.unitedhealthgroup.com/investors.html; https://www.unitedhealthgroup.com/investors/financial-reports.html; local Signal DB: Gilbert Cisneros UNH buy disclosed 2026-07-03.
+
+- **SHW** (~$0-$150 top-up only / primarily hold): Paint/coatings quality cyclical with a late-July earnings window that can validate housing/remodel stabilization after the recent Salazar buy signal.
+  - Why mispriced: The market may be over-penalizing housing-linked materials for higher-for-longer rates and sluggish turnover, even though coatings demand can be steadier through maintenance, pro repaint, and pricing mix.
+  - What market is missing: SHW offers non-bank, non-semi exposure to repair/remodel stabilization, but the current position is already close to normal size so any add should be small and only after NFP volatility settles.
+  - Datable catalyst: Expected late-July earnings window, with same-store paint demand, contractor/pro channel trends, raw-material margin, and FY guide tone as the 1-8 week checkpoints.
+  - Key risk (what makes this wrong): If today's payrolls data or subsequent housing data pressure mortgage/remodel expectations, SHW could trade as a rate-sensitive housing proxy before the company-specific earnings catalyst arrives.
+  - Sources: https://investors.sherwin-williams.com/; https://investors.sherwin-williams.com/news-events/press-releases; local signal/news feeds checked today and returned no fresh SHW item.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- None. `get_upcoming_earnings(days=7)` returned only PEP on 2026-07-09 pre-market, and PEP is not in the latest portfolio snapshot. Current held positions in the latest portfolio snapshot (AGG, COST, HD, JPM, SHW, UNH, V) do not report within 5 trading days.
+### Execute
+
+Live state at open-window check: equity $54,946.39, cash $36,599.38, buying power $197,769.15, and 7 live positions. The pre-market plan listed PEP as the only fresh-name candidate, with UNH and SHW as tiny top-up/primarily-hold candidates.
+
+**Attempted buy:**
+- **PEP** (~$2,000) using the pre-market defensive-staples earnings thesis into the 2026-07-09 pre-market report. The tool rejected the order with `market is closed; buys can only be placed during regular session`. I did not retry or work around the validation.
+
+**Bought:** none.
+
+**Skipped:**
+- **UNH top-up**: skipped because the position is already close to the 5% per-position cap and the pre-market plan allowed only de minimis room.
+- **SHW top-up**: skipped because the position is already close to normal size after the recent add, and NFP/holiday-session uncertainty made another tiny add unnecessary.
+- **AGG**: remains a legacy bond ETF without an active rate thesis, but this execute routine has no sell tool.
+
+Post-execute book is unchanged from the live snapshot: 7 positions and ~67% cash. PEP remains a candidate for the next regular-session execute window only if the Jul 9 earnings-beat thesis and timing still hold.
+### Midday
+- Ran midday risk scan per rule: close any position down 7%+ from average cost; tighten trailing stops to 7% for positions up 15%+.
+- No positions were down 7% or more from average cost, so no stop-loss liquidations were placed.
+- HD was up more than 15% from average cost; attempted to tighten the trailing stop to 7%, but the broker/tool returned an order error: fractional orders must be DAY orders. No retry or workaround attempted.
+- All other positions were below the +15% tightening threshold.
+### Close
+Day P/L: $0.00 (+0.00%) versus execute-time snapshot. Top winner: HD (+$411.74 unrealized, +16.92%); top loser: AGG (-$23.94 unrealized, -0.96%). Watch going into the next session: keep an eye on rate-sensitive AGG drag and whether risk-on breadth persists after the holiday-shortened close. vs SPY since inception: +5.34 pts
+## Weekly review 2026-07-03
+
+### Numeric scorecard / hard performance anchor
+
+- **Authoritative since-inception scorecard from `get_performance_stats`:** equity **$54,946.39** vs start equity $49,655.29 = **+10.66%**. SPY over the same period is **+5.32%**, so the strategy is ahead by **+5.34 percentage points** and is still beating the benchmark.
+- **Realized-trade quality from `get_performance_stats`:** 404 closed lots, **29.5% hit rate**, **1.00 profit factor**, realized P/L **+$1.63**, average win **+$10.97 / +0.48%**, average loss **-$4.57 / -0.22%**. The strategy is basically breakeven on realized trades and currently relies heavily on open winners plus prior large realized winners.
+- **Best / worst closed trades:** best remains **PANW +$814.77 / +34.82%**, exited by synthetic trailing stop after falling >10% from peak. Worst remains **PFE -$240.26 / -9.61%**, exited by the midday stop-loss rule after breaking the -7% threshold.
+- **Recent closed lots from scorecard:** GS +$171.36 / +7.05% via synthetic trailing stop; NKE -$165.39 / -8.27% via midday stop-loss; several small AAPL trailing-stop lots around -1.23% to +2.11%. Recent realized outcomes are mixed: one good GS exit, one failed NKE turnaround, and small AAPL churn around flat.
+- **Signal attribution:** politician-attributed lots are **+$841.37 P/L with 50.0% hit rate**, while unattributed lots are **-$839.74 P/L with 29.0% hit rate**. This is a meaningful clue: recent politician-supported ideas should remain in the pipeline, but only when paired with a dated catalyst.
+- **Current live book from portfolio snapshot:** equity **$54,946.39**, cash **$36,599.38** (~66.6%), 7 positions: AGG, COST, HD, JPM, SHW, UNH, V. Largest unrealized winners are **HD +$411.74 / +16.92%**, **V +$298.26 / +11.23%**, **UNH +$149.15 / +5.81%**, **SHW +$68.94 / +2.66%**, **JPM +$45.63 / +1.72%**. Laggards: **AGG -$23.94 / -0.96%** and COST only slightly positive.
+- **Week-over-week log anchor:** 2026-06-29 close equity was about **$54,600.80** ($54,597.32 execute-time anchor + $3.48 day P/L) and 2026-07-03 close/live equity is **$54,946.39**, so the logged week gained roughly **+$345.6 / +0.63%**. This is a modest rebound from the prior week’s drawdown, but still with very high cash.
+- **Market regime at review:** risk_on (VIX 16.6, breadth 68%, 10Y-2Y +0.31). The book is under-deployed for a risk_on tape, but this was partly intentional ahead of the Jul 3 payrolls event and after recent stop-outs.
+
+### Hit-rate inventory of this week’s ideas
+
+1. **2026-06-29 pre-market: JPM top-up, UNH top-up, COST hold.**
+   - Became actual buys: **0**. Correctly skipped because JPM and UNH were already near the 5% per-position cap, while COST had no fresh catalyst beyond the already-owned early-July sales/traffic thesis.
+   - Current status: JPM and UNH remain held and positive; COST remains near flat/slightly positive. Skipping adds avoided de minimis cap-constrained trades.
+
+2. **2026-06-30 pre-market: UNH top-up, SHW fresh candidate, COST hold.**
+   - Became actual buys: **SHW** ($2.3k starter). UNH top-up skipped due to cap proximity; COST held.
+   - Current status: **SHW is up +$68.94 / +2.66%**, validating early. The Salazar buy + late-July housing/remodel earnings setup is working so far.
+
+3. **2026-07-01 pre-market: UNH top-up, SHW top-up, COST hold.**
+   - Became actual buys: **small SHW top-up** ($300). UNH skipped because it was already close to cap; COST held.
+   - Current status: SHW remains positive after the top-up. This was a reasonable incremental add, though the small size means it is not performance-critical.
+
+4. **2026-07-02 pre-market: UNH top-up, SHW top-up, COST hold.**
+   - Became actual buys: **0**. Correctly skipped because both UNH and SHW were close to normal/max sizing and NFP was the next-day binary macro event.
+   - Current status: UNH and SHW stayed positive, so not adding did not hurt materially.
+
+5. **2026-07-03 pre-market: PEP fresh candidate, UNH/SHW tiny top-ups.**
+   - Became actual buys: **0**, because the PEP order was rejected with `market is closed; buys can only be placed during regular session` on the holiday/closed session. UNH and SHW top-ups were skipped appropriately.
+   - Current status: PEP remains a valid watchlist candidate for the next regular session only if the Jul 9 earnings-beat thesis and timing still make sense.
+
+**Fresh-name idea-to-buy hit rate:** 1 executed fresh buy from 2 fresh candidates this week (**SHW bought, PEP blocked by market closure**). Excluding the holiday closure, the routine acted on the only regular-session fresh candidate.
+
+**Bought-position hit rate this week:** SHW is currently up. The week’s actual new capital deployment was therefore small but positive.
+
+### Thesis vs reality on closed positions / exits
+
+- **No new LLM-initiated sells this week.** The week was mostly hold/top-up discipline after the prior week’s PFE and NKE stop-outs.
+- **GS recent trailing-stop exit from performance stats.**
+  - Catalyst: financials sleeve / strong Q1 / stress-test and capital-return window.
+  - Did the catalyst fire? **Partly.** Stress-test/CCAR positioning was the intended window; the position delivered a realized +7.05% via synthetic trailing stop before the review date.
+  - Exit assessment: This looks like a **successful mechanical exit**, not a thesis break. It converted a financials winner into realized P/L while the book still retains JPM/V exposure to the same broad financial/payments theme.
+- **NKE recent stop-loss exit remains the key failed thesis from the last five trading days’ context.**
+  - Catalyst: Jun 30 earnings-turnaround setup.
+  - Did the catalyst fire? **No.** The position failed before the print and was stopped out.
+  - Exit assessment: **Premature stop before catalyst, but valid risk-control.** It reinforces last week’s lesson: low-bar turnaround earnings trades need price confirmation or smaller sizing.
+- **AAPL recent trailing-stop lots.**
+  - Catalyst: earlier post-print buyback/services/China thesis.
+  - Did the catalyst fire? **Partly, earlier.** Recent lots were small realized outcomes around flat.
+  - Exit assessment: ordinary mechanical cleanup, not a major thesis conclusion.
+
+### What worked
+
+1. **Politician-signal-plus-catalyst ideas are still outperforming.** The scorecard’s politician attribution is strongly positive (+$841 vs -$840 unattributed), and this week’s SHW buy followed that pattern: Salazar disclosed buy plus late-July earnings/remodel catalyst, now up ~2.7%.
+2. **The current book is clean and low-concentration.** Seven positions, no single stock above roughly 5.4% market value, and multiple non-tech sleeves: housing retail (HD), payments (V), managed care (UNH), coatings (SHW), bank (JPM), staples/retail (COST), plus legacy AGG.
+3. **HD thesis is working.** HD is now +16.9%, the largest open winner. The housing/repair-remodel stabilization thesis has paid, even though trailing-stop tightening is blocked by fractional-order constraints.
+4. **Cap discipline improved.** Repeated UNH/JPM/SHW top-up ideas were skipped when positions were close to the 5% cap or the incremental add was de minimis. No attempt was made to hack around tool limits.
+5. **Cash preserved optionality into NFP/holiday.** Ending with ~67% cash is defensive, but after two recent stop-outs and a holiday-shortened payrolls session, it prevented forced risk-taking.
+
+### What did not work / process gaps
+
+1. **Market-session awareness failed again on PEP.** The PEP idea was reasonable, but the order was attempted on a closed market and rejected. This repeats the 2026-06-19 NKE/JPM closed-market issue.
+2. **HD winner protection is operationally unresolved.** HD is up >15%, but attempts to tighten its trailing stop to 7% repeatedly fail due to fractional-order constraints. This leaves the biggest live winner protected less tightly than intended.
+3. **AGG remains legacy dead weight.** It is a small position and small loss, but there is still no active written duration/rate thesis. With 66% cash, AGG is not needed as ballast.
+4. **High cash may become a performance drag.** The strategy is still beating SPY, but alpha compressed from prior reviews as SPY caught up. In a risk_on regime with 68% breadth, 67% cash is safe but may leave too much benchmark upside uncaptured unless next week’s pipeline is acted on.
+5. **No full earnings prep yet for the next bank/UNH/COST windows.** JPM reports Jul 14 pre per the earnings tool; UNH expected mid-July; COST has early-July sales/traffic but no formal scenario. These need to be prepared next week as they enter tighter windows.
+
+### ONE concrete process change
+
+**Require a market-open / session-status check before submitting any execute order.** Proposed concrete strategy.md diff:
+
+> Add under “Rules you enforce yourself”: “Before any execute routine submits an order, confirm the market is open for regular trading that day. If the market is closed, early-closed, or holiday-shortened such that orders are rejected, do not submit orders; carry the idea to the next regular-session pre-market and re-check catalyst timing.”
+
+Rationale: The PEP order rejection on 2026-07-03 repeated the 2026-06-19 closed-market problem. This is preventable process noise and clutters execution logs without adding edge.
+
+### Next week idea pipeline (3-5 names)
+
+1. **PEP — watch / possible fresh buy; earnings Jul 9 pre-market.** Defensive staples catalyst with EPS estimate $2.19. Key metrics: organic revenue, North America beverage/snack volumes, pricing/mix, margins, FY guide. Only buy next regular session if still outside/acceptable relative to the 5-day earnings rule because the thesis is explicitly the print.
+2. **JPM — held; earnings Jul 14 pre-market and CCAR/stress-test capital-return follow-through.** Need earnings prep next week. Key metrics: NII, trading/IB fees, card credit, capital return, CET1/stress capital buffer commentary.
+3. **UNH — held; expected mid-July earnings/utilization recovery setup.** Multiple politician buy signals support the watch. Key metrics: medical-cost ratio, Medicare Advantage reimbursement, utilization trend, 2026 guide confidence.
+4. **HD / SHW — held housing-remodel sleeve.** HD is the top open winner; SHW is new and positive. Watch payrolls/housing-rate reaction, contractor/pro demand commentary, and late-July earnings setup. Do not add unless one pulls back while thesis remains intact.
+5. **COST — held; early-July monthly sales/traffic checkpoint.** Watch comp sales, traffic, renewal rates, and margin commentary. Hold unless data validates a top-up; avoid adding solely because it is defensive.
+
+### Proposed strategy.md edits (user applies manually)
+
+1. **Market-session check before orders:** add the session-status rule proposed above.
+2. **Fractional winner protection escalation:** add: “If a position is up 15%+ and two trailing-stop-tighten attempts fail due to fractional-order constraints, mark it for manual/whole-share cleanup or partial trim at the next sell-capable routine; do not add to it until protection is fixed.” HD now fits this pattern.
+3. **Legacy bond ETF cleanup:** add/reaffirm: “If AGG/BND/TLT/etc. is held without an active written rate/duration thesis for more than 5 trading days, prioritize exiting at the next sell-capable routine unless a current macro thesis is documented.”
+
+### Proposed catalysts.md additions (stock-specific only)
+
+- **PEP** — Q2 earnings Jul 9, 2026 pre-market; EPS estimate $2.19. Watch organic revenue, beverage/snack volumes, pricing/mix, margins, and FY guide.
+- **JPM** — earnings Jul 14, 2026 pre-market; EPS estimate $5.49. Watch NII, trading/IB fees, credit quality, CET1/stress capital buffer, buyback/dividend commentary.
+- **UNH** — expected mid-July 2026 earnings window. Watch medical-cost ratio, Medicare Advantage reimbursement, utilization trends, and 2026 guide confidence.
+- **SHW** — expected late-July 2026 earnings window. Watch same-store paint demand, contractor/pro channel, raw-material margin, and FY guide.
+- **COST** — early-July 2026 monthly sales / traffic update. Watch comp sales, traffic, membership renewal, and merchandise margin commentary.
+## 2026-07-06
+### Pre-market
+Macro context: no binary macro this week. Jul 3 NFP is behind us; next FOMC is Jul 28-29 and next jobs report is outside the 7-day window. CPI exact date should be verified, but the catalysts file does not flag a confirmed FOMC/CPI/jobs event inside 7 days. Regime is risk_on. Note: the requested `web_search` tool is not available in the current tool namespace, so I could not run fresh web searches; sources below use company/Fed/IR URLs plus local earnings/news/signal feeds.
+
+- **PEP** (~$2,000): Defensive staples earnings-beat candidate into PepsiCo's Jul 9 pre-market report, with EPS estimate $2.19 per earnings tool.
+  - Why mispriced: The market may be overlooking high-quality staples because risk_on breadth has favored financials, housing cyclicals, and higher-beta recovery names, but a steady snack/beverage print can re-rate if investors want predictable cash flow after the payrolls event.
+  - What market is missing: PEP would add a fresh non-bank, non-housing, non-semi catalyst to a cash-heavy book, and even modest organic revenue/margin resilience could matter if the market starts rotating toward lower-beta earnings certainty.
+  - Datable catalyst: Q2 earnings on 2026-07-09 pre-market; key checkpoints are organic revenue, North America beverage/snack volumes, pricing/mix, margins, and FY guide tone.
+  - Key risk (what makes this wrong): Local scraped news and signal feeds showed no fresh PEP tailwind, and an in-line print may not be enough if staples remain out of favor in a risk_on tape.
+  - Sources: https://investors.pepsico.com/; https://investors.pepsico.com/news-releases; local earnings tool: PEP Jul 9 pre, EPS estimate $2.19; local news/signal feeds returned no fresh PEP items today.
+
+- **JPM** (~$0-$300 top-up only / primarily hold): Existing bank-quality position with Jul 14 earnings approaching after the late-June stress-test/CCAR capital-return setup.
+  - Why mispriced: The market may still treat large banks mainly as curve trades, while JPM's fee, card, trading, credit, and capital-return mix can work if July earnings confirm resilient NII/fees and strong capital-return capacity.
+  - What market is missing: A positive 10Y-2Y spread and risk_on breadth can support bank earnings revisions, and JPM provides financial exposure already in the book without needing to add a brand-new rate-sensitive ticker.
+  - Datable catalyst: JPM's mid-July earnings window, expected around 2026-07-14, with NII, trading/IB fees, card credit, CET1/stress capital buffer, and buyback/dividend commentary as the checkpoints.
+  - Key risk (what makes this wrong): If credit trends worsen, the curve flattens, or capital-return commentary disappoints, the stock could lag despite quality; position is already near normal size, so any add should be small or skipped if near the 5% cap.
+  - Sources: https://www.jpmorganchase.com/ir; https://www.jpmorganchase.com/ir/news; https://www.federalreserve.gov/supervisionreg/stress-tests-capital-planning.htm; local JPM news/signal feeds returned no fresh items today.
+
+- **UNH** (~$0-$300 top-up only / primarily hold): Existing managed-care rebound setup into the mid-July earnings/utilization checkpoint after repeated politician-buy support in late June/early July.
+  - Why mispriced: The market is still treating managed care as structurally impaired by utilization, Medicare Advantage reimbursement pressure, and policy risk, while repeated disclosed buys in recent logs suggest the bad-news bar may be lower after the drawdown.
+  - What market is missing: If management stabilizes medical-cost commentary into the mid-July earnings window, UNH offers non-tech recovery exposure that is less directly tied to the bank/consumer-rate-beta trade than JPM, HD, or SHW.
+  - Datable catalyst: Expected mid-July earnings window, with medical-cost ratio, Medicare Advantage commentary, utilization trends, and 2026 guide confidence as the 1-8 week checkpoints.
+  - Key risk (what makes this wrong): Politician buys are not enough by themselves; if utilization, reimbursement, or regulatory headlines worsen, UNH can keep derating despite apparently cheap valuation and repeat buy signals.
+  - Sources: https://www.unitedhealthgroup.com/investors.html; https://www.unitedhealthgroup.com/investors/financial-reports.html; local UNH news/signal feeds returned no fresh items today, but prior logs recorded repeated Salazar/Cisneros disclosed buys.
+
+Earnings prep (only if a held position reports within 5 trading days):
+- None. `get_upcoming_earnings(days=7)` returned only PEP on 2026-07-09 pre-market, and PEP is not in the latest portfolio snapshot. Current held positions in the latest portfolio snapshot (AGG, COST, HD, JPM, SHW, UNH, V) do not report within 5 trading days.
+### Execute
+
+Live state at open-window check: equity $54,932.33, cash $36,599.38, buying power $197,729.78, and 7 live positions. Regime is risk_on, cash remains high, and the pre-market section contained one fresh actionable idea (PEP) plus JPM/UNH as top-up/primarily-hold candidates.
+
+**Bought / submitted (1/2 fresh-name daily cap used):**
+- **PEP** submitted. Order id f5580204-95a8-4590-8a73-d4e8ade9c603. Notional $2,000; tool estimated 14.24 sh at ~$140.42. Thesis copied from pre-market: Catalyst is Q2 earnings on 2026-07-09 pre-market, with EPS estimate $2.19 and checkpoints in organic revenue, North America beverage/snack volumes, pricing/mix, margins, and FY guide tone. Why mispriced: the market may be overlooking high-quality staples because risk_on breadth has favored financials, housing cyclicals, and higher-beta recovery names, but a steady snack/beverage print can re-rate if investors want predictable cash flow after payrolls. Variant view: PEP adds a fresh non-bank, non-housing, non-semi catalyst to a cash-heavy book, and modest organic revenue/margin resilience could matter if rotation toward lower-beta earnings certainty starts. Key risk is no fresh PEP news/signal tailwind and an in-line print may not be enough if staples remain out of favor.
+
+**Skipped:**
+- **JPM top-up**: skipped. Existing position is already near a normal 5% allocation and has the Jul 14 earnings/CCAR thesis in place; no fresh local JPM news or signal justified adding more.
+- **UNH top-up**: skipped. Existing position is near the 5% cap and the repeated politician-buy recovery thesis is already represented in the book.
+- No other top-ups. **AGG** remains a legacy bond ETF without an active rate thesis, but this execute routine has no sell tool.
+
+**Post-execute snapshot:** equity $54,916.06, cash $36,599.38, buying power $195,630.53, and 7 live positions. PEP order was still open/new and not yet reflected in positions/cash when portfolio.md was written; next routine should confirm fill and trailing stop attachment. Watch into midday: HD remains the biggest open winner and has had repeated fractional-stop-tighten failures; PEP fill status; and whether risk_on breadth continues to support the financial/housing sleeves.
+## 2026-07-06
+### Midday
+- Ran midday risk scan with no fresh positions opened, per routine.
+- Stop-loss rule check (sell all if down 7%+ from avg cost): no positions breached the threshold. Largest drawdowns were AGG at approximately -1.02% and COST at approximately -0.54%.
+- Winner tightening rule check (tighten trail to 7% if up 15%+ from avg cost): no positions qualified. HD was the closest at approximately +14.32%, below the +15% trigger.
+- No orders were placed and no trailing stops were changed.
+### Close
+Day P/L: +$80.27 (+0.15%) versus execute-time equity of $54,738.99. Top winner: SHW, +$18.14 intraday mark-to-market since execute snapshot; top loser: none among open positions (smallest gain was UNH, +$1.63). Watch tomorrow: whether risk-on breadth can hold and whether consumer/financial holdings (COST, PEP, JPM, V) continue to confirm post-holiday momentum without chasing late-session strength. vs SPY since inception: +4.0 pts
