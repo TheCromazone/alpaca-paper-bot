@@ -9,6 +9,7 @@ import pandas_market_calendars as mcal
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 from loguru import logger
+from sqlalchemy import select as sa_select
 
 from bot.alpaca_client import AlpacaClient
 from bot.config import (
@@ -53,6 +54,23 @@ def _is_market_open_now() -> bool:
     open_at = schedule.iloc[0]["market_open"].to_pydatetime()
     close_at = schedule.iloc[0]["market_close"].to_pydatetime()
     return open_at <= now <= close_at
+
+
+def _is_trading_day() -> bool:
+    """True when NYSE trades today (all LLM routines fire 07:00–17:00 ET,
+    where the UTC calendar date equals the ET date, so a UTC 'today' is safe)."""
+    today = datetime.now(timezone.utc).date()
+    return not _nyse.schedule(start_date=today, end_date=today).empty
+
+
+def _skip_job(name: str, reason: str) -> None:
+    """Record a skipped scheduled job so the dashboard's job feed shows the
+    routine was considered and deliberately not run (vs. silently missing)."""
+    now = datetime.now(timezone.utc)
+    with SessionLocal.begin() as s:
+        s.add(JobRun(job_name=name, started_at=now, finished_at=now,
+                     status="skipped", message=reason))
+    logger.info("{} skipped: {}", name, reason)
 
 
 def _log_job(name: str, fn):
@@ -125,12 +143,16 @@ def _sync_account_and_positions(alpaca: AlpacaClient) -> None:
                 # we force-close at market. ~5 min noise window before stop
                 # is armed, to avoid flushing fresh entries on a tick wiggle.
                 _ARM_AGE_S = 300  # 5 min
+                # Per-position trail: set_trailing_stop records trail_pct when
+                # the broker rejects a fractional GTC stop (e.g. midday
+                # tightening a winner to 7%); default stays 10%.
+                trail = row.trail_pct or LLM_TRAILING_STOP_PCT
                 if (
                     not settings.dry_run
                     and not row.stop_order_id
                     and lp.market_price > 0
                     and (row.peak_price or 0) > 0
-                    and lp.market_price < (row.peak_price or 0) * (1 - LLM_TRAILING_STOP_PCT)
+                    and lp.market_price < (row.peak_price or 0) * (1 - trail)
                     and row.opened_at is not None
                     and (
                         datetime.now(timezone.utc)
@@ -138,7 +160,7 @@ def _sync_account_and_positions(alpaca: AlpacaClient) -> None:
                     ).total_seconds() > _ARM_AGE_S
                 ):
                     synthetic_sells.append(
-                        (sym, float(lp.qty or 0), float(row.peak_price or 0), float(lp.market_price))
+                        (sym, float(lp.qty or 0), float(row.peak_price or 0), float(lp.market_price), trail)
                     )
         # Remove rows that Alpaca no longer reports (fully closed positions).
         for sym in list(existing.keys()):
@@ -146,7 +168,7 @@ def _sync_account_and_positions(alpaca: AlpacaClient) -> None:
                 s.delete(existing[sym])
 
     # Fire any synthetic-stop sells outside the DB transaction.
-    for sym, qty, peak, mkt in synthetic_sells:
+    for sym, qty, peak, mkt, trail in synthetic_sells:
         try:
             # Defensive: pre-cancel any open opposite-side order on the symbol
             # the same way the LLM's place_sell does, to avoid Alpaca's
@@ -176,12 +198,78 @@ def _sync_account_and_positions(alpaca: AlpacaClient) -> None:
                 s.add(Decision(
                     ticker=sym, action="sell", composite_score=0.0,
                     score_breakdown={"kind": "synthetic_trailing_stop"},
-                    reason=f"synthetic trailing stop: ${mkt:.2f} fell >{LLM_TRAILING_STOP_PCT:.0%} from peak ${peak:.2f}",
+                    reason=f"synthetic trailing stop: ${mkt:.2f} fell >{trail:.0%} from peak ${peak:.2f}",
                     dry_run=False,
                     trade_id=trade.id,
                 ))
         except Exception as exc:
             logger.exception("synthetic stop for {} failed: {}", sym, exc)
+
+    # Reconcile fills last — best-effort; never fails the sync job.
+    try:
+        _reconcile_trade_fills(alpaca)
+    except Exception as exc:
+        logger.warning("trade-fill reconciliation failed: {}", exc)
+
+
+_RECONCILE_LOOKBACK_DAYS = 60
+_RECONCILE_MAX_PER_RUN = 100
+# Alpaca terminal statuses that mean "this order will never fill".
+_ORDER_DEAD_STATUSES = {"canceled", "expired", "rejected", "done_for_day", "stopped", "suspended"}
+
+
+def _reconcile_trade_fills(alpaca: AlpacaClient) -> None:
+    """Update local Trade rows whose orders have since filled or died.
+
+    Every LLM-era trade was stuck at status='submitted' with filled_at=NULL
+    forever because nothing ever asked Alpaca what happened to the order.
+    That skews the FIFO realized-P&L analytics (which price entries/exits at
+    the submit-time mid rather than the actual fill) and leaves canceled
+    orders looking like real trades. Runs inside the 5-min sync job; after
+    the first backfill there is at most a handful of open orders to check.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=_RECONCILE_LOOKBACK_DAYS)
+    with SessionLocal() as s:
+        pending = s.scalars(
+            sa_select(Trade)
+            .where(Trade.status == "submitted")
+            .where(Trade.dry_run == False)  # noqa: E712 — SQLAlchemy needs the comparison
+            .where(Trade.submitted_at >= cutoff)
+            .limit(_RECONCILE_MAX_PER_RUN)
+        ).all()
+        candidates = [
+            (t.id, t.alpaca_order_id) for t in pending
+            if t.alpaca_order_id and not t.alpaca_order_id.startswith("DRY")
+        ]
+    if not candidates:
+        return
+
+    updated = 0
+    for trade_id, order_id in candidates:
+        info = alpaca.order_by_id(order_id)
+        if info is None:
+            continue
+        status = (info["status"] or "").lower()
+        with SessionLocal.begin() as s:
+            t = s.get(Trade, trade_id)
+            if t is None or t.status != "submitted":
+                continue
+            if status == "filled":
+                t.status = "filled"
+                if info["filled_qty"] > 0:
+                    t.qty = info["filled_qty"]
+                if info["filled_avg_price"] > 0:
+                    t.price = info["filled_avg_price"]
+                    t.notional = info["filled_qty"] * info["filled_avg_price"]
+                t.filled_at = info["filled_at"] or datetime.now(timezone.utc)
+                updated += 1
+            elif status in _ORDER_DEAD_STATUSES and info["filled_qty"] <= 0:
+                t.status = "canceled"
+                updated += 1
+            # partially_filled / new / accepted → leave as 'submitted';
+            # the next sync will pick up the terminal state.
+    if updated:
+        logger.info("reconciled {} trade fill(s) against Alpaca", updated)
 
 
 def _refresh_price_history(alpaca: AlpacaClient) -> None:
@@ -235,12 +323,14 @@ def tick(force: bool = False) -> None:
 
 
 def research_tick() -> None:
-    """News + article scraping only — no trading. Runs every 15 min 24/7 so
-    the bot stays warm overnight/weekends. Bails out when the market is open
-    because the 5-min `tick` is already doing this work and we don't want two
-    jobs hammering RSS feeds simultaneously."""
-    if _is_market_open_now():
-        return
+    """News + article scraping only — no trading. Runs every 15 min 24/7.
+
+    This used to bail out during market hours because the 5-min quant
+    ``tick()`` covered that window — but the quant tick was retired in the
+    Phase-5 LLM cutover and is no longer scheduled, which silently left news
+    un-refreshed from 09:30 to 16:00 ET every trading day (last in-hours
+    news_refresh: 2026-04-24). The LLM's execute/midday routines were reading
+    up-to-6.5-hour-stale headlines. Now it always runs."""
     logger.info("=== research tick ({}) ===", datetime.now(timezone.utc).isoformat())
     _log_job("news_refresh_offhours", lambda: (
         persist_new(fetch_all()),
@@ -289,22 +379,40 @@ def sync_account_job() -> None:
 
 
 # --- Phase 5: LLM routines (gated on settings.llm_routines_enabled) ---
+# Each daily routine is additionally gated on the NYSE calendar. On 2026-07-03
+# (Independence Day observed) premarket + execute + midday + close all ran
+# anyway: ~600k input tokens spent planning and attempting trades that
+# place_buy correctly rejected with "market is closed". The calendar check
+# costs nothing and records a 'skipped' JobRun for the dashboard. The Friday
+# weekly_review stays ungated — a holiday Friday still had a week to review.
 def _llm_premarket() -> None:
+    if not _is_trading_day():
+        _skip_job("llm_premarket", "NYSE holiday — market closed today")
+        return
     from bot.routines import premarket
     _log_job("llm_premarket", premarket.run)
 
 
 def _llm_execute() -> None:
+    if not _is_trading_day():
+        _skip_job("llm_execute", "NYSE holiday — market closed today")
+        return
     from bot.routines import execute as ex
     _log_job("llm_execute", ex.run)
 
 
 def _llm_midday() -> None:
+    if not _is_trading_day():
+        _skip_job("llm_midday", "NYSE holiday — market closed today")
+        return
     from bot.routines import midday
     _log_job("llm_midday", midday.run)
 
 
 def _llm_close() -> None:
+    if not _is_trading_day():
+        _skip_job("llm_close", "NYSE holiday — market closed today")
+        return
     from bot.routines import close as cl
     _log_job("llm_close", cl.run)
 

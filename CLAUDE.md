@@ -8,10 +8,15 @@ Three processes live in this repo: a Python **bot scheduler** that drives an LLM
 
 The README describes a *retired* composite-score quant strategy (every-5-min ticks, news + politician + 13F signal aggregation). That code still exists and runs as `tick()` (callable via `python -m bot.main --once` for A/B comparison) but is **not scheduled**. The live strategy is the five LLM routines below.
 
-## The live strategy: five Claude Opus routines per week
+## The live strategy: five LLM routines per week
 
-Each routine is a Claude tool-use loop persisted as one `LLMRun` row.
-Times are anchored to `America/New_York` so DST is automatic.
+Each routine is an LLM tool-use loop persisted as one `LLMRun` row. Since the
+2026-05-20 cutover the live backend is **OpenAI Codex OAuth** (`LLM_PROVIDER=codex_oauth`,
+model `gpt-5.5`, $0/call under the ChatGPT Plus subscription — `usd_cost` in
+`llm_runs` is legitimately 0.0). The Anthropic Claude path remains a fallback:
+flip `LLM_PROVIDER=anthropic` in `.env` if Codex breaks.
+Times are anchored to `America/New_York` so DST is automatic, and each daily
+routine is skipped (JobRun status `skipped`) on NYSE holidays.
 
 | Routine | ET time | Allowed actions |
 |---|---|---|
@@ -21,7 +26,7 @@ Times are anchored to `America/New_York` so DST is automatic.
 | `close` (Mon-Fri 16:00) | log only | append day P/L to `research_log.md` |
 | `weekly_review` (Fri 17:00) | post-mortem | propose strategy.md edits in plain text — user applies manually |
 
-`bot/llm/tools.py` is **the trust boundary** — every hard cap (5%/position, 15-position max, 10% trailing stop, 7% midday cut, 3-day wash window, 20-char thesis minimum, 2 new positions/day, bond-ETF avoidance) is enforced in handler code, **not** in prompts. The model proposes; tools verify and execute. If you're tempted to relax a cap by tweaking a prompt, fix it in `tools.py` instead.
+`bot/llm/tools.py` is **the trust boundary** — every hard cap (5%/position — halved in risk_off, 25-position max, 10% trailing stop, 7% midday cut, 3-day wash window, 2-day earnings blackout, 120-char thesis minimum, 2 new positions/day — 1 in risk_off, bond-ETF avoidance) is enforced in handler code, **not** in prompts. The model proposes; tools verify and execute. If you're tempted to relax a cap by tweaking a prompt, fix it in `tools.py` instead.
 
 `memory/` holds four committed markdown files that *are* the bot's persistent state across restarts: `strategy.md` (rulebook, hand-authored, never written by the LLM), `portfolio.md` (regenerated every trading routine), `trade_log.md` (append-only by tool handlers), `research_log.md` (append-only daily ledger). The runner injects `strategy.md` behind an Anthropic prompt-cache breakpoint, so the second routine of the day reads the rulebook at cache-read pricing.
 

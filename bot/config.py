@@ -297,6 +297,15 @@ LLM_MAX_NEW_POSITIONS_PER_DAY = 2  # cap on fresh-ticker buys per day
 LLM_MAX_TOOL_RESULT_NEWS = 5       # was 8 — tool layer trims get_recent_news to this many items
 LLM_MAX_TOOL_RESULT_SIGNALS = 6    # was 10 — similarly for get_recent_signals
 
+# read_memory tail cap (chars). research_log.md is append-only and had grown
+# to 360 KB by 2026-07-06 — one read_memory('research_log') injected ~90k
+# tokens, and because every subsequent turn re-sends the conversation, a
+# 7-tool execute routine compounded to 514k input tokens. The tool layer now
+# returns only the most recent LLM_MEMORY_READ_MAX_CHARS of any memory file
+# (cut at a section boundary, with a truncation note). 24k chars ≈ 6k tokens
+# ≈ the last ~2 weeks of research_log entries — plenty for every routine.
+LLM_MEMORY_READ_MAX_CHARS = 24_000
+
 # Throttle between Anthropic turns (seconds). Apr-21 smoke test failed with a
 # 429 after 11 rapid tool-use turns — the org's tier-1 limit is 30k input
 # tokens/minute and back-to-back turns burned through it. Bumped to 12s on

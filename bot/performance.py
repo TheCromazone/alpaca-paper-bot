@@ -23,7 +23,7 @@ from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import asc, select
+from sqlalchemy import asc, or_, select
 from sqlalchemy.orm import Session
 
 from bot.db import PortfolioSnapshot, Signal, Trade
@@ -84,7 +84,17 @@ def _fifo_closed_lots(
     ``realized_performance`` (aggregate stats) and ``signal_attribution``
     (per-signal-kind rollup) so both derive from one matching pass.
     """
-    q = select(Trade).order_by(asc(Trade.submitted_at))
+    # Simulated and never-filled orders are not realized P&L. dry_run rows
+    # come from smoke tests; 'canceled' is stamped by the sync job's fill
+    # reconciliation when Alpaca reports a terminal no-fill state. Rows the
+    # reconciler hasn't seen yet remain 'submitted' and still count, as before.
+    q = (
+        select(Trade)
+        .where(Trade.dry_run == False)  # noqa: E712 — SQLAlchemy comparison
+        .where(or_(Trade.status.is_(None),
+                   Trade.status.notin_(("canceled", "rejected"))))
+        .order_by(asc(Trade.submitted_at))
+    )
     if since is not None:
         q = q.where(Trade.submitted_at >= since)
     trades = session.scalars(q).all()

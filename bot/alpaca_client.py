@@ -258,6 +258,26 @@ class AlpacaClient:
             })
         return out
 
+    def order_by_id(self, order_id: str) -> dict | None:
+        """Current state of a single order — used by the sync job to
+        reconcile local Trade rows (status/fill price/fill time) against
+        Alpaca. Returns None when the order can't be fetched (unknown id,
+        transient network error) so callers just skip and retry next sync.
+        """
+        try:
+            o = self.trading.get_order_by_id(order_id)
+        except Exception as exc:
+            logger.warning("order_by_id {} failed: {}", order_id, exc)
+            return None
+        return {
+            "id": str(o.id),
+            "symbol": o.symbol,
+            "status": str(o.status.value if hasattr(o.status, "value") else o.status),
+            "filled_qty": float(o.filled_qty or 0),
+            "filled_avg_price": float(o.filled_avg_price or 0),
+            "filled_at": o.filled_at,
+        }
+
     @_NETWORK_RETRY
     def market_is_open(self) -> bool:
         return bool(self.trading.get_clock().is_open)

@@ -138,6 +138,11 @@ class Position(Base):
     # position. We cancel this before placing a sell so the stop doesn't
     # double-fire against a market order racing it.
     stop_order_id = Column(String(64))
+    # Synthetic trailing-stop trail (fractional, e.g. 0.07 = 7%). Set by
+    # set_trailing_stop when Alpaca rejects a broker-side GTC stop on a
+    # fractional position; the 5-min sync_account synthetic-stop engine
+    # enforces it. NULL means the engine uses LLM_TRAILING_STOP_PCT.
+    trail_pct = Column(Float)
 
 
 class JobRun(Base):
@@ -266,6 +271,9 @@ def _migrate_sqlite() -> None:
         if "stop_order_id" not in pos_cols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE positions ADD COLUMN stop_order_id VARCHAR(64)"))
+        if "trail_pct" not in pos_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE positions ADD COLUMN trail_pct FLOAT"))
 
 
 def init_db() -> None:

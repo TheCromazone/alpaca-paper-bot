@@ -21,13 +21,14 @@ research-only routine — it isn't in the toolbox.
 """
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Iterable
 
 from loguru import logger
-from sqlalchemy import desc, select
+from sqlalchemy import String as SAString, cast, desc, func, select
 
 from bot.alpaca_client import AlpacaClient
 from bot.config import (
@@ -36,6 +37,7 @@ from bot.config import (
     LLM_MAX_POSITIONS,
     LLM_MAX_TOOL_RESULT_NEWS,
     LLM_MAX_TOOL_RESULT_SIGNALS,
+    LLM_MEMORY_READ_MAX_CHARS,
     LLM_MIN_THESIS_CHARS,
     LLM_TRAILING_STOP_MAX,
     LLM_TRAILING_STOP_MIN,
@@ -252,7 +254,28 @@ def _h_read_memory(args: dict) -> dict:
     name = _require_str(args, "name")
     if name not in memory.ALL_MEMORY:
         raise ToolError(f"unknown memory file {name!r}; allowed: {list(memory.ALL_MEMORY)}")
-    return {"name": name, "content": memory.read(name)}
+    content = memory.read(name)
+    # Tail-cap large files. research_log.md is an append-only ledger that hit
+    # 360 KB (~90k tokens) by 2026-07-06; returning it whole compounded to
+    # 300-514k input tokens per routine because each turn re-sends the whole
+    # conversation. Recent entries are at the end, so keep the tail and cut
+    # at a section boundary for readability.
+    if len(content) > LLM_MEMORY_READ_MAX_CHARS:
+        total = len(content)
+        tail = content[-LLM_MEMORY_READ_MAX_CHARS:]
+        boundary = tail.find("\n## ")
+        if boundary == -1:
+            boundary = tail.find("\n### ")
+        if boundary != -1:
+            tail = tail[boundary + 1:]
+        note = (
+            f"[NOTE: {name}.md is {total:,} chars; showing only the most "
+            f"recent {len(tail):,} chars. Older entries are on disk but not "
+            "shown — do not assume history before this point is empty.]\n\n"
+        )
+        return {"name": name, "content": note + tail, "truncated": True,
+                "total_chars": total}
+    return {"name": name, "content": content}
 
 
 def _h_write_memory(args: dict) -> dict:
@@ -309,9 +332,17 @@ def _h_get_recent_news(args: dict) -> dict:
             select(NewsItem)
             .where(NewsItem.published_at >= cutoff)
             .order_by(desc(NewsItem.published_at))
-            .limit(limit * 3)  # over-fetch; we filter by ticker below
         )
-        rows = s.scalars(q).all()
+        if ticker:
+            # Pre-filter in SQL so a ticker query isn't limited to whatever
+            # happens to sit in the most recent rows. `tickers` is a JSON
+            # array serialized as text (e.g. ["PEP", "KO"]), so a quoted
+            # LIKE is exact per element; the Python check below stays as
+            # the authoritative filter.
+            safe = re.sub(r"[^A-Z0-9.\-]", "", str(ticker).upper())
+            if safe:
+                q = q.where(cast(NewsItem.tickers, SAString).like(f'%"{safe}"%'))
+        rows = s.scalars(q.limit(limit * 3)).all()
     out: list[dict] = []
     for r in rows:
         if ticker and (not r.tickers or ticker.upper() not in (r.tickers or [])):
@@ -337,22 +368,18 @@ def _h_get_recent_signals(args: dict) -> dict:
     days = int(args.get("days", 14))
     limit = min(int(args.get("limit", 10)), LLM_MAX_TOOL_RESULT_SIGNALS)
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    # All filters live in SQL. The old version applied LIMIT first and the
+    # ticker filter in Python afterwards, so `ticker="PEP"` returned the
+    # intersection of "PEP" with the N most recent signals of ANY ticker —
+    # i.e. almost always nothing, even when PEP signals existed in-window.
+    # That starved every premarket ticker lookup from ~May onward.
     with SessionLocal() as s:
-        q = (
-            select(Signal)
-            .where(Signal.as_of >= cutoff)
-            .order_by(desc(Signal.as_of))
-            .limit(limit)
-        )
+        q = select(Signal).where(Signal.as_of >= cutoff)
         if kind in ("politician", "investor"):
-            q = (
-                select(Signal)
-                .where(Signal.kind == kind)
-                .where(Signal.as_of >= cutoff)
-                .order_by(desc(Signal.as_of))
-                .limit(limit)
-            )
-        rows = s.scalars(q).all()
+            q = q.where(Signal.kind == kind)
+        if ticker:
+            q = q.where(func.upper(Signal.ticker) == str(ticker).upper())
+        rows = s.scalars(q.order_by(desc(Signal.as_of)).limit(limit)).all()
     out = [
         {
             "ticker": r.ticker,
@@ -363,7 +390,6 @@ def _h_get_recent_signals(args: dict) -> dict:
             "as_of": r.as_of.isoformat(),
         }
         for r in rows
-        if (not ticker) or r.ticker.upper() == ticker.upper()
     ]
     return {"signals": out}
 
@@ -401,13 +427,45 @@ def _h_set_trailing_stop(args: dict) -> dict:
     if settings.dry_run:
         oid = f"DRY-STOP-{uuid.uuid4().hex[:8]}"
     else:
-        oid = _alpaca().submit_trailing_stop(symbol, pos["qty"], trail)
+        try:
+            oid = _alpaca().submit_trailing_stop(symbol, pos["qty"], trail)
+        except Exception as exc:
+            if "fractional" not in str(exc).lower():
+                raise
+            # Alpaca refuses GTC trailing stops on fractional positions
+            # ("fractional orders must be DAY orders") — this rejected every
+            # midday tighten on HD for weeks. Fall back to the synthetic
+            # trailing-stop engine in sync_account (bot/main.py), which
+            # checks price-vs-peak every 5 minutes and force-closes at
+            # market. Recording trail_pct here makes that engine honor the
+            # tightened trail instead of the 10% default.
+            with SessionLocal.begin() as s:
+                row = s.get(Position, symbol)
+                if row:
+                    row.trail_pct = trail
+            logger.info(
+                "set_trailing_stop {}: broker rejected fractional GTC stop; "
+                "recorded synthetic trail {:.1%} (enforced by 5-min sync)",
+                symbol, trail,
+            )
+            return {
+                "order_id": None,
+                "symbol": symbol,
+                "trail_percent": trail,
+                "mode": "synthetic",
+                "note": (
+                    "position is fractional so the broker refused a GTC stop; "
+                    "a bot-side synthetic trailing stop at this trail is now "
+                    "active (checked every 5 minutes)"
+                ),
+            }
 
     with SessionLocal.begin() as s:
         row = s.get(Position, symbol)
         if row:
             row.stop_order_id = oid
-    return {"order_id": oid, "symbol": symbol, "trail_percent": trail}
+            row.trail_pct = trail
+    return {"order_id": oid, "symbol": symbol, "trail_percent": trail, "mode": "broker"}
 
 
 def _h_get_market_regime(args: dict) -> dict:
