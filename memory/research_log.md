@@ -2585,3 +2585,106 @@ Live state at open-window check: equity $54,932.33, cash $36,599.38, buying powe
 - No orders were placed and no trailing stops were changed.
 ### Close
 Day P/L: +$80.27 (+0.15%) versus execute-time equity of $54,738.99. Top winner: SHW, +$18.14 intraday mark-to-market since execute snapshot; top loser: none among open positions (smallest gain was UNH, +$1.63). Watch tomorrow: whether risk-on breadth can hold and whether consumer/financial holdings (COST, PEP, JPM, V) continue to confirm post-holiday momentum without chasing late-session strength. vs SPY since inception: +4.0 pts
+## 2026-07-07
+### Pre-market
+Macro context: no confirmed FOMC/CPI/jobs binary macro event within 7 days from the catalysts file. FOMC is Jul 28-29, next jobs report is the first Friday of August, and CPI/PPI dates require BLS verification but are not explicitly flagged in the local calendar. Note: the requested `web_search` tool is not available in the current tool namespace, so I could not run new external searches; sources below use local scraped-news URLs, company/regulator IR pages, and tool-provided earnings/signal feeds.
+
+- **PEP** (~$0-$500 top-up only / primarily hold through print): PepsiCo reports Q2 on Jul 9 pre-market, creating a defensive-staples earnings catalyst now that the book appears to own PEP after yesterday's execute routine.
+  - Why mispriced: Consensus may be too focused on weak beverage volume headlines and risk-on rotation away from staples, while the stock can still work if snacks, pricing/mix, and margin control offset softer categories.
+  - What market is missing: A cash-heavy book with financials/housing exposure benefits from a lower-beta earnings event, and even modest organic-sales resilience could be rewarded if investors rotate toward predictable cash flow during Q2 earnings season.
+  - Datable catalyst: Q2 earnings on 2026-07-09 pre-market; watch organic revenue, North America beverage/snack volumes, pricing/mix, operating margin, and FY guide tone.
+  - Key risk (what makes this wrong): If volumes disappoint and management cuts or softens the FY guide, PEP can derate because local feeds show no politician/13F tailwind and the market may not pay for merely in-line defensive earnings.
+  - Sources: https://www.barrons.com/articles/fed-minutes-home-sales-pepsi-delta-f7191594?siteid=yhoof2&yptr=yahoo; https://seekingalpha.com/news/4609050-catalyst-watch-spacex-initiations-sun-valley-conference-pepsico-earnings?utm_source=feed_news_all&utm_medium=referral&feed_item_type=news; https://investors.pepsico.com/
+
+- **UNH** (~$0-$500 top-up only / primarily hold): UnitedHealth has a July 16 earnings checkpoint and repeated recent politician buy disclosures into a managed-care utilization reset.
+  - Why mispriced: The market may still be extrapolating adverse medical-cost utilization and regulatory/policy pressure, while the stock can re-rate if management stabilizes MCR commentary and shows AI/operational investments are supporting margins.
+  - What market is missing: Local signal feeds show multiple recent Gilbert Cisneros and Maria Elvira Salazar buy disclosures, and the July 16 print gives a near-dated test of whether the bad-news bar has finally reset.
+  - Datable catalyst: Expected UNH earnings on/around 2026-07-16; watch medical-cost ratio, Medicare Advantage commentary, utilization, Optum trends, and 2026 guide confidence.
+  - Key risk (what makes this wrong): Politician buying is not a fundamental guarantee; if utilization or reimbursement commentary worsens, UNH can keep derating despite a lower valuation and repeated disclosed buys.
+  - Sources: https://finance.yahoo.com/markets/stocks/articles/dear-unitedhealth-stock-fans-mark-130003581.html; https://finance.yahoo.com/healthcare/articles/cvs-health-vs-unitedhealth-comparing-231501173.html; https://www.unitedhealthgroup.com/investors.html
+
+- **JPM** (~$0-$300 top-up only / primarily hold): JPMorgan remains the clean bank-quality position into the Jul 14 earnings / CCAR-capital-return follow-through window.
+  - Why mispriced: The market may treat JPM mainly as a rate-curve trade, but earnings power is diversified across NII, trading, IB, cards, credit, and capital return.
+  - What market is missing: A positive 10Y-2Y spread and risk-on breadth support the bank sleeve, while any constructive buyback/dividend commentary after stress tests can sustain a quality premium even if NII is only stable.
+  - Datable catalyst: JPM earnings expected around 2026-07-14 pre-market; watch NII, trading/IB fees, card credit, CET1/stress-capital-buffer, and buyback/dividend commentary.
+  - Key risk (what makes this wrong): If credit costs rise, capital-return commentary disappoints, or the curve reprices lower, JPM can lag despite franchise quality; existing position size also argues against aggressive add-ons.
+  - Sources: https://finance.yahoo.com/markets/stocks/articles/jpmorgan-chase-co-jpm-shares-094113035.html; https://seekingalpha.com/news/4611770-sec-taps-jpmorgan-chase-exec-for-its-operating-chief?utm_source=feed_news_all&utm_medium=referral&feed_item_type=news; https://www.jpmorganchase.com/ir
+
+Earnings prep (only if a held position reports within 5 trading days):
+- **PEP** reports 2026-07-09 pre-market:
+  - Bull:  rev $23.6B (+3%), EPS $2.28, key driver: resilient Frito-Lay/snack volume plus pricing/mix and gross-margin control offset weaker beverage demand.
+  - Base:  rev $23.1B (+1%), EPS $2.19, key driver: in-line organic revenue with modest margin improvement and no material change to FY guidance.
+  - Bear:  rev $22.4B (-2%), EPS $2.05, key driver: North America beverage volume weakness and promotional pressure forcing softer guide commentary.
+  - Action: hold current position through the print, but do not add aggressively before earnings unless position sizing is clearly below the 5% cap and the execute routine confirms fill/stop status from yesterday.
+### Execute
+Live open-window check: equity $54,923.38, cash $34,568.66, buying power $195,267.86, and 8 live positions. Yesterday's PEP order is filled and reflected in the book at 14.24 shares with a small unrealized gain.
+
+**Bought:** none. The pre-market list contained only top-up/primarily-hold ideas, and no add met both sizing and timing discipline.
+
+**Skipped:**
+- **PEP top-up**: skipped. The position is filled and below the 5% cap, but the Jul 9 pre-market earnings report is within the handler's two-day no-buy window, and the pre-market action plan was to hold rather than add aggressively into the print.
+- **JPM top-up**: skipped. JPM is essentially at the 5% position cap by market value, so the Jul 14 earnings/CCAR thesis is already fully represented.
+- **UNH top-up**: skipped. UNH is also near the 5% cap; repeated politician-buy support and the Jul 16 utilization checkpoint remain valid, but the book already has sufficient exposure.
+
+Portfolio.md was refreshed from live Alpaca state. Watch into midday: PEP earnings-risk sizing, HD approaching the +15% winner-tightening threshold, and whether any position breaches the -7% stop-loss review rule.
+### Midday
+- Ran mandatory midday risk scan from live Alpaca state at 2026-07-07T17:00:00Z.
+- Stop-loss rule check: no positions were down 7% or more from average cost, so no forced exits were placed.
+- Winner tightening check: no positions were up 15% or more from average cost, so no trailing stops were tightened to 7%.
+- Maintained existing book; no fresh positions opened per midday-routine constraint.
+### Close
+Day P/L: +$8.32 (+0.02%) from execute-time snapshot equity $54,750.27 to close equity $54,758.59. Top winner: V, with unrealized P/L improving by about +$16.32 intraday as payments/quality compounders held bid. Top loser: PEP, with unrealized P/L declining by about -$13.88 intraday; watch tomorrow for whether defensives/staples continue lagging in the risk-on tape and whether cash should be redeployed only into higher-conviction, dated catalysts. vs SPY since inception: +4.39 pts
+## 2026-07-08
+### Pre-market
+Macro context: potential CPI/PPI window within 7 days based on catalysts file guidance that CPI is typically the second Tuesday and PPI the day before; FOMC is not until Jul 28-29 and jobs is outside the 7-day window. Note: `web_search` is not exposed in the current tool namespace, so I could not run the requested external searches; sources below use local scraped-news URLs plus company/regulator IR pages.
+
+- **PEP** (~$0-$300 top-up only / primarily hold through print): PepsiCo reports Q2 on Jul 9 pre-market, testing whether snacks, pricing/mix, and margin control can offset weak beverage-volume worries.
+  - Why mispriced: Consensus may be penalizing PEP for category weakness and risk-on rotation away from staples, while the stock still trades below prior highs and has a near-term earnings reset.
+  - What market is missing: The bar for defensive staples may be low enough that stable organic sales and intact FY guide tone can matter more than absolute volume strength.
+  - Datable catalyst: Q2 earnings on 2026-07-09 pre-market; watch organic revenue, North America beverage/snack volumes, pricing/mix, operating margin, and FY guidance.
+  - Key risk (what makes this wrong): If beverage weakness broadens into snacks or management softens the FY guide, the market may not reward PEP merely for defensive cash-flow quality.
+  - Sources: https://finance.yahoo.com/markets/stocks/articles/coca-cola-just-hit-time-132600836.html; https://www.barrons.com/articles/fed-minutes-home-sales-pepsi-delta-f7191594?siteid=yhoof2&yptr=yahoo; https://seekingalpha.com/news/4609050-catalyst-watch-spacex-initiations-sun-valley-conference-pepsico-earnings?utm_source=feed_news_all&utm_medium=referral&feed_item_type=news
+
+- **JPM** (~$0-$300 top-up only / primarily hold): JPMorgan reports Jul 14 pre-market into a constructive risk-on tape, positive 10Y-2Y spread, and post-stress-test capital-return setup.
+  - Why mispriced: The market may still frame JPM as a simple curve-sensitive bank, underweighting diversified earnings from trading, investment banking, cards, fees, credit, and capital return.
+  - What market is missing: Fresh local news flow shows JPM remaining visible in AI/private-capital ecosystem activity, while the real earnings test is whether NII and credit stay steady enough for buybacks/dividend commentary to dominate.
+  - Datable catalyst: JPM Q2 earnings expected 2026-07-14 pre-market; watch NII, trading/IB fees, card credit, reserve build, CET1, and capital-return commentary.
+  - Key risk (what makes this wrong): A CPI/PPI rates shock, rising credit losses, or weaker NII guide could overwhelm the quality-bank thesis even if franchise fundamentals remain best-in-class.
+  - Sources: https://seekingalpha.com/news/4612160-intel-backed-sambanova-raises-funds-at-11b-valuation-pairs-with-jpmorgan?utm_source=feed_news_all&utm_medium=referral&feed_item_type=news; https://finance.yahoo.com/markets/stocks/articles/jpmorgan-waste-management-where-smart-130558595.html; https://www.jpmorganchase.com/ir
+
+- **UNH** (~$0-$300 top-up only / primarily hold): UnitedHealth has a Jul 16 earnings/utilization checkpoint with repeated recent politician-buy disclosures and fresh scrutiny of the HouseCalls unit.
+  - Why mispriced: The market may still be extrapolating medical-cost pressure and regulatory scrutiny, while the disclosed-buy support suggests the bad-news bar may be lower than headline sentiment implies.
+  - What market is missing: If management stabilizes medical-cost-ratio and Optum commentary, the stock can re-rate as a non-tech, non-bank recovery holding despite ongoing healthcare-policy risk.
+  - Datable catalyst: UnitedHealth earnings expected around 2026-07-16; watch medical-cost ratio, Medicare Advantage utilization, Optum trends, HouseCalls/regulatory commentary, and FY guide confidence.
+  - Key risk (what makes this wrong): Politician buying is only a signal, not a fundamental margin of safety; worse utilization, reimbursement, or audit headlines could extend the derating.
+  - Sources: https://seekingalpha.com/news/4611991-unitedhealth-defends-housecalls-external-audit?utm_source=feed_news_all&utm_medium=referral&feed_item_type=news; https://finance.yahoo.com/markets/stocks/articles/dear-unitedhealth-stock-fans-mark-130003581.html; https://finance.yahoo.com/healthcare/articles/cvs-health-vs-unitedhealth-comparing-231501173.html
+
+Earnings prep (only if a held position reports within 5 trading days):
+- **PEP** reports 2026-07-09 pre-market:
+  - Bull:  rev $23.6B (+3%), EPS $2.28, key driver: resilient Frito-Lay/snack demand, pricing/mix, and gross-margin control offset beverage softness.
+  - Base:  rev $23.1B (+1%), EPS $2.19, key driver: in-line organic revenue, modest productivity savings, and no material FY guidance change.
+  - Bear:  rev $22.4B (-2%), EPS $2.05, key driver: North America beverage volume weakness broadens into snacks and promotion pressure reduces operating leverage.
+  - Action: hold current position through the print; do not add aggressively today because the event is tomorrow morning and no fresh signal tailwind appeared.
+- **JPM** reports 2026-07-14 pre-market:
+  - Bull:  rev $46.5B (+4%), EPS $5.85, key driver: resilient NII, stronger trading/IB fees, benign card credit, and confident buyback/dividend commentary.
+  - Base:  rev $45.0B (+1%), EPS $5.49, key driver: stable NII and fees with manageable reserve build and capital return broadly in line with expectations.
+  - Bear:  rev $43.5B (-2%), EPS $5.05, key driver: weaker NII guide, higher credit costs in card/consumer, or cautious capital-return commentary after stress tests.
+  - Action: hold full current position into the print for now, but avoid top-up unless execute routine confirms position remains below cap and CPI/PPI risk is benign.
+### Execute
+Live open-window check: equity $54,576.42, cash $34,568.65, buying power $194,296.36, and 8 live positions. Regime is risk_on per prompt, but today's pre-market ideas were all top-up/primarily-hold candidates rather than fresh buys.
+
+**Bought:** none.
+
+**Skipped:**
+- **PEP top-up**: skipped because PEP reports tomorrow pre-market, inside the handler's two-day no-buy window, and the pre-market action plan explicitly said to hold current position rather than add aggressively without a fresh signal tailwind.
+- **JPM top-up**: skipped because JPM is already essentially at the 5% single-position cap by market value and CPI/PPI rate risk remains a near-term macro caveat ahead of the Jul 14 earnings catalyst.
+- **UNH top-up**: skipped because UNH is already near the 5% cap and the repeated politician-buy/Jul 16 utilization-check thesis is represented in the book; no incremental catalyst justified adding.
+
+Portfolio.md was refreshed from live Alpaca state. Watch into midday: PEP earnings-risk sizing into tomorrow morning, SHW drawdown versus the -7% forced-exit threshold, and HD/V/UNH winner management if gains extend.
+### Midday
+- Ran required midday risk scan using live Alpaca portfolio state at 2026-07-08T17:00:00Z.
+- Stop-loss rule check: no positions were down 7% or more from average cost, so no forced liquidations were placed.
+- Winner tightening check: no positions were up 15% or more from average cost, so no 7% trailing-stop tightening actions were needed.
+- Largest current drawdowns versus average cost: SHW approximately -3.7%, AGG approximately -1.6%; both remain above the forced stop-loss threshold.
+### Close
+Day P/L: -$68.77 (-0.13%) versus execute-time equity of $54,516.28. Top intraday winner: AGG, unrealized P/L improved by about +$1.38 from the execute snapshot; top intraday loser: JPM, unrealized P/L declined by about -$24.90. Watch tomorrow: whether financials/defensives continue to fade despite the risk-on tape, with JPM and PEP the main drags into the close. vs SPY since inception: +4.1 pts
