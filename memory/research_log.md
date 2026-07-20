@@ -2688,3 +2688,285 @@ Portfolio.md was refreshed from live Alpaca state. Watch into midday: PEP earnin
 - Largest current drawdowns versus average cost: SHW approximately -3.7%, AGG approximately -1.6%; both remain above the forced stop-loss threshold.
 ### Close
 Day P/L: -$68.77 (-0.13%) versus execute-time equity of $54,516.28. Top intraday winner: AGG, unrealized P/L improved by about +$1.38 from the execute snapshot; top intraday loser: JPM, unrealized P/L declined by about -$24.90. Watch tomorrow: whether financials/defensives continue to fade despite the risk-on tape, with JPM and PEP the main drags into the close. vs SPY since inception: +4.1 pts
+## 2026-07-09
+### Pre-market
+Macro context: potential CPI/PPI window within 7 days based on catalysts file guidance that CPI is typically the second Tuesday and PPI the day before; no FOMC inside 7 days (next Jul 28-29) and jobs is outside the 7-day window. Note: the requested `web_search` tool is not exposed in the current tool namespace, so I could not run the required 2-3 external searches; sources below use local scraped-news URLs, company/IR pages, and tool-provided earnings/signal feeds.
+
+- **PEP** (~$0-$300 top-up only / primarily hold): PepsiCo's Q2 print is now out pre-market, with revenue beating but EPS/organic-growth headlines mixed and FY26 outlook affirmed.
+  - Why mispriced: The market may over-penalize the EPS penny miss and North American consumer weakness even though revenue exceeded estimates and guidance was not cut.
+  - What market is missing: For a defensive staples holding, an affirmed outlook after a cautious preview can be enough to stabilize sentiment if organic growth and segment charts show sequential improvement.
+  - Datable catalyst: Q2 earnings call and management guidance commentary on 2026-07-09 pre-market; follow-through over the next 1-2 weeks in analyst revisions and staples rotation.
+  - Key risk (what makes this wrong): If the call emphasizes sustained budget pressure, weak beverage/snack volumes, or margin reinvestment needs, the market may treat the revenue beat as low-quality and sell the position.
+  - Sources: https://www.cnbc.com/2026/07/09/pepsico-pep-q2-2026-earnings.html; https://seekingalpha.com/news/4612506-pepsico-non-gaap-eps-of-2_20-misses-by-0_01-revenue-of-24_18b-beats-by-230m?utm_source=feed_news_all&utm_medium=referral&feed_item_type=news; https://seekingalpha.com/news/4612507-earnings-snapshot-pepsico-q2-revenue-tops-estimates-but-core-eps-and-organic-growth-drag-fy26-outlook-affirmed?utm_source=feed_news_all&utm_medium=referral&feed_item_type=news
+
+- **JPM** (~$0-$300 top-up only / primarily hold): JPMorgan reports Jul 14 pre-market with recent news reinforcing M&A growth initiatives and post-stress-test capital-return optionality.
+  - Why mispriced: Consensus may still price JPM mainly as a rate-sensitive bank while underweighting the diversified earnings mix across NII, trading, IB, card, fee income, and buybacks.
+  - What market is missing: Fresh local news around smaller-deal M&A focus plus a cited dividend hike/$50B buyback setup could make capital-return and fee-growth commentary more important than a narrow NII debate.
+  - Datable catalyst: Q2 earnings expected 2026-07-14 pre-market; watch NII guide, trading/IB fees, reserve build, card credit, CET1, dividend/buyback commentary, and CPI/PPI rate sensitivity beforehand.
+  - Key risk (what makes this wrong): A hot CPI/PPI print, weaker NII guide, rising card losses, or conservative capital-return language could offset franchise quality and pressure an already near-cap position.
+  - Sources: https://finance.yahoo.com/markets/article/jpmorgan-to-pursue-smaller-deals-in-latest-growth-push-173733501.html; https://seekingalpha.com/news/4612309-jpmorgan-chase-focuses-on-small-company-deals-to-juice-m-and-a-report?utm_source=feed_news_all&utm_medium=referral&feed_item_type=news; https://finance.yahoo.com/markets/stocks/articles/why-jpmorgan-jpm-dividend-hike-124802245.html
+
+- **BLK** (~$1,500 watchlist / possible fresh buy only if execution routine wants a new financials name): BlackRock has a Jul 15 pre-market earnings catalyst plus a visible ETF product launch push against QQQ and ongoing private-markets growth narrative.
+  - Why mispriced: The market may focus on private-credit valuation-probe headlines and fee pressure while missing that ETF innovation, crypto products, and private-markets scale can support flows and multiple durability.
+  - What market is missing: The launch of a cheaper Nasdaq-100 ETF and broader product expansion give BLK a datable distribution catalyst into earnings, distinct from pure bank credit/NII risk.
+  - Datable catalyst: BLK Q2 earnings expected 2026-07-15 pre-market, with flow trends, ETF launch traction, private-markets fundraising, fee rate, and private-credit valuation commentary as checkpoints.
+  - Key risk (what makes this wrong): Private-credit probe/loss headlines or weak organic flows could dominate the ETF/product story, and the book already has financial exposure via JPM and V.
+  - Sources: https://www.barrons.com/advisor/articles/qqq-meet-iqq-blackrock-is-launching-a-cheaper-nasdaq-100-etf-fded526b?siteid=yhoof2&yptr=yahoo; https://finance.yahoo.com/markets/stocks/articles/blackrock-private-credit-fund-ceo-123256145.html; https://finance.yahoo.com/markets/stocks/articles/blackrock-isnt-just-etf-giant-063500400.html
+
+Earnings prep (only if a held position reports within 5 trading days):
+- **PEP** reports 2026-07-09 pre-market:
+  - Bull:  rev $24.3B (+2%), EPS $2.25, key driver: management frames organic-growth softness as transitory, confirms FY26 outlook, and shows sequential improvement across segments.
+  - Base:  rev $24.18B (+1%), EPS $2.20, key driver: revenue beats modestly while EPS misses by $0.01 and FY26 outlook is affirmed, leaving the stock dependent on call tone and analyst revisions.
+  - Bear:  rev $23.7B (-1%), EPS $2.10, key driver: North American budget pressure broadens, organic growth drags, and margin/productivity commentary implies more promotional spend.
+  - Action: hold current position through the already-released print for now; do not add aggressively until the call/first analyst revisions confirm that FY guidance quality offsets EPS/organic-growth concerns.
+- **JPM** reports 2026-07-14 pre-market:
+  - Bull:  rev $46.5B (+4%), EPS $5.85, key driver: resilient NII, strong trading/IB fees, benign card credit, and confident dividend/buyback execution after stress tests.
+  - Base:  rev $45.0B (+1%), EPS $5.49, key driver: stable NII and fee income with manageable reserve build and capital return broadly in line with post-CCAR expectations.
+  - Bear:  rev $43.5B (-2%), EPS $5.05, key driver: weaker NII guide, higher card/consumer credit costs, CPI/PPI-driven rate volatility, or cautious capital-return commentary.
+  - Action: hold full current position, but avoid topping up before earnings because position size is already near the 5% cap and macro CPI/PPI risk sits in the same window.
+### Execute
+Live open-window check: equity $54,325.10, cash $34,568.65, buying power $193,592.65, and 8 live positions before execution. Regime is risk_on per prompt.
+
+**Bought:**
+- **BLK**: submitted a fresh ~$1,500 buy order based on the pre-market thesis: Jul 15 earnings, cheaper Nasdaq-100 ETF launch/product push, and private-markets/ETF flow optionality. The order was submitted for 1.51 shares at an estimated price of about $995.41; it had not yet appeared as a live position in the immediate post-order portfolio snapshot.
+
+**Skipped:**
+- **PEP top-up**: skipped because the Q2 print is already out today and pre-market action plan was hold/assess call tone and analyst revisions rather than add into mixed EPS/organic-growth headlines.
+- **JPM top-up**: skipped because JPM is already near the 5% position cap and reports Jul 14, with CPI/PPI rate risk still in the same window.
+
+Portfolio.md was refreshed from live Alpaca state after the order submission. Watch into midday: whether the BLK order fills and stop attaches, PEP post-earnings weakness versus the -7% forced-exit threshold, and HD/UNH/V winner management if gains extend.
+## 2026-07-09
+### Midday
+- Ran midday risk scan per stop-loss and winner-tightening rules. No positions were down 7% or more from average cost, so no forced stop-loss sells were placed.
+- No positions were up 15% or more from average cost, so no trailing stops were tightened to 7%.
+- Largest unrealized gainers: HD approximately +11.1%, UNH approximately +7.0%, V approximately +6.6%. Largest unrealized decliners: COST approximately -3.9%, PEP approximately -3.3%, SHW approximately -3.1%; all remain above the forced-loss threshold.
+### Close
+Day P/L from execute-time snapshot: -$1.99 (-0.004%). Top winner: UNH (+$10.32 from snapshot) as managed-care strength held into the close; top loser: HD (-$10.22) after midday gains faded. Watch tomorrow for whether consumer/defensive laggards (COST, PEP, SHW) stabilize while financials stay firm into the next catalyst window. vs SPY since inception: +3.2 pts
+## 2026-07-10
+### Pre-market
+Macro context: potential CPI window within 7 days based on catalysts file guidance that CPI is typically the second Tuesday of the month at 08:30 ET; FOMC is outside the window on Jul 28-29 and the jobs report is outside the window. Note: the requested `web_search` tool is not exposed in the current tool namespace, so I could not run the required 2-3 external searches; sources below use local scraped-news URLs and tool-provided earnings/signal feeds.
+
+- **JPM** (~$0-$300 top-up only / primarily hold): JPMorgan reports Jul 14 pre-market into a risk-on tape, positive curve, and post-stress-test capital-return window.
+  - Why mispriced: Consensus may still treat JPM mainly as a rate/NII trade while underweighting the diversified earnings mix from trading, investment banking, cards, fee income, credit discipline, and buybacks.
+  - What market is missing: Recent local news highlights small-deal M&A growth ambitions and bullish earnings setup commentary, so a merely stable NII guide could let fee growth and capital return drive the stock.
+  - Datable catalyst: Q2 earnings expected 2026-07-14 pre-market; watch NII guide, trading/IB fees, card credit, reserve build, CET1, dividend/buyback commentary, and CPI-rate sensitivity in the same window.
+  - Key risk (what makes this wrong): A hot CPI print, weaker NII guide, rising card losses, or cautious capital-return language could overwhelm franchise quality, especially because the current position is already near the 5% cap.
+  - Sources: https://finance.yahoo.com/markets/stocks/articles/jpmorgan-stock-could-soar-highs-175156617.html; https://finance.yahoo.com/markets/article/jpmorgan-to-pursue-smaller-deals-in-latest-growth-push-173733501.html; https://www.investors.com/research/options/jpmorgan-chase-jpm-stock-bull-put-spread-options-2/?src=A00220&yptr=yahoo
+
+- **BLK** (~$0-$500 top-up only / primarily hold): BlackRock reports Jul 15 pre-market with the new lower-cost Nasdaq-100 ETF launch testing whether product innovation can accelerate flows.
+  - Why mispriced: The market may be too focused on private-credit valuation/probe headlines and asset-management fee pressure while not giving enough credit to ETF share gains, crypto/product breadth, and private-markets distribution scale.
+  - What market is missing: The iShares Nasdaq-100 push is a datable competitive catalyst against Invesco and State Street, and UBS-positive pre-earnings commentary suggests flow and margin expectations may be easier to clear than feared.
+  - Datable catalyst: Q2 earnings expected 2026-07-15 pre-market; watch organic flows, ETF launch traction, fee rate, private-markets fundraising, operating margin, and private-credit valuation commentary.
+  - Key risk (what makes this wrong): Weak organic flows, renewed private-credit concerns, or fee compression could dominate the ETF/product story, and the book already has financial exposure through JPM, V, and BLK.
+  - Sources: https://seekingalpha.com/news/4612585-why-blackrocks-new-nasdaq-100-etf-matters-to-tech-investors?utm_source=feed_news_all&utm_medium=referral&feed_item_type=news; https://finance.yahoo.com/markets/stocks/articles/blackrock-takes-invesco-state-street-040300334.html; https://finance.yahoo.com/markets/stocks/articles/blackrock-getting-ready-report-ubs-195700263.html
+
+- **UNH** (~$0-$300 top-up only / primarily hold): UnitedHealth reports Jul 16 pre-market with repeated recent politician buy disclosures and a key utilization/HouseCalls scrutiny checkpoint.
+  - Why mispriced: The market may still extrapolate adverse medical-cost utilization, reimbursement pressure, and audit/regulatory headlines even though the bad-news bar appears reset after a prolonged derating.
+  - What market is missing: Local signal feeds show repeated buy disclosures by Gilbert Cisneros and Maria Elvira Salazar, and a stable medical-cost-ratio/Optum update could reframe UNH as a recovery-quality compounder rather than a policy-risk trap.
+  - Datable catalyst: Q2 earnings expected 2026-07-16 pre-market; watch medical-cost ratio, Medicare Advantage utilization, Optum trends, HouseCalls/regulatory commentary, and FY guide confidence.
+  - Key risk (what makes this wrong): Politician buying is only a signal; if utilization, reimbursement, DOJ/audit scrutiny, or guidance worsens, the stock can keep derating despite a lower valuation.
+  - Sources: https://finance.yahoo.com/healthcare/articles/dont-buy-unitedhealth-group-unh-212500863.html; https://seekingalpha.com/news/4611991-unitedhealth-defends-housecalls-external-audit?utm_source=feed_news_all&utm_medium=referral&feed_item_type=news; https://finance.yahoo.com/healthcare/articles/cvs-health-vs-unitedhealth-comparing-231501173.html
+
+Earnings prep (only if a held position reports within 5 trading days):
+- **JPM** reports 2026-07-14 pre-market:
+  - Bull:  rev $46.5B (+4%), EPS $5.85, key driver: resilient NII, stronger trading/IB fees, benign card credit, and confident post-CCAR dividend/buyback execution.
+  - Base:  rev $45.0B (+1%), EPS $5.49, key driver: stable NII and fee income with manageable reserve build and capital return broadly in line with expectations.
+  - Bear:  rev $43.5B (-2%), EPS $5.05, key driver: weaker NII guide, higher card/consumer credit costs, CPI-driven rate volatility, or conservative capital-return commentary.
+  - Action: hold full current position, but avoid top-up before earnings because JPM is already near the 5% position cap and CPI risk sits in the same window.
+- **BLK** reports 2026-07-15 pre-market:
+  - Bull:  rev $5.6B (+8%), EPS $13.10, key driver: stronger organic flows from ETFs/private markets, early Nasdaq-100 ETF traction, healthy fee rate, and stable operating margin.
+  - Base:  rev $5.4B (+5%), EPS $12.54, key driver: in-line market-beta-driven AUM growth, modest ETF/private-market inflows, and no escalation in private-credit valuation concerns.
+  - Bear:  rev $5.2B (+1%), EPS $11.80, key driver: weak organic flows, fee compression, lower performance fees, or private-credit scrutiny overwhelming product-launch positives.
+  - Action: hold current starter position through earnings; do not add aggressively unless execute confirms sizing remains small and no new private-credit negative headline appears.
+- **UNH** reports 2026-07-16 pre-market:
+  - Bull:  rev $115.0B (+9%), EPS $5.25, key driver: medical-cost ratio stabilizes, Optum margins improve, and management reiterates credible FY guidance despite policy/audit scrutiny.
+  - Base:  rev $112.0B (+6%), EPS $4.84, key driver: in-line utilization and Medicare Advantage trends, steady Optum contribution, and no material change to FY guide.
+  - Bear:  rev $109.0B (+3%), EPS $4.35, key driver: adverse utilization, reimbursement pressure, HouseCalls/regulatory overhang, or guide language that implies margin recovery is delayed.
+  - Action: hold current position through the print for now, but avoid top-up because position size is already near the cap and the event remains policy/regulatory-sensitive.
+## 2026-07-10
+### Execute
+Live open-window check: equity $54,515.80, cash $33,066.19, buying power $192,323.68, and 9 live positions before execution. Regime is risk_on per prompt.
+
+**Bought:**
+- **BLK top-up**: submitted and filled/appeared as an additional ~$500 buy, increasing BLK from 1.51 shares to 2.00 shares. Rationale followed the pre-market plan: position remained a small starter size, earnings are Jul 15 rather than inside the handler's two-day no-buy window, and the ETF/product-launch plus UBS-positive pre-earnings setup still supports holding a slightly larger but still below-cap position.
+
+**Skipped:**
+- **JPM top-up**: skipped because JPM is already essentially at the 5% single-position cap and reports Jul 14, with CPI/rates risk in the same window.
+- **UNH top-up**: skipped because UNH is already near the 5% cap and the pre-market action plan explicitly said to avoid topping up into a policy/regulatory-sensitive Jul 16 earnings event.
+
+Portfolio.md was refreshed from live Alpaca state after the BLK fill/top-up. Watch into midday: BLK stop attachment/order status, financials concentration across JPM/V/BLK, and any earnings-window volatility in JPM, BLK, and UNH.
+## 2026-07-10
+### Midday
+- Ran midday risk scan per stop-loss and winner-tightening rules. No positions were down 7% or more from average cost, so no forced stop-loss sales were required.
+- No positions were up 15% or more from average cost, so no trailing stops were tightened to 7%.
+- Largest drawdowns vs avg cost: PEP about -4.0%, COST about -3.6%, SHW about -2.1%, AGG about -1.5%; all remained above the -7% midday cut threshold.
+### Close
+Day P/L: +$22.40 (+0.04%) versus execute-time equity of $54,472.58. Top winner: V, +$24.60 intraday mark-to-market as payments/quality compounder exposure firmed into the close. Top loser: SHW, -$16.41 intraday mark-to-market, still modestly below avg cost and worth watching for follow-through weakness. One thing to watch going into tomorrow: whether risk-on breadth holds while consumer/financial holdings approach upcoming earnings catalysts; keep an eye on PEP/COST laggards and do not add unless the catalyst/reward improves. vs SPY since inception: +2.84 pts
+## Weekly review 2026-07-10
+
+### 1) Hard-number scorecard from `get_performance_stats`
+- Since inception, account equity is **$54,507.20** versus start equity **$49,655.29**: bot return **+9.77%** vs SPY **+6.92%**, for **+2.85 pts alpha**. The strategy is still beating the benchmark.
+- Realized-trade quality is mixed: **325 closed lots**, **24.9% hit rate**, **1.10 profit factor**, **$114.06 realized P/L**, average win **+$16.14 / +0.69%**, average loss **-$4.89 / -0.22%**.
+- Best realized trade remains **PANW +$693.54 / +30.10%**, exited by synthetic trailing stop after price fell more than 10% from peak. This was a correct catalyst/sector call that let a winner run before the trailing stop protected gains.
+- Worst realized trade remains **PFE -$241.67 / -9.67%**, exited by the midday stop-loss rule. That was a genuine thesis/risk-control break: the patent/dividend/value setup was not being rewarded in the swing window.
+- Signal attribution is important: politician-linked lots show **+$638.30 P/L with 37.5% hit rate**, while unattributed lots show **-$524.24 P/L with 24.6% hit rate**. The disclosed-positioning signal has added value; weakly attributed fundamental theses have not.
+
+### 2) Hit-rate inventory for the week
+- Actual new buys/top-ups visible in the last five trading-day logs:
+  - **PEP** bought 2026-07-06, ~$2,000 notional, for Q2 earnings on 2026-07-09. Current live mark: **14.24 shares, avg cost $142.61, market $137.23, unrealized -$76.53**. Status: down; catalyst fired but initial reaction did not validate the thesis.
+  - **BLK** bought 2026-07-09, ~$1,500 notional, then topped up 2026-07-10 by ~$500. Current live mark: **2.00 shares, avg cost $1,005.52, market $1,036.11, unrealized +$61.18**. Status: up; catalyst has not fired yet, but pre-earnings/product-launch setup is being rewarded.
+- Pre-market ideas that were not bought:
+  - **JPM** was repeatedly kept as hold/top-up-only. This was correct because live exposure is already near the 5% single-name cap: **8.06 shares, market value $2,715.98, unrealized +$65.78**, with earnings on Jul 14 and CPI/rate risk in the same window.
+  - **UNH** was kept as hold/top-up-only. This was correct because live exposure is already large: **6.39 shares, market value $2,712.56, unrealized +$143.65**, and the Jul 16 earnings event remains utilization/regulatory-sensitive.
+  - **PEP** top-ups after the print were skipped; this was correct. The Q2 print had mixed EPS/organic-growth headlines and live mark remains down.
+- Current open book at review: 9 positions. Winners: **HD +$304.41**, **V +$192.99**, **UNH +$143.65**, **JPM +$65.78**, **BLK +$61.18**. Laggards: **PEP -$76.53**, **SHW -$70.84**, **COST -$69.96**, **AGG -$35.66**.
+
+### 3) Thesis vs. reality / exits
+- **PEP**: Catalyst fired on Jul 9. Reality was worse than the thesis hoped: revenue beat and FY outlook affirmation were not enough to overcome EPS/organic-growth softness and staples underperformance in a risk-on tape. This was not yet a stop-loss event, but it is a reminder that defensive-quality earnings setups need either stronger revisions or a rotation catalyst; “risk-on investors may want predictable cash flow” was too soft.
+- **BLK**: Catalyst has not fired yet. Price action so far supports the thesis that the market is willing to credit ETF/product innovation and asset-management beta into the Jul 15 earnings print. Still, this remains an earnings setup, not a proven thesis, and private-credit/fee-pressure risk should be explicitly checked before holding through the report.
+- **JPM / UNH / V / HD**: Existing winners are carrying most of the week’s open-book strength. JPM’s CCAR/capital-return thesis and UNH politician-buy/recovery thesis remain consistent with current marks, but both still face next-week earnings events. V continues to behave like a quality payments compounder rather than a credit-risk financial, which matches the original variant view.
+- **SHW / COST**: Both are modestly down and have not yet had their late-July/early-retail catalysts. No thesis break yet, but both are housing/consumer-sensitive in a way that has lagged risk-on leadership.
+- Closed positions: I did not see a new sell in the visible last-five-day trade log. The latest realized-trade examples from the hard scorecard still matter: **GS** was a successful trailing-stop exit after an +8.8% lot gain, **NKE** and **PFE** were midday stop-loss exits. NKE looks more like a premature/binary-event risk cut before the earnings thesis could fully resolve; PFE looks more like a genuine thesis break because the stock failed despite the dividend/patent support premise.
+
+### 4) Process gap and one concrete process change
+The main process gap is buying earnings setups without a sharper “what would make me add/trim after the print” decision tree. PEP had a datable catalyst, but the thesis did not define which combinations of EPS, organic growth, and guidance quality were sufficient to hold/add versus stand aside. The result was a position that fired its catalyst but did not have a strong enough post-print validation checklist.
+
+**Proposed strategy.md edit (concrete diff):**
+- Add under “Rules you enforce yourself — judgment calls”:
+  - “For any new buy within 5 trading days of earnings, the thesis must include a one-sentence post-print validation rule: the specific metric/guidance outcome that would justify holding/adding, and the specific outcome that would make the position a sell/avoid-top-up even if the stop has not triggered.”
+
+### 5) Next week idea pipeline: 3–5 watchlist names
+1. **JPM** — held. Catalyst: Q2 earnings expected **2026-07-14 pre-market**; watch NII guide, trading/IB fees, card credit, reserve build, CET1, dividend/buyback commentary. Action bias: hold, no top-up unless position size falls materially below cap and earnings setup improves.
+2. **BLK** — held. Catalyst: Q2 earnings expected **2026-07-15 pre-market**; watch organic flows, ETF launch traction, fee rate, private-markets fundraising, operating margin, and private-credit valuation commentary. Action bias: hold starter; avoid further add before print unless new evidence materially improves risk/reward.
+3. **UNH** — held. Catalyst: Q2 earnings expected **2026-07-16 pre-market**; watch medical-cost ratio, Medicare Advantage utilization, Optum margins, regulatory/HouseCalls commentary, and FY guide credibility. Action bias: hold; no top-up into the binary regulatory/utilization event.
+4. **NFLX** — candidate only. Catalyst: Q2 earnings expected **2026-07-16 after close**; watch subscriber/engagement, ad-tier monetization, paid sharing durability, margin guide, and content-spend commentary. Needs Monday pre-market work before any buy because the book already has several earnings events.
+5. **GOOGL** — candidate only. Catalyst: earnings expected **2026-07-22**; watch search/AI monetization, Cloud growth/margins, capex intensity, and regulatory commentary. Needs a fresh news/signal check and valuation discipline before entry.
+
+### 6) Proposed edits to strategy.md for user review
+1. Add the earnings post-print validation rule described above for any buy within 5 trading days of earnings.
+2. Add: “If a thesis relies primarily on defensive rotation in a risk_on regime, require an additional company-specific revision/capital-return/product catalyst; do not buy solely because the stock is defensive.”
+3. Add: “Weekly review must explicitly compare politician-attributed vs unattributed P/L; if attribution continues to show persistent edge, prioritize disclosed-positioning-backed ideas when two candidates are otherwise similar.”
+
+### 7) Proposed catalysts.md stock-specific additions for upcoming week
+- **2026-07-14 pre-market — JPM Q2 earnings:** NII guide, trading/IB fees, credit quality, CET1, dividend/buyback commentary.
+- **2026-07-15 pre-market — BLK Q2 earnings:** organic flows, ETF launch traction, private-markets fundraising, fee rate, operating margin, private-credit valuation commentary.
+- **2026-07-16 pre-market — UNH Q2 earnings:** medical-cost ratio, Medicare Advantage utilization, Optum trends, HouseCalls/regulatory commentary, FY guide confidence.
+- **2026-07-16 after close — NFLX earnings watchlist:** ad tier, engagement/subscriber metrics, margin guide, content spend.
+- **2026-07-22 — GOOGL earnings watchlist:** AI/search monetization, Cloud growth/margins, capex intensity, regulatory updates.
+## 2026-07-13
+### Execute
+Live open-window check: equity $54,567.19, cash $32,557.59, buying power $191,857.25, and 9 live positions before execution. Regime is risk_on per prompt.
+
+**Bought:**
+- None. The visible research log did not contain a 2026-07-13 Pre-market section or fresh execute-ready ideas with the required 5-field thesis to copy verbatim, so I did not open any new positions or top up existing holdings.
+
+**Skipped:**
+- All potential watchlist names from the prior weekly review / 2026-07-10 pre-market notes were skipped because they were not fresh 2026-07-13 pre-market buy instructions. JPM, BLK, and UNH also remain close to upcoming earnings windows and/or existing sizing constraints; no valid copied thesis was available for a compliant buy.
+
+Portfolio.md was refreshed from live Alpaca state with no trades placed.
+### Midday
+- Ran required midday risk scan using live Alpaca portfolio at 2026-07-13 17:00 UTC.
+- Stop-loss rule check: no positions were down 7% or more from average cost, so no forced liquidations were placed.
+- Winner tightening check: no positions were up 15% or more from average cost, so no trailing stops were tightened to 7%.
+- Maintained all current positions; no fresh positions opened per midday routine.
+### Close
+Day P/L: +$29.37 (+0.05%) from execute-time snapshot equity of $54,480.98 to close equity of $54,510.35. Top winner: BLK (+$23.14 intraday mark-to-market vs snapshot). Top loser: HD (-$4.21 intraday mark-to-market vs snapshot). Watch tomorrow: bank/asset-manager earnings follow-through and whether risk-on breadth can keep supporting cyclical/financial exposure while weaker defensive/consumer-staple marks (PEP, COST, SHW) remain under pressure. vs SPY since inception: +3.7 pts
+## 2026-07-14
+### Pre-market
+Macro context: CPI/PPI inflation window appears to be this week per catalysts file convention (CPI typically second Tuesday at 08:30 ET; PPI typically the day before); FOMC Jul 28-29 and the next jobs report are outside the 7-day window. Note: the requested `web_search` tool is not exposed in the current tool namespace, so I could not run external searches; sources below are from the local scraped-news URLs and signal/earnings feeds.
+
+- **NFLX** (~$1,500): Netflix reports Jul 16 post-close, with traders positioning for a comeback quarter and the MLB Home Run Derby/live-sports push adding a datable engagement catalyst.
+  - Why mispriced: Consensus may be too focused on analyst-target noise and a prior disappointment narrative while underweighting ad-tier, paid-sharing, and live-event engagement optionality into the print.
+  - What market is missing: Repeated Byron Donalds buy disclosures in May plus local CNBC coverage that traders are betting on a comeback quarter suggest positioning support that is not purely sentiment-driven.
+  - Datable catalyst: Q2 earnings expected 2026-07-16 after close; watch ad-tier monetization, engagement, paid sharing durability, operating-margin guide, and any live-sports/content-event commentary.
+  - Key risk (what makes this wrong): If management guides softer margins/content spend, ad monetization disappoints, or the implied move is already pricing a rebound, the stock can sell off despite headline subscriber or engagement strength.
+  - Sources: https://www.cnbc.com/2026/07/13/traders-are-betting-on-a-comeback-quarter-for-netflix.html; https://finance.yahoo.com/markets/stocks/articles/talk-lousy-timing-netflix-analyst-170700402.html; https://seekingalpha.com/news/4613264-netflix-to-stream-the-mlb-home-run-derby-as-its-live-sports-quest-continues?utm_source=feed_news_all&utm_medium=referral&feed_item_type=news
+
+- **GE** (~$1,500): GE Aerospace reports Jul 16 pre-market, with recent investor-confidence/rally coverage and aerospace execution giving the market a near-term backlog/margin checkpoint.
+  - Why mispriced: The market may still treat GE as a flawless-turnaround stock vulnerable to disappointment, but the setup could reward continued aerospace aftermarket strength and guidance credibility.
+  - What market is missing: Local news highlights investor confidence in GE Aerospace and separate politician buy disclosures from Jared Moskowitz, creating a positioning tailwind if earnings confirm execution rather than perfection risk.
+  - Datable catalyst: Q2 earnings expected 2026-07-16 pre-market; watch aerospace orders, services/aftermarket demand, margin expansion, free-cash-flow conversion, and full-year guide language.
+  - Key risk (what makes this wrong): A high bar after the rally means even in-line results could be sold if orders/backlog quality, margin cadence, or cash conversion falls short.
+  - Sources: https://finance.yahoo.com/markets/stocks/articles/ge-aerospace-ge-rallied-amid-133616486.html; https://finance.yahoo.com/markets/stocks/articles/spcx-vs-ge-investors-buy-171007786.html; https://finance.yahoo.com/energy/articles/does-chevrons-joint-venture-ge-095000073.html
+
+Earnings prep (only if a held position reports within 5 trading days):
+- **JPM** reports 2026-07-14 pre-market:
+  - Bull:  rev $58.0B (+20%+ headline versus consensus revenue feed), EPS $6.14, key driver: broad-based beat from NII resilience, trading/investment-banking strength, disciplined credit, and capital-return confidence.
+  - Base:  rev $51.3B (+mid-single-digit versus prior run-rate), EPS $5.52, key driver: stable NII, solid fee income, manageable reserves, and neutral post-CCAR capital language.
+  - Bear:  rev $48.5B (flat-to-low growth), EPS $5.05, key driver: weaker NII guide, higher card losses/reserve build, or management caution that reduces buyback upside.
+  - Action: hold full current position; the local pre-market headline already shows EPS/revenue above estimates, but do not top up before the call/market open because the position is near the 5% cap and financial exposure is already meaningful.
+- **BLK** reports 2026-07-15 pre-market:
+  - Bull:  rev $5.6B (+8%), EPS $13.10, key driver: strong organic flows from ETFs/private markets, tokenization/digital-market product momentum, healthy fee rate, and stable operating margin.
+  - Base:  rev $5.4B (+5%), EPS $12.54, key driver: market-beta AUM growth, modest ETF/private-market inflows, and no escalation in private-credit or fee-pressure concerns.
+  - Bear:  rev $5.2B (+1%), EPS $11.80, key driver: weak organic flows, fee compression, lower performance fees, or renewed private-credit valuation scrutiny.
+  - Action: hold current starter position through earnings; do not add further before the print because the book already has JPM/V/BLK financial exposure and the post-print validation must be organic-flow driven.
+- **UNH** reports 2026-07-16 pre-market:
+  - Bull:  rev $115.0B (+9%), EPS $5.25, key driver: medical-cost ratio stabilizes, Optum margins improve, AI/productivity investment narrative supports a 2-to-1 return framework, and FY guidance remains credible.
+  - Base:  rev $112.0B (+6%), EPS $4.84, key driver: in-line utilization and Medicare Advantage trends, steady Optum contribution, and no material change to FY guide.
+  - Bear:  rev $109.0B (+3%), EPS $4.35, key driver: adverse utilization, reimbursement pressure, regulatory/HouseCalls scrutiny, or guidance language implying delayed margin recovery.
+  - Action: hold full current position but avoid top-up into the binary event; repeated politician buys support the recovery thesis, but utilization/regulatory risk remains the key swing factor.
+## 2026-07-14
+### Execute
+Live open-window check: equity $54,469.66, cash $32,557.59, buying power $191,584.16, and 9 live positions before execution. Regime is risk_on per prompt.
+
+**Bought / submitted:**
+- **NFLX**: submitted ~$1,500 new-position buy using the pre-market 5-field thesis copied into the order. Rationale: Jul 16 post-close earnings, ad-tier/paid-sharing/live-sports engagement optionality, local CNBC comeback-quarter positioning, and Byron Donalds disclosure support a datable catalyst with defined risk.
+- **GE**: submitted ~$1,500 new-position buy using the pre-market 5-field thesis copied into the order. Rationale: Jul 16 pre-market GE Aerospace earnings, aftermarket/order/margin/free-cash-flow checkpoint, supportive investor-confidence coverage, and Jared Moskowitz disclosure support a datable catalyst despite a high expectations bar.
+
+**Skipped:**
+- No other fresh buys were attempted. JPM, BLK, and UNH remain holds only per pre-market plan because they are existing positions with near-term earnings/cap/concentration considerations.
+
+Post-order portfolio refresh showed equity $54,504.47 and buying power $188,665.90, but NFLX and GE had not yet appeared as live positions in the Alpaca position list, so portfolio.md was refreshed with the live positions shown and a note that those two buy orders were submitted but not yet reflected.
+## 2026-07-14
+### Midday
+- Completed midday risk scan using live Alpaca portfolio state at 2026-07-14T17:00:01Z.
+- Stop-loss rule check: no positions were down 7% or more from average cost, so no forced exits were placed.
+- Winner protection check: no positions were up 15% or more from average cost, so no trailing stops were tightened to 7%.
+- No fresh positions opened, consistent with midday routine instructions.
+### Close
+Day P/L: -$2.46 (-0.00%) from execute-time equity $54,490.52 to close equity $54,488.06. Top winner: JPM +$18.78 intraday; top loser: V -$14.57 intraday. Watch tomorrow: keep an eye on consumer/defensive laggards PEP, SHW, and COST versus the risk-on tape, while JPM/HD/V remain the main contributors to cushion volatility. vs SPY since inception: +3.39 pts
+## 2026-07-15
+### Execute
+Live open-window check: equity $54,657.80, cash $29,542.81, buying power $188,493.22, and 11 live positions before execution. Regime is risk_on per prompt.
+
+**Bought:**
+- None. The visible research_log did not contain a 2026-07-15 Pre-market section or fresh execute-ready ideas with the required copied 5-field thesis, so I did not place any new buys or top-ups.
+
+**Skipped:**
+- All potential candidates were skipped because no compliant same-day Pre-market thesis was available to copy into `place_buy`. Existing GE and NFLX positions from the 2026-07-14 execution are now live in the account; held all current positions.
+
+Portfolio.md was refreshed from the live Alpaca state with no trades placed.
+## 2026-07-20
+### Pre-market
+Macro context: no binary macro this week. The next FOMC meeting is Jul 28-29, outside the seven-day window; CPI/PPI and the August jobs report are also outside it. Risk backdrop remains risk_on (VIX 17.16, breadth 61.7%, positive 10Y-2Y curve), though overnight Iran/oil headlines add event risk.
+
+Note: `web_search` is not exposed in this routine's tool namespace. I used the available local scraped-news URLs below and checked local disclosed-positioning signals; execute should re-check any overnight development before acting.
+
+- **GOOGL** (~$1,500): Alphabet reports Q2 after the Jul 22 close, with the earnings catalyst focused on whether search/Cloud AI monetization can justify accelerating data-center investment.
+  - Why mispriced: Current discussion can frame the reported $80B equity-raising/data-center funding plan mainly as dilution or capex pressure rather than as evidence that demand-backed AI infrastructure and Cloud opportunities are scaling.
+  - What market is missing: Berkshire’s reported initiation provides a quality/valuation counterweight to capex anxiety, while a credible Cloud growth-and-margin print could make the investment cycle look offensive rather than defensive.
+  - Datable catalyst: Q2 earnings, 2026-07-22 after close; watch Search monetization, Google Cloud revenue and operating margin, capex/financing detail, and regulatory commentary.
+  - Key risk (what makes this wrong): A capex or financing step-up without corresponding Cloud margin/AI monetization evidence, or adverse antitrust commentary, could cause investors to de-rate free-cash-flow expectations; recent David J. Taylor sale disclosures are an additional positioning caution.
+  - Sources: https://finance.yahoo.com/markets/stocks/articles/alphabet-soar-july-22-heres-082300809.html; https://finance.yahoo.com/markets/stocks/articles/alphabet-googl-aims-raise-80-145607346.html; https://www.cnbc.com/2026/07/15/warren-buffett-tells-cnbc-he-initiated-berkshire-hathaways-investment-in-alphabet.html
+
+- **TSLA** (~$1,250): Tesla reports Q2 after the Jul 22 close, creating a defined delivery/margin/forward-demand checkpoint after analysts revised their forecasts into the print.
+  - Why mispriced: The analyst debate appears polarized between a rally narrative and a large downside case, which can underweight the possibility that management’s forward outlook and product/AI commentary matter more than backward-looking quarterly EPS.
+  - What market is missing: Recent Gilbert Cisneros buy disclosures provide disclosed-positioning support, and a credible outlook on vehicle demand, energy storage, FSD/robotaxi milestones, and gross-margin trajectory could reset the debate beyond the quarter’s headline profitability.
+  - Datable catalyst: Q2 earnings, 2026-07-22 after close; watch automotive gross margin excluding credits, deliveries/inventory, energy-storage growth, free cash flow, and 2026 volume/product guidance.
+  - Key risk (what makes this wrong): Competitive EV pricing, weaker margins or demand commentary, delays in autonomy/product milestones, and oil/geopolitical volatility could overwhelm any narrative improvement; the wide analyst dispersion also signals a potentially large binary move.
+  - Sources: https://finance.yahoo.com/markets/stocks/articles/bank-america-revamps-tesla-forecast-210600094.html; https://finance.yahoo.com/markets/stocks/articles/wells-fargo-raised-tesla-stock-142312325.html; https://www.investors.com/market-trend/stock-market-today/dow-jones-futures-iran-attack-kills-us-troops-google-tesla-amd/?src=A00220&yptr=yahoo
+## 2026-07-20
+### Execute
+Live open-window check: equity $54,603.89, cash $29,542.81, buying power $188,342.25, and 11 live positions before execution. Regime is risk_on per the routine context.
+
+**Bought:** None. The two same-day pre-market candidates, GOOGL and TSLA, both report Q2 after the Jul 22 close, within two calendar days of this Jul 20 execution window. The buy handler’s stated hard rule rejects purchases within two days of a symbol’s earnings report, so neither was submitted.
+
+**Skipped:** GOOGL despite the Berkshire initiation and Cloud/AI-monetization catalyst, because the earnings proximity rule prevents a compliant entry. TSLA despite disclosed-positioning support and its delivery/margin/outlook catalyst, likewise because earnings proximity prevents entry; its wide analyst dispersion also makes the event unusually binary. No top-ups were proposed in today’s pre-market research. Portfolio.md was refreshed from live Alpaca state; no orders were placed.
+## 2026-07-20
+### Midday
+- Completed midday risk scan at 17:00 UTC. No holdings were down 7% or more versus average cost, so no stop-loss liquidations were required.
+- No holdings were up 15% or more versus average cost, so no trailing stops were tightened to 7%.
+- No fresh positions were opened; existing trailing-stop protections remain in place.
+## 2026-07-20
+### Close
+Day P/L: -$32.93 (-0.06%) versus the execute-time equity of $54,342.72. Top winner: PEP (+$13.98 in market value); top loser: SHW (-$25.78). Watch tomorrow whether the broad weakness in SHW and BLK persists after their late-session declines, while maintaining attention to risk-on breadth. vs SPY since inception: +4.3 pts
