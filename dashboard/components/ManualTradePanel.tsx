@@ -191,6 +191,9 @@ export function ManualTradePanel() {
             spellCheck={false}
             style={inputStyle}
             maxLength={16}
+            // Autofill extensions stamp attrs (e.g. data-jpaf-id) on form
+            // fields before React hydrates — harmless, don't warn.
+            suppressHydrationWarning
           />
           {existing && (
             <div className="mono" style={{ fontSize: 9, color: "var(--ink-faint)", marginTop: 2 }}>
@@ -244,6 +247,7 @@ export function ManualTradePanel() {
                 onChange={(e) => setNotional(e.target.value)}
                 data-testid="notional-input"
                 style={{ ...inputStyle, paddingLeft: 22 }}
+                suppressHydrationWarning
               />
             </div>
           ) : (
@@ -256,6 +260,7 @@ export function ManualTradePanel() {
               data-testid="qty-input"
               placeholder="shares"
               style={inputStyle}
+              suppressHydrationWarning
             />
           )}
           {overFivePct && (
@@ -276,6 +281,7 @@ export function ManualTradePanel() {
             data-testid="note-input"
             maxLength={200}
             style={inputStyle}
+            suppressHydrationWarning
           />
         </div>
 
@@ -328,6 +334,7 @@ export function ManualTradePanel() {
               onChange={(e) => setAllowAfterHours(e.target.checked)}
               data-testid="ah-checkbox"
               style={{ margin: 0 }}
+              suppressHydrationWarning
             />
             allow after-hours
           </label>
