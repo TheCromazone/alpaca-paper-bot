@@ -168,6 +168,27 @@ class PriceHistory(Base):
     )
 
 
+class CompanyProfile(Base):
+    """Cached company fundamentals/description (yfinance-sourced).
+
+    Populated lazily by the API's ``/company/{ticker}`` endpoint with a
+    30-day TTL — this is a read-through cache, not trading state. The
+    dashboard's holdings dossier is the only consumer.
+    """
+    __tablename__ = "company_profiles"
+    ticker = Column(String(16), primary_key=True)
+    name = Column(Text)
+    sector = Column(String(64))
+    industry = Column(String(128))
+    description = Column(Text)
+    website = Column(Text)
+    exchange = Column(String(32))
+    country = Column(String(64))
+    market_cap = Column(Float)
+    employees = Column(Integer)
+    fetched_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
 class LLMRun(Base):
     """One record per scheduled LLM routine invocation.
 

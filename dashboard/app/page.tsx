@@ -16,6 +16,7 @@ import { EarningsThisWeek } from "@/components/EarningsThisWeek";
 import { ManualTradePanel } from "@/components/ManualTradePanel";
 import { PerformanceScorecard } from "@/components/PerformanceScorecard";
 import { RoutineReel } from "@/components/RoutineReel";
+import { ClosingBell } from "@/components/ClosingBell";
 import { Reveal } from "@/components/Reveal";
 
 /**
@@ -81,6 +82,15 @@ export default function Home() {
             <PerformanceScorecard />
           </div>
         </section>
+      </Reveal>
+
+      {/* ═══ THE CLOSING BELL — daily market wrap ═══ */}
+      <Reveal fx="blur-in" style={{ marginTop: 52 }}>
+        <SectionHead
+          eyebrow="Market Wrap — indexes, movers, analyst chatter"
+          title="The Closing Bell"
+        />
+        <ClosingBell />
       </Reveal>
 
       {/* ═══ ACT 02 — THE MACHINE ═══ */}

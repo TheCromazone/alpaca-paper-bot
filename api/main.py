@@ -16,6 +16,7 @@ from sqlalchemy import desc, select
 
 from bot.config import settings
 from bot.db import (
+    CompanyProfile,
     Decision,
     EarningsCalendar,
     EarningsHistory,
@@ -675,6 +676,198 @@ def tape(limit: int = 16) -> list[dict]:
             out.append({"s": t, "p": last, "c": chg})
     # If no price history yet, return an empty list rather than fabricate data.
     return out
+
+
+# ---------------------------------------------------------------------------
+# Company dossier + market recap (dashboard v2 — holdings detail & Closing Bell)
+# ---------------------------------------------------------------------------
+
+_PROFILE_TTL = timedelta(days=30)
+_TICKER_RX = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
+
+
+def _fetch_profile_yf(ticker: str) -> dict | None:
+    """Pull company metadata from yfinance. Returns None on any failure —
+    callers fall back to a stale cache row or 404. Import is deferred so the
+    API still boots if yfinance is missing/broken."""
+    try:
+        import yfinance as yf
+        info = yf.Ticker(ticker).info or {}
+    except Exception as exc:
+        from loguru import logger as _logger
+        _logger.warning("yfinance profile fetch failed for {}: {}", ticker, exc)
+        return None
+    name = info.get("longName") or info.get("shortName")
+    description = info.get("longBusinessSummary")
+    if not name and not description:
+        return None
+    return {
+        "name": name,
+        "sector": info.get("sector"),
+        "industry": info.get("industry"),
+        "description": description,
+        "website": info.get("website"),
+        "exchange": info.get("exchange"),
+        "country": info.get("country"),
+        "market_cap": info.get("marketCap"),
+        "employees": info.get("fullTimeEmployees"),
+    }
+
+
+def _profile_dict(row: CompanyProfile) -> dict:
+    return {
+        "ticker": row.ticker,
+        "name": row.name,
+        "sector": row.sector,
+        "industry": row.industry,
+        "description": row.description,
+        "website": row.website,
+        "exchange": row.exchange,
+        "country": row.country,
+        "market_cap": row.market_cap,
+        "employees": row.employees,
+        "fetched_at": _iso_utc(row.fetched_at),
+    }
+
+
+@app.get("/company/{ticker}")
+def company(ticker: str) -> dict:
+    """Company profile for the holdings dossier — read-through cache over
+    yfinance with a 30-day TTL. Serves a stale row rather than erroring when
+    yfinance is unreachable; 404 only when we have nothing at all."""
+    ticker = ticker.upper().strip()
+    if not _TICKER_RX.match(ticker):
+        raise HTTPException(400, f"invalid ticker {ticker!r}")
+    now = datetime.now(timezone.utc)
+    with SessionLocal() as s:
+        row = s.get(CompanyProfile, ticker)
+    fetched = row.fetched_at if row else None
+    if fetched is not None and fetched.tzinfo is None:
+        fetched = fetched.replace(tzinfo=timezone.utc)
+    if fetched is None or (now - fetched) > _PROFILE_TTL:
+        data = _fetch_profile_yf(ticker)
+        if data:
+            with SessionLocal.begin() as s:
+                row = s.merge(CompanyProfile(ticker=ticker, fetched_at=now, **data))
+        elif row is None:
+            raise HTTPException(404, f"no profile available for {ticker}")
+        # else: yfinance failed but we hold a stale row — serve it.
+    return _profile_dict(row)
+
+
+_ANALYST_RX = re.compile(
+    r"upgrade|downgrade|price target|analyst|initiat\w+ coverage|overweight"
+    r"|underweight|outperform|underperform|reiterat|raises target|cuts target"
+    r"|buy rating|sell rating|hold rating|top pick|street",
+    re.IGNORECASE,
+)
+
+
+@app.get("/market/recap")
+def market_recap() -> dict:
+    """Daily market wrap for the dashboard's Closing Bell: index moves, VIX +
+    regime, top movers across the tracked universe, analyst-flavored
+    headlines, and the close routine's narrative. Everything is served from
+    local tables — no Alpaca or network calls on this path."""
+    from bot.config import EQUITY_UNIVERSE
+
+    with SessionLocal() as s:
+        spy_dates = s.execute(
+            select(PriceHistory.trade_date)
+            .where(PriceHistory.ticker == "SPY")
+            .order_by(desc(PriceHistory.trade_date))
+            .limit(2)
+        ).all()
+        if len(spy_dates) < 2:
+            raise HTTPException(404, "not enough price history for a recap yet")
+        d_last, d_prev = spy_dates[0][0], spy_dates[1][0]
+        price_rows = s.execute(
+            select(PriceHistory.ticker, PriceHistory.trade_date, PriceHistory.close)
+            .where(PriceHistory.trade_date.in_([d_last, d_prev]))
+        ).all()
+        held = {p.ticker for p in s.scalars(select(Position)).all()}
+        regime = s.scalars(
+            select(MarketRegime).order_by(desc(MarketRegime.as_of)).limit(1)
+        ).first()
+        close_run = s.scalars(
+            select(LLMRun)
+            .where(LLMRun.routine == "close")
+            .order_by(desc(LLMRun.started_at))
+            .limit(1)
+        ).first()
+        news_cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
+        news_rows = s.scalars(
+            select(NewsItem)
+            .where(NewsItem.published_at >= news_cutoff.replace(tzinfo=None))
+            .order_by(desc(NewsItem.published_at))
+            .limit(400)
+        ).all()
+
+    last: dict[str, float] = {}
+    prev: dict[str, float] = {}
+    for t, td, c in price_rows:
+        (last if td == d_last else prev)[t] = c
+
+    def _mover(t: str) -> dict | None:
+        if t not in last or not prev.get(t):
+            return None
+        return {
+            "ticker": t,
+            "close": last[t],
+            "pct_1d": (last[t] / prev[t]) - 1,
+            "held": t in held,
+        }
+
+    indexes = [m for m in (_mover(t) for t in ("SPY", "QQQ")) if m]
+    movers = [m for m in (_mover(t) for t in EQUITY_UNIVERSE) if m]
+    movers.sort(key=lambda m: m["pct_1d"], reverse=True)
+    gainers = movers[:6]
+    losers = sorted(movers[-6:], key=lambda m: m["pct_1d"])
+    portfolio_movers = sorted(
+        (m for m in movers if m["held"]),
+        key=lambda m: abs(m["pct_1d"]),
+        reverse=True,
+    )
+
+    analyst_buzz = []
+    for r in news_rows:
+        if not _ANALYST_RX.search(r.title or ""):
+            continue
+        analyst_buzz.append({
+            "id": r.id,
+            "title": r.title,
+            "url": r.url,
+            "source": r.source,
+            "published_at": _iso_utc(r.published_at),
+            "tickers": r.tickers or [],
+            "vader_score": r.vader_score,
+            "sentiment_label": _label_for(r.vader_score),
+        })
+        if len(analyst_buzz) >= 8:
+            break
+
+    return {
+        "as_of": _iso_utc(d_last),
+        "prev_date": _iso_utc(d_prev),
+        "indexes": indexes,
+        "vix": regime.vix if regime else None,
+        "vix_5d_change": regime.vix_5d_change if regime else None,
+        "breadth_pct": regime.breadth_pct if regime else None,
+        "regime_label": regime.regime_label if regime else None,
+        "gainers": gainers,
+        "losers": losers,
+        "portfolio_movers": portfolio_movers,
+        "analyst_buzz": analyst_buzz,
+        "close_note": (
+            {
+                "summary": close_run.summary or "",
+                "started_at": _iso_utc(close_run.started_at),
+                "status": close_run.status,
+            }
+            if close_run
+            else None
+        ),
+    }
 
 
 @app.get("/bot/status")

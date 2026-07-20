@@ -12,7 +12,7 @@ The README describes a *retired* composite-score quant strategy (every-5-min tic
 
 Each routine is an LLM tool-use loop persisted as one `LLMRun` row. Since the
 2026-05-20 cutover the live backend is **OpenAI Codex OAuth** (`LLM_PROVIDER=codex_oauth`,
-model `gpt-5.5`, $0/call under the ChatGPT Plus subscription — `usd_cost` in
+model `gpt-5.6-terra` since 2026-07-20, $0/call under the ChatGPT Plus subscription — `usd_cost` in
 `llm_runs` is legitimately 0.0). The Anthropic Claude path remains a fallback:
 flip `LLM_PROVIDER=anthropic` in `.env` if Codex breaks.
 Times are anchored to `America/New_York` so DST is automatic, and each daily
@@ -101,6 +101,7 @@ Single DB shared by bot and API. Tables (in `bot/db.py`):
 - `llm_runs` — per-routine token + cost + tool_trace ledger; backs `/llm/runs` and `/llm/cost`.
 - `market_regime` — daily snapshot (VIX, SPY trend, T10Y2Y, breadth, label).
 - `earnings_calendar`, `earnings_history` — upcoming reports + last-4-quarter EPS surprise.
+- `company_profiles` — yfinance-sourced company metadata (name, description, sector, mcap), lazily cached with a 30-day TTL by the API's `/company/{ticker}`; feeds the holdings dossier. `/market/recap` (indexes, movers, analyst headlines, close-routine narrative) backs the dashboard's Closing Bell.
 
 `init_db()` calls `Base.metadata.create_all` (creates new tables) and then `_migrate_sqlite()` (idempotent ALTER TABLE ADD COLUMN for in-place migrations on existing tables — used for `news_items.article_*` and `positions.stop_order_id`).
 

@@ -289,6 +289,55 @@ export type RegimeSnapshot = {
   regime_label: "risk_on" | "neutral" | "risk_off" | string;
 };
 
+/** Cached company fundamentals for the holdings dossier (yfinance-backed). */
+export type CompanyProfile = {
+  ticker: string;
+  name: string | null;
+  sector: string | null;
+  industry: string | null;
+  description: string | null;
+  website: string | null;
+  exchange: string | null;
+  country: string | null;
+  market_cap: number | null;
+  employees: number | null;
+  fetched_at: string | null;
+};
+
+export type RecapMover = {
+  ticker: string;
+  close: number;
+  pct_1d: number;
+  held: boolean;
+};
+
+export type AnalystBuzzRow = {
+  id: number;
+  title: string;
+  url: string;
+  source: string;
+  published_at: string;
+  tickers: string[];
+  vader_score: number | null;
+  sentiment_label: "positive" | "neutral" | "negative";
+};
+
+/** Daily market wrap backing the home page's Closing Bell section. */
+export type MarketRecap = {
+  as_of: string;
+  prev_date: string;
+  indexes: { ticker: string; close: number; pct_1d: number; held: boolean }[];
+  vix: number | null;
+  vix_5d_change: number | null;
+  breadth_pct: number | null;
+  regime_label: "risk_on" | "neutral" | "risk_off" | string | null;
+  gainers: RecapMover[];
+  losers: RecapMover[];
+  portfolio_movers: RecapMover[];
+  analyst_buzz: AnalystBuzzRow[];
+  close_note: { summary: string; started_at: string; status: string } | null;
+};
+
 export type EarningsEvent = {
   ticker: string;
   report_date: string;
@@ -353,6 +402,9 @@ export const api = {
   routinesNext: () => get<RoutinesNext>("/routines/next"),
   regime: () => get<RegimeSnapshot>("/regime/today"),
   earnings: (days = 14) => get<EarningsEvent[]>(`/earnings/upcoming?days=${days}`),
+  company: (ticker: string) =>
+    get<CompanyProfile>(`/company/${encodeURIComponent(ticker)}`),
+  marketRecap: () => get<MarketRecap>("/market/recap"),
   politicianTrades: (name?: string, days = 60, limit = 50) =>
     get<PoliticianTrade[]>(
       `/signals/by-politician?days=${days}&limit=${limit}` +
