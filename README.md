@@ -249,12 +249,12 @@ alpaca paper trading/
 │   └── signals/                  # sentiment, politicians, senate, investors,
 │                                 # regime, earnings
 ├── api/
-│   └── main.py                   # FastAPI on 127.0.0.1:8765
-├── dashboard/                    # Next.js 16 + React 19
-│   ├── app/                      # Pages — front page, positions, trades, etc.
-│   ├── components/               # BotRibbon, ThesisPanel, PerformanceScorecard,
-│   │                             # RoutineReel, Reveal, LLMCostCard, ...
-│   ├── design/                   # Redesign design-docs (storyboard, decisions, spec)
+│   ├── main.py                   # FastAPI on 127.0.0.1:8765
+│   └── terminal.py               # /terminal/* read models (monitor, heatmap, security, risk, brief, wire)
+├── dashboard/                    # Next.js 16 + React 19 — the CROMAZ Terminal
+│   ├── app/                      # LP launchpad, PORT, BLTR, TOP, FLOW, BOT, RISK, security/[ticker]
+│   ├── components/term/          # Shell (command line, fn keys, tape), panels, ui primitives
+│   ├── design/TERMINAL.md        # Design contract (tokens, type, panels, layout)
 │   ├── e2e/                      # Playwright suite, chromium-only
 │   └── playwright.config.ts
 ├── memory/                       # The bot's persistent state

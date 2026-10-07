@@ -1,0 +1,400 @@
+/* PORT — dense holdings monitor. */
+.wrap {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* stat strip: equal cells, no dead zones */
+.stats {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-bottom: 1px solid var(--line);
+}
+.stat {
+  padding: 3px 6px 4px 8px;
+  border-right: 1px solid var(--line);
+  min-width: 0;
+  overflow: hidden;
+}
+.stat:last-child {
+  border-right: 0;
+}
+.statLabel {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.statValue {
+  margin-top: 1px;
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 15px;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.statSub {
+  font-size: 10.5px;
+  color: var(--ink-2);
+  margin-left: 5px;
+  font-weight: 400;
+}
+.statWord {
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 11px;
+  color: var(--ink-2);
+  margin: 0 6px 0 3px;
+  font-weight: 400;
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden; /* a scrollbar may eat a few px of the last column's padding — never scroll sideways */
+  overflow-y: auto;
+}
+
+.tbl {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 11px;
+}
+.tbl th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 21px;
+  padding: 0 3px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-3);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  text-align: right;
+  white-space: nowrap;
+}
+.tbl th button {
+  all: unset;
+  position: relative;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+.tbl th button:hover {
+  color: var(--ink);
+}
+.tbl th button:focus-visible {
+  outline: 1px solid var(--amber);
+  outline-offset: 1px;
+}
+.tbl th[aria-sort="ascending"],
+.tbl th[aria-sort="descending"] {
+  color: var(--amber);
+}
+/* sort caret: inline on the active column only */
+.caret {
+  margin-left: 2px;
+  font-size: 7px;
+  line-height: 1;
+}
+
+.tbl td {
+  height: var(--row-h, 24px);
+  padding: 0 3px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.tbl th:first-child,
+.tbl td:first-child {
+  text-align: left;
+  padding-left: 8px;
+}
+.tbl th:last-child,
+.tbl td:last-child {
+  padding-right: 8px;
+}
+/* column groups: [ticker · 30D] [last · 1D] [avg · wt] [P&L] [guard · dist] [days] */
+.tbl .grp {
+  padding-left: 7px;
+}
+.tbl tbody tr {
+  cursor: pointer;
+}
+.tbl tbody tr:hover td {
+  background: var(--bg-2);
+}
+.tbl tbody tr:hover td:first-child {
+  box-shadow: inset 2px 0 0 var(--amber);
+}
+
+.tbl tfoot td {
+  height: 25px;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--bg-2);
+  border-top: 1px solid var(--line-2);
+  border-bottom: 0;
+  font-weight: 500;
+}
+.agg {
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 9.5px;
+  color: var(--ink-3);
+  margin-right: 4px;
+  font-weight: 500;
+}
+
+.tkr {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+.tkr:hover {
+  color: var(--amber-2);
+}
+/* earnings-in-N-days badge: neutral, informational */
+.evt {
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 10px;
+  padding: 0 2px;
+  color: var(--ink-2);
+  border: 1px solid var(--line-2);
+  background: var(--bg-3);
+  letter-spacing: 0;
+}
+/* which guard binds: S = trailing stop, C = −7% cut */
+.gk {
+  display: inline-block;
+  min-width: 11px;
+  margin-left: 4px;
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 10px;
+  text-align: center;
+  color: var(--ink-3);
+  border: 1px solid var(--line-2);
+}
+.breached {
+  display: inline-block;
+  padding: 0 3px;
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 12px;
+  color: #fff;
+  background: var(--down);
+  vertical-align: 1px;
+}
+
+.dim {
+  color: var(--ink-3);
+}
+.soft {
+  color: var(--ink-2);
+}
+
+.more {
+  color: var(--amber);
+  margin-left: 6px;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10px;
+}
+
+/* thesis tooltip (portaled to body) */
+.tip {
+  position: fixed;
+  z-index: 80;
+  width: 372px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-2);
+  border-top: 2px solid var(--amber);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+  font-size: 11px;
+}
+.tipHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 9px 5px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+}
+.tipBody {
+  padding: 7px 9px 8px;
+  color: var(--ink-2);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.tipGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--line);
+}
+.tipGrid > div {
+  padding: 4px 9px 5px;
+  border-right: 1px solid var(--line);
+}
+.tipGrid > div:nth-child(3n) {
+  border-right: 0;
+}
+.tipGrid > div:nth-child(n + 4) {
+  border-top: 1px solid var(--line);
+}
+
+/* sector load footer (only when every row still fits) */
+.sectors {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 24px;
+  padding: 0 8px;
+  border-top: 1px solid var(--line);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.sector {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+}
+.sectorBar {
+  position: relative;
+  width: 22px;
+  height: 4px;
+  background: var(--bg-3);
+  display: inline-block;
+}
+
+/* responsive columns: the core set fits ~580px; wider panels add the 30D
+   spark (+ its % change), then days held, then avg cost (always in the
+   row tooltip and the Guard cell's hover); narrow ones shed columns */
+.c-avg,
+.c-spark,
+.c-days {
+  display: none;
+}
+@container (min-width: 650px) {
+  .c-spark {
+    display: table-cell;
+  }
+}
+@container (min-width: 700px) {
+  .c-days {
+    display: table-cell;
+  }
+}
+@container (min-width: 770px) {
+  .c-avg {
+    display: table-cell;
+  }
+}
+@container (max-width: 575px) {
+  .c-qty {
+    display: none;
+  }
+  .statOpt {
+    display: none;
+  }
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@container (max-width: 530px) {
+  .c-wt {
+    display: none;
+  }
+}
+@container (max-width: 490px) {
+  .c-day {
+    display: none;
+  }
+}
+
+.statusNear {
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--warn);
+}
+.statusOk {
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
+/* legend line for the badges and status words */
+.legend {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 24px;
+  padding: 0 8px;
+  border-top: 1px solid var(--line);
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--ink-3);
+}
+.legend b {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* compact status chip (uses the global .pill palettes) */
+.chip {
+  height: 14px !important;
+  padding: 0 4px !important;
+  font-size: 8.5px !important;
+  letter-spacing: 0.05em !important;
+}
+/* status-first rows: 3px left bar — alert = breached, warn = within 2% */
+.tbl tbody tr.sevB td:first-child,
+.tbl tbody tr.sevB:hover td:first-child {
+  box-shadow: inset 3px 0 0 var(--alert);
+}
+.tbl tbody tr.sevN td:first-child,
+.tbl tbody tr.sevN:hover td:first-child {
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.spk {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-content: flex-end;
+}
+.spkPct {
+  min-width: 36px;
+  text-align: right;
+  font-size: 10px;
+}

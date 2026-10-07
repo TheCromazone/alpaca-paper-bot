@@ -12,10 +12,11 @@ for (const route of ROUTES) {
 
     await page.goto(route, { waitUntil: "networkidle" });
 
-    // Page must not 404 — Next renders a generic 404 page; check title or
-    // status by looking for the "could not be found" string Next emits.
+    // Page must not 404. Match Next's not-found page itself — a bare "404"
+    // check collides with real data (prices, P&L, ids) on a dense terminal.
+    const res = await page.request.get(route);
+    expect(res.status(), `${route} HTTP status`).toBe(200);
     const text = await page.locator("body").innerText();
-    expect(text.toLowerCase()).not.toContain("404");
     expect(text.toLowerCase()).not.toContain("could not be found");
 
     const hydrationErrors = consoleErrors.filter((e) =>

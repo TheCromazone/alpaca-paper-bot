@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// Tests run against the already-running dev server (npm run dev) on :3000
+// Tests run against the already-running dev server (npm run dev) on :3001
 // and the FastAPI backend on :8765. We deliberately don't spawn webServer
 // here so the running bot/API/dashboard stack stays up between test runs.
 export default defineConfig({
@@ -18,6 +18,11 @@ export default defineConfig({
     navigationTimeout: 15_000,
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "chromium",
+      // PW_CHROME_CHANNEL=chrome drives the system Chrome instead of the
+      // bundled Chromium (handy on dev machines without `playwright install`).
+      use: { ...devices["Desktop Chrome"], channel: process.env.PW_CHROME_CHANNEL || undefined },
+    },
   ],
 });

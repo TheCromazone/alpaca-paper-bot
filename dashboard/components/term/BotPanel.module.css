@@ -1,0 +1,943 @@
+/* BOT — the machine. Co-located styles for BotPanel + the memory viewer. */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+/* ── status card ─────────────────────────────────────────────────────── */
+.status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.banner {
+  display: inline-flex;
+  align-self: flex-start;
+  height: 20px;
+  margin: 1px 0 3px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+}
+.line[data-dim="true"],
+.line[data-dim="true"] b {
+  color: var(--ink-3);
+}
+.kv[data-dim="true"] > span:last-child {
+  color: var(--ink-3);
+}
+.statusMain {
+  padding: 6px 9px 7px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.statusSide {
+  padding: 24px 9px 7px 10px;
+  min-width: 0;
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+  height: 18px;
+}
+.cardLabel {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  white-space: nowrap;
+}
+.big {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 19px;
+}
+.line {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 14px;
+  min-height: 14px;
+}
+.line b {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.kv {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  height: 16px;
+  font-size: 10.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  min-width: 0;
+}
+.kv > span:first-child {
+  flex: none;
+}
+.kv > span:last-child {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kv b {
+  font-weight: 500;
+}
+.kvDim {
+  color: var(--ink-3);
+}
+
+/* ── schedule table ───────────────────────────────────────────────────── */
+.schedTbl {
+  flex: none;
+  border-bottom: 1px solid var(--line);
+  padding: 1px 0 3px;
+}
+.schedRow {
+  display: grid;
+  grid-template-columns: 92px 64px minmax(0, 1fr) 44px 70px;
+  align-items: baseline;
+  gap: 6px;
+  height: 17px;
+  padding: 0 9px;
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+.schedRow > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.schedHead {
+  height: 18px;
+  align-items: center;
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.schedName {
+  color: var(--ink);
+  font-weight: 500;
+}
+.schedRow[data-off="true"] .schedName {
+  color: var(--ink-2);
+}
+.schedRow[data-next="true"] {
+  background: var(--cyan-bg);
+  box-shadow: inset 2px 0 0 var(--cyan);
+}
+.schedRow[data-next="true"] .schedName {
+  color: var(--cyan);
+}
+.schedTime {
+  color: var(--ink-2);
+}
+.schedTime small {
+  font-size: 9px;
+  color: var(--ink-4);
+}
+.schedRule {
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 10.5px;
+  color: var(--ink-2);
+}
+.schedLast {
+  color: var(--ink-3);
+  text-align: right;
+}
+.schedState {
+  text-align: right;
+  color: var(--ink-2);
+}
+.miniPill {
+  height: 14px;
+  padding: 0 4px;
+  font-size: 8.5px;
+}
+.schedTbl[data-off="true"] .schedName,
+.schedTbl[data-off="true"] .schedTime,
+.schedTbl[data-off="true"] .schedRule {
+  color: var(--ink-3);
+}
+
+/* ── section heading ────────────────────────────────────────────────── */
+.secHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 22px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+  flex: none;
+}
+.secTitle {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.secMeta {
+  margin-left: auto;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 9.5px;
+  color: var(--ink-4);
+  white-space: nowrap;
+}
+
+/* ── scroll host (absolute fill so the panel never grows the row) ──── */
+.fill {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 150px;
+}
+.fillCol {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rowScroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.foot {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 6px;
+  overflow: hidden;
+  border-top: 1px solid var(--line);
+}
+.footBtn {
+  height: 15px;
+  line-height: 13px;
+  padding: 0 6px;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  cursor: pointer;
+}
+.footBtn:hover {
+  color: var(--amber-2);
+  border-color: var(--ink-4);
+}
+
+/* ── actions / outcome ─────────────────────────────────────────────── */
+.act {
+  white-space: nowrap;
+}
+.act b {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.actDim {
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.sep {
+  color: var(--ink-4);
+}
+table.runs td.actCell {
+  width: 100%;
+  max-width: 0;
+  text-align: left;
+  font-size: 10.5px;
+}
+.actCell > div {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── run log table ──────────────────────────────────────────────────── */
+table.runs td {
+  height: 22px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  font-size: 11px;
+}
+table.runs th {
+  font-size: 9px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+.runs tbody tr.run {
+  cursor: pointer;
+}
+.runs tbody tr.run:hover td {
+  background: var(--bg-2);
+}
+.runs tbody tr.open td {
+  background: var(--bg-3);
+}
+.runs tbody tr.open td:first-child {
+  box-shadow: inset 2px 0 0 var(--cyan);
+}
+.runs tbody tr.dayRow td {
+  height: 18px;
+  padding: 0 8px;
+  background: transparent;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-4);
+  text-align: left;
+}
+.runs tbody tr.dayRow:hover td {
+  background: transparent;
+}
+.dayKey {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.cellDim {
+  color: var(--ink-3);
+}
+.runs tbody tr[data-old="true"] td {
+  color: var(--ink-3);
+}
+.runs tbody tr[data-old="true"] .routine {
+  color: var(--ink-2);
+}
+.runs tbody tr[data-old="true"] .actCell > div {
+  opacity: 0.6;
+}
+.runs tbody tr.moreRow td {
+  height: 22px;
+  text-align: left;
+  padding: 0 8px;
+}
+.runs tbody tr.moreRow:hover td {
+  background: transparent;
+}
+.moreBtn {
+  height: 16px;
+  padding: 0 6px;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--ink-3);
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10px;
+  cursor: pointer;
+}
+.moreBtn:hover {
+  color: var(--ink);
+  border-color: var(--ink-4);
+}
+.routine {
+  font-family: var(--font-plex-mono), monospace;
+  font-weight: 500;
+  color: var(--ink);
+}
+.caret {
+  display: inline-block;
+  width: 8px;
+  color: var(--ink-4);
+  font-size: 8px;
+  transition: transform 120ms;
+}
+tr.open .caret {
+  transform: rotate(90deg);
+  color: var(--cyan);
+}
+.pips {
+  display: inline-flex;
+  gap: 1px;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+.pip {
+  width: 3px;
+  height: 9px;
+  background: rgba(86, 212, 255, 0.55);
+}
+.pip[data-fail="true"] {
+  background: var(--alert);
+}
+
+.detailRow td {
+  padding: 0 !important;
+  height: auto !important;
+  background: var(--bg) !important;
+  white-space: normal;
+  text-align: left;
+  font-family: var(--font-plex-cond), sans-serif;
+  border-bottom: 1px solid var(--line-2);
+}
+.detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  border-left: 2px solid var(--cyan);
+}
+.detail[data-wide="true"] {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+}
+.detailMeta {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 5px 9px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10px;
+  color: var(--ink-3);
+}
+.detailMeta b {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.summary {
+  padding: 7px 10px 9px;
+  max-height: 240px;
+  overflow: auto;
+  min-width: 0;
+}
+.detail[data-wide="true"] .summary {
+  max-height: 340px;
+  border-right: 1px solid var(--line);
+}
+.trace {
+  padding: 4px 0 6px;
+  min-width: 0;
+}
+.traceRow {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1.1fr) minmax(0, 0.9fr) 12px 46px 70px;
+  gap: 6px;
+  align-items: center;
+  padding: 0 9px;
+  height: 18px;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10.5px;
+}
+.traceRow:hover {
+  background: var(--bg-2);
+}
+.traceIdx {
+  color: var(--ink-4);
+  font-size: 9.5px;
+}
+.traceName {
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.traceArgs {
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10px;
+}
+.traceMs {
+  text-align: right;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.traceTrack {
+  position: relative;
+  height: 8px;
+  background: var(--bg-2);
+}
+.traceBar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 2px;
+  background: var(--cyan);
+  opacity: 0.8;
+}
+.traceBar[data-fail="true"] {
+  background: var(--alert);
+  opacity: 1;
+}
+
+/* ── activity matrix + tool stats (page variant) ────────────────────── */
+.insights {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.insights > div {
+  min-width: 0;
+}
+.insights > div:first-child {
+  border-right: 1px solid var(--line);
+}
+.matrix {
+  padding: 6px 9px 8px;
+  display: grid;
+  gap: 2px;
+  overflow-x: auto;
+}
+.mRow {
+  display: grid;
+  align-items: center;
+  gap: 2px;
+}
+.mLbl {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 9.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 4px;
+}
+.mHead {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 8.5px;
+  color: var(--ink-4);
+  text-align: center;
+  line-height: 10px;
+}
+.mCell {
+  height: 17px;
+  border: 1px solid transparent;
+  cursor: default;
+  padding: 0;
+  display: block;
+  width: 100%;
+}
+.mCell[data-has="true"] {
+  cursor: pointer;
+}
+.mCell[data-has="true"]:hover {
+  outline: 1px solid var(--ink);
+  outline-offset: 0;
+}
+.mCell[data-miss="true"] {
+  border-color: var(--line-2);
+  background: transparent;
+}
+.tools {
+  max-height: 136px;
+  overflow: auto;
+}
+.toolRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px 64px 36px 44px;
+  gap: 6px;
+  align-items: center;
+  height: 17px;
+  padding: 0 9px;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10.5px;
+  color: var(--ink-2);
+}
+.toolRow:hover {
+  background: var(--bg-2);
+}
+.toolRow > span:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.toolHead {
+  color: var(--ink-4);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: var(--font-plex-cond), sans-serif;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  background: var(--bg-1);
+}
+.toolHead:hover {
+  background: var(--bg-1);
+}
+
+/* ── markdown-ish renderer ──────────────────────────────────────────── */
+.md {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.md > :first-child {
+  margin-top: 0;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  margin: 10px 0 4px;
+  line-height: 1.25;
+}
+.md h1 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+.md h2 {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-plex-mono), monospace;
+}
+.md h3,
+.md h4 {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+.md p {
+  margin: 0 0 6px;
+}
+.md ul {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+}
+.md li {
+  position: relative;
+  padding-left: 12px;
+  margin: 1px 0;
+}
+.md li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.68em;
+  width: 4px;
+  height: 1px;
+  background: var(--ink-3);
+}
+.md li[data-depth="1"] {
+  margin-left: 12px;
+  color: var(--ink-3);
+}
+.md li[data-depth="2"] {
+  margin-left: 24px;
+  color: var(--ink-3);
+}
+.md li[data-num]::before {
+  content: attr(data-num);
+  background: none;
+  width: auto;
+  height: auto;
+  top: 0;
+  left: 0;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10px;
+  color: var(--ink-4);
+}
+.md li[data-num] {
+  padding-left: 16px;
+}
+.md strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.md code {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10.5px;
+  color: var(--amber-2);
+  background: var(--bg-3);
+  padding: 0 3px;
+}
+.md hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 8px 0;
+}
+.md .note {
+  color: var(--ink-3);
+  font-style: italic;
+  font-size: 11px;
+}
+.md .url {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10px;
+  color: var(--blue);
+  white-space: nowrap;
+}
+.md .url:hover {
+  text-decoration: underline;
+}
+.md .tick {
+  font-family: var(--font-plex-mono), monospace;
+  font-weight: 600;
+  color: var(--ink);
+  border-bottom: 1px dotted var(--ink-4);
+}
+.md .tick:hover {
+  color: var(--amber-2);
+  border-bottom-color: var(--amber);
+}
+.md table {
+  border-collapse: collapse;
+  margin: 4px 0 8px;
+  width: 100%;
+  font-size: 11px;
+}
+.md th {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--bg-2);
+  text-align: left;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.md td {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.md th[data-r="true"],
+.md td[data-r="true"] {
+  text-align: right;
+}
+.md tr:hover td {
+  background: var(--bg-2);
+}
+
+/* ── /bot page layout + memory viewer ──────────────────────────────── */
+.pageGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--gap);
+  height: calc(100vh - var(--topbar-h) - var(--fnbar-h) - var(--status-h) - var(--gap) * 2);
+  min-height: 640px;
+}
+@media (max-width: 1100px) {
+  .pageGrid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    height: auto;
+  }
+  .pageGrid > * {
+    height: 82vh;
+  }
+}
+.memo {
+  display: grid;
+  grid-template-columns: 142px minmax(0, 1fr);
+  height: 100%;
+}
+.memoIndex {
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.memoFilter {
+  flex: none;
+  padding: 5px;
+  border-bottom: 1px solid var(--line);
+}
+.memoFilter input {
+  height: 22px;
+  font-size: 11px;
+  padding: 0 6px;
+}
+.memoList {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.memoItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 21px;
+  padding: 0 7px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.memoItem:hover {
+  background: var(--bg-2);
+  color: var(--ink);
+}
+.memoItem[aria-current="true"] {
+  background: var(--bg-3);
+  color: var(--ink);
+  box-shadow: inset 2px 0 0 var(--cyan);
+}
+.memoItem[data-weekly="true"] {
+  color: var(--cyan);
+}
+.memoMonth {
+  padding: 6px 7px 2px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.memoPips {
+  display: inline-flex;
+  gap: 1px;
+}
+.memoPips > i {
+  display: inline-block;
+  width: 9px;
+  height: 11px;
+  font-style: normal;
+  font-size: 8px;
+  line-height: 11px;
+  text-align: center;
+  color: var(--ink-4);
+  background: var(--bg-2);
+}
+.memoPips > i[data-on="true"] {
+  color: #001018;
+  background: rgba(86, 212, 255, 0.7);
+}
+.memoDoc {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.memoDocHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.memoDocHead b {
+  color: var(--ink);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.memoNav {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 2px;
+}
+.memoNav button {
+  height: 18px;
+  min-width: 22px;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 11px;
+  cursor: pointer;
+}
+.memoNav button:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+.memoNav button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.memoScroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 12px 14px;
+}
+.tlog td.thesis {
+  height: auto;
+  white-space: normal;
+  text-align: left;
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-3);
+  padding: 0 8px 5px 8px;
+  cursor: pointer;
+}
+.tlog td.thesis > div {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tlog td.thesis[data-open="true"] > div {
+  display: block;
+  color: var(--ink-2);
+}
+.tlog tr.main td {
+  border-bottom: 0;
+  height: 22px;
+  font-size: 11px;
+}
+.tlog tbody tr:hover td {
+  background: transparent;
+}
+
+/* bot off / stale: the whole panel steps back */
+.quiet :global(.panel-sub) {
+  color: var(--ink-4);
+}

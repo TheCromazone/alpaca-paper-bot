@@ -1,0 +1,494 @@
+/* Feed panels (TOP · FLOW · EVTS · WIRE · BLTR). Tokens: app/globals.css. */
+
+/* ── layout ────────────────────────────────────────────────────────────── */
+.col {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* sticky column header for grid lists */
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  align-items: center;
+  column-gap: 8px;
+  height: 20px;
+  padding: 0 8px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.r {
+  text-align: right;
+}
+
+.row {
+  display: grid;
+  align-items: center;
+  column-gap: 8px;
+  height: 22px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.row:hover {
+  background: var(--bg-2);
+}
+.rowBtn {
+  cursor: pointer;
+}
+.rowOpen {
+  background: var(--bg-2);
+}
+.rowWarn {
+  box-shadow: inset 2px 0 0 var(--warn);
+}
+
+/* ── type ──────────────────────────────────────────────────────────────── */
+.mono {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.time {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.timeFresh {
+  color: var(--ink);
+}
+.num {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--ink);
+  text-align: right;
+}
+.dim {
+  color: var(--ink-3);
+}
+.ell {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hl {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+a.hl:hover {
+  color: var(--amber-2);
+}
+.src {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+  text-align: right;
+  letter-spacing: 0.02em;
+}
+
+/* ── tickers ───────────────────────────────────────────────────────────── */
+.tkr {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.tkr:hover {
+  color: var(--amber-2);
+}
+.tkrHeldText {
+  color: var(--blue);
+}
+.tkrHeldText:hover {
+  color: #7fb2ff;
+}
+.tkrHeld::after {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+  background: var(--blue);
+}
+.chips {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  min-width: 0;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 15px;
+  padding: 0 4px;
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  white-space: nowrap;
+}
+.chip:hover {
+  color: var(--amber-2);
+  border-color: var(--ink-4);
+}
+.chipHeld {
+  color: var(--blue);
+  border-color: rgba(59, 140, 255, 0.45);
+}
+.more {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 9.5px;
+  color: var(--ink-3);
+}
+
+.svg {
+  display: block;
+  overflow: visible;
+}
+
+/* ── day rule ──────────────────────────────────────────────────────────── */
+.dayRule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 20px;
+  padding: 0 8px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.dayRuleLine {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--line-2), transparent);
+}
+
+/* ── tags ──────────────────────────────────────────────────────────────── */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 15px;
+  min-width: 30px;
+  padding: 0 4px;
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.side {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.sidePill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 16px;
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.buy {
+  color: var(--up);
+  background: var(--up-bg);
+  box-shadow: inset 0 0 0 1px rgba(32, 212, 123, 0.35);
+}
+.sell {
+  color: var(--down);
+  background: var(--down-bg);
+  box-shadow: inset 0 0 0 1px rgba(255, 79, 79, 0.35);
+}
+.chamber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 13px;
+  padding: 0 3px;
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--ink-3);
+  border: 1px solid var(--line-2);
+  flex: none;
+}
+
+/* ── strips & footers ──────────────────────────────────────────────────── */
+.strip {
+  flex: none;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+.stripLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 18px;
+  padding: 0 8px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 22px;
+  padding: 0 8px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-2);
+  font-size: 9.5px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.footLabel {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* ── flow tiles ────────────────────────────────────────────────────────── */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border-top: 1px solid var(--line);
+}
+.tile {
+  display: grid;
+  grid-template-rows: 14px 16px 6px;
+  row-gap: 2px;
+  padding: 4px 6px 5px;
+  background: var(--bg-1);
+  min-width: 0;
+}
+.tile:hover {
+  background: var(--bg-2);
+}
+.tileTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* ── expandable detail ─────────────────────────────────────────────────── */
+.detail {
+  padding: 6px 10px 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  max-height: 168px;
+  overflow: auto;
+}
+.detailMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-bottom: 4px;
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--ink-3);
+  white-space: normal;
+}
+.chev {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--ink-4);
+  text-align: center;
+  transition: transform 120ms ease;
+}
+.chevOpen {
+  transform: rotate(90deg);
+  color: var(--amber);
+}
+
+/* new-arrival flash on the wire */
+@keyframes arrive {
+  from {
+    background: rgba(255, 162, 31, 0.16);
+  }
+  to {
+    background: transparent;
+  }
+}
+.arrive {
+  animation: arrive 2.4s ease-out;
+}
+
+/* ── empty state ───────────────────────────────────────────────────────── */
+.empty {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 14px 12px;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.emptyHead {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  text-transform: uppercase;
+}
+.sched {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 3px 12px;
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+}
+
+.docLink {
+  color: inherit;
+}
+.docLink:hover {
+  color: var(--amber-2);
+}
+
+/* scroll area + "+N more" cue */
+.scrollWrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cue {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 6px;
+  overflow: hidden;
+}
+.cueBtn {
+  height: 14px;
+  line-height: 12px;
+  padding: 0 6px;
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  cursor: pointer;
+}
+.cueBtn:hover {
+  color: var(--amber-2);
+  border-color: var(--ink-4);
+}
+
+/* blotter: two-line order rows */
+.order {
+  padding: 3px 8px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.order:hover {
+  background: var(--bg-2);
+}
+.orderMain {
+  display: grid;
+  align-items: center;
+  column-gap: 6px;
+  height: 20px;
+  min-width: 0;
+}
+.orderNote {
+  margin-left: 126px; /* aligns under the ticker column (74 + 6 + 40 + 6) */
+  height: 16px;
+  line-height: 16px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.orderSys {
+  color: var(--ink-3);
+}
+.sysTag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 3px;
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 8.5px;
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: 0.06em;
+  line-height: 12px;
+  color: var(--ink-3);
+  border: 1px solid var(--line-2);
+  vertical-align: 1px;
+}

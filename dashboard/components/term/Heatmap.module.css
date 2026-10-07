@@ -1,0 +1,349 @@
+/* HEAT — market-cap treemap by sector + equal-weight ETF strip. */
+
+.body {
+  container-type: inline-size;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+.mapOuter {
+  flex: 1;
+  min-height: 0;
+  padding: 5px 6px 0;
+  display: flex;
+}
+.map {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* sector block: header strip + tiles; 3px black gutters separate sectors */
+.block {
+  position: absolute;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--line-2);
+  overflow: hidden;
+}
+.bhead {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 15px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 3px 0 4px;
+  background: var(--bg-2);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.bname {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.bavg {
+  margin-left: auto;
+  white-space: nowrap;
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  letter-spacing: -0.02em;
+}
+
+.cell {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transition: filter 80ms ease-out;
+}
+.cell:hover,
+.cell:focus-visible,
+.etf:hover,
+.etf:focus-visible {
+  filter: brightness(1.2);
+  outline: 1px solid var(--ink);
+  outline-offset: -1px;
+  z-index: 1;
+}
+.lab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+}
+.labInline {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 4px;
+}
+.labInline .cp {
+  margin-top: 0;
+}
+.ct {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.cp {
+  margin-top: 1px;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  opacity: 0.94;
+}
+.cn {
+  margin-top: 3px;
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 10px;
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 92%;
+}
+/* held: blue inset outline (keyed in the legend) */
+.held {
+  box-shadow: inset 0 0 0 2px var(--blue), inset 0 0 0 3px rgba(0, 0, 0, 0.4);
+}
+
+/* equal-weight ETF strip */
+.etfs {
+  flex: none;
+  display: grid;
+  grid-template-columns: 30px repeat(5, minmax(0, 1fr)) 5px repeat(8, minmax(0, 1fr));
+  gap: 1px;
+  height: 26px;
+  margin: 4px 6px 0;
+  background: var(--bg);
+}
+.etfLabel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-2);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  color: var(--ink-2);
+}
+.etf {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.etf .ct {
+  font-size: 10px;
+}
+.etf .cp {
+  font-size: 10px;
+  margin-top: 1px;
+  letter-spacing: -0.03em;
+}
+
+/* tooltip */
+.tip {
+  position: absolute;
+  z-index: 10;
+  width: 220px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-2);
+  border-top: 1px solid var(--amber);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.75);
+  padding: 6px 8px 7px;
+  pointer-events: none;
+  font-size: 10.5px;
+}
+.tipHead {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.tipName {
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.tipSub {
+  font-size: 9.5px;
+  color: var(--ink-3);
+  margin: 1px 0 5px;
+}
+.tipGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--line);
+  padding-top: 4px;
+}
+.tipK {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+.tipV {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+.tipK[data-on="true"] {
+  color: var(--amber);
+}
+
+/* legend */
+.legend {
+  flex: none;
+  height: 21px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px;
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.scale {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--ink-2);
+}
+.sw {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.swc {
+  width: 10px;
+  height: 8px;
+}
+.key {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-2);
+}
+.keyHeld {
+  width: 11px;
+  height: 8px;
+  box-shadow: inset 0 0 0 2px var(--blue);
+  background: var(--bg-3);
+}
+.stat {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+}
+.right {
+  margin-left: auto;
+}
+
+/* narrower panels: keep the scale's ends and zero, drop the middle labels */
+@container (max-width: 540px) {
+  .swMid > span:last-child {
+    display: none;
+  }
+  .legend {
+    gap: 9px;
+  }
+}
+
+.tipList {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 12px;
+  row-gap: 1px;
+  border-top: 1px solid var(--line);
+  padding-top: 4px;
+}
+.tipRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px;
+  font-size: 10.5px;
+  align-items: baseline;
+}
+.tipCap {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 9.5px;
+  color: var(--ink-3);
+}
+
+/* narrow strip: the "%" goes (the legend says %), the label column goes */
+@container (max-width: 540px) {
+  .pctSign,
+  .etfLabel {
+    display: none;
+  }
+  .etfs {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) 4px repeat(8, minmax(0, 1fr));
+  }
+}
+
+/* aggregates ("N others", sector remainders): neutral, outlined, not a ticker */
+.agg {
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  cursor: default;
+  gap: 1px;
+  line-height: 1.1;
+}
+.aggLab {
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.aggChg {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--ink-2);
+}
+.agg:hover,
+.agg:focus-visible {
+  outline: 1px solid var(--ink-3);
+  outline-offset: -1px;
+  filter: none;
+}
+.keyAgg {
+  width: 11px;
+  height: 8px;
+  background: #12161c;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.swZero {
+  box-shadow: inset 0 0 0 1px var(--ink-4);
+}
+.etfSep {
+  background: var(--bg-1);
+}

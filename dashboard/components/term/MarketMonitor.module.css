@@ -1,0 +1,538 @@
+/* WEI — cross-asset monitor. Every table shares one grid so the column
+   header, group headers and rows are pixel-aligned. */
+
+.shell {
+  container-type: inline-size;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.wrap {
+  container-type: inline-size;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  position: relative;
+  --cols: 34px minmax(0, 1fr) 52px 50px 46px 46px 46px 50px 38px;
+}
+.fixed {
+  overflow: hidden;
+}
+
+/* ── shared cells ───────────────────────────────────────────────────── */
+.grid {
+  display: grid;
+  grid-template-columns: var(--cols);
+  column-gap: 4px;
+  align-items: center;
+  padding: 0 8px;
+}
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 18px;
+  flex: none;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line);
+}
+.hcell {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  text-align: right;
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  padding: 0 4px 0 0;
+  font-family: inherit;
+  line-height: 18px;
+  overflow: hidden;
+}
+button.hcell {
+  cursor: pointer;
+}
+button.hcell:hover {
+  color: var(--ink);
+}
+.hcell[aria-pressed="true"] {
+  color: var(--amber);
+  box-shadow: inset 0 -2px 0 var(--amber);
+}
+.hcenter {
+  text-align: center;
+  padding: 0;
+}
+
+.groupLabel {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--amber);
+  white-space: nowrap;
+}
+.groupRule {
+  flex: 1;
+  height: 1px;
+  background: var(--line-2);
+  min-width: 8px;
+}
+
+.row {
+  flex: none;
+  height: 17px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  position: relative;
+  width: 100%;
+  background: none;
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.row:hover {
+  background: var(--bg-2);
+}
+.row:hover .tkr,
+.row:hover .blabel,
+.row:hover .mlabel {
+  color: var(--amber-2);
+}
+.row:focus-visible {
+  outline: 1px solid var(--amber);
+  outline-offset: -1px;
+}
+
+.sec {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.tkr {
+  font-family: var(--font-plex-mono), monospace;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.held {
+  color: var(--blue);
+}
+.name {
+  font-size: 10.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.mlabel {
+  font-size: 11px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spark {
+  display: flex;
+  justify-content: center;
+}
+.num {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+  padding-right: 4px;
+}
+.chg {
+  font-size: 10.5px;
+}
+/* the selected horizon renders as a filled heat cell */
+.hot {
+  height: 14px;
+  line-height: 14px;
+  font-weight: 500;
+}
+.rng {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* percentile-of-range glyph: neutral tick + number */
+.pctile {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.pnum {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 9.5px;
+  color: var(--ink-2);
+  width: 17px;
+  text-align: right;
+}
+
+/* group header (tables) — label + hairline, avg under the filled column */
+.group {
+  position: relative;
+  height: 15px;
+  flex: none;
+  margin-top: 1px;
+}
+.group::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  height: 1px;
+  background: var(--line-2);
+}
+.groupHead {
+  width: max-content;
+  justify-self: start;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding-right: 6px;
+  background: var(--bg-1);
+  position: relative;
+}
+.groupAvg {
+  position: relative;
+  justify-self: end;
+  background: var(--bg-1);
+  padding: 0 4px 0 5px;
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+
+/* ── board (MKTS) ───────────────────────────────────────────────────── */
+.board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 0;
+}
+.bcol {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0 7px;
+}
+.bcol + .bcol {
+  border-left: 1px solid var(--line);
+}
+.bcol .head {
+  margin: 0 -8px;
+  padding: 0 8px;
+}
+.bgrid {
+  display: grid;
+  grid-template-columns: 27px minmax(0, 1fr) 52px 44px 46px;
+  column-gap: 4px;
+  align-items: center;
+}
+.brow {
+  height: 16px;
+  padding: 0;
+}
+.bgroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 15px;
+  flex: none;
+  margin-top: 1px;
+}
+.etfTag {
+  flex: none;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  border: 1px solid var(--line-2);
+  padding: 0 3px;
+  line-height: 12px;
+}
+.legendKey {
+  font-family: var(--font-plex-mono), monospace;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.pct {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 9.5px;
+  color: var(--ink-2);
+  text-align: right;
+}
+
+/* ── yield curve (RATES) ────────────────────────────────────────────── */
+.curve {
+  flex: none;
+  padding: 4px 8px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.axis {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 9px;
+  fill: var(--ink-3);
+}
+.ylab {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 9.5px;
+  fill: var(--ink-2);
+}
+
+/* ── legend ─────────────────────────────────────────────────────────── */
+.legend {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 1px 8px 2px;
+  border-top: 1px solid var(--line);
+  font-size: 10px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 15px;
+}
+.ntrlKey {
+  color: var(--ink);
+  background: #4a5462;
+  padding: 0 2px;
+  font-size: 9px;
+}
+.asof {
+  margin-left: auto;
+}
+.heldKey {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background: var(--blue);
+  margin-right: 3px;
+  vertical-align: 0;
+}
+
+/* ── hover card ─────────────────────────────────────────────────────── */
+.card {
+  position: absolute;
+  z-index: 5;
+  width: 236px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-2);
+  border-top: 1px solid var(--amber);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.75);
+  padding: 6px 8px 7px;
+  pointer-events: none;
+  font-size: 10.5px;
+}
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 5px;
+  min-width: 0;
+}
+.cardGrid {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr;
+  column-gap: 8px;
+  row-gap: 2px;
+}
+.k {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  line-height: 14px;
+}
+.v {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  text-align: right;
+  line-height: 14px;
+}
+
+/* Narrower containers (1100–1440px viewports) shed columns, least
+   important first: the "tracks" name, then 5D. Container queries style
+   descendants only, so the overrides target .grid / .bgrid. Hidden cells
+   keep their grid slot (display:none would shift columns). */
+@container (max-width: 440px) {
+  .grid {
+    --cols: 34px 0px 50px minmax(46px, 1fr) repeat(3, minmax(44px, 1fr)) minmax(48px, 1fr) 30px;
+  }
+  .bgrid {
+    grid-template-columns: 30px 0px 52px minmax(42px, 1fr) 46px;
+    column-gap: 3px;
+  }
+  .bname,
+  .name {
+    visibility: hidden;
+  }
+}
+@container (max-width: 390px) {
+  .grid {
+    --cols: 34px 0px 50px minmax(46px, 1fr) repeat(2, minmax(44px, 1fr)) minmax(48px, 1fr) 30px;
+  }
+  .c5d {
+    display: none;
+  }
+}
+@container (min-width: 640px) {
+  .grid {
+    --cols: 44px minmax(100px, 1.4fr) repeat(6, minmax(0, 1fr)) 48px;
+  }
+}
+
+.glyph {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+.glyphLab {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 8px;
+  color: var(--ink-3);
+}
+/* board label cells */
+.btkr {
+  font-family: var(--font-plex-mono), monospace;
+  font-weight: 600;
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+.bmacro {
+  font-size: 11px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.row:hover .btkr,
+.row:hover .bmacro {
+  color: var(--amber-2);
+}
+/* SPOT: the underlying's real level; dim description when none */
+.spot {
+  padding-top: 1px;
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 9.5px;
+  letter-spacing: -0.02em;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+}
+.noSpot {
+  padding-top: 1px;
+  font-size: 9.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.lag {
+  margin-left: 2px;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 7.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--ink-3);
+  vertical-align: 1px;
+}
+.cardSpot {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 0 4px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 10.5px;
+  min-width: 0;
+}
+.cardNote {
+  font-size: 9.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* round 5 */
+.bname {
+  font-size: 10px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+}
+.stale {
+  color: var(--ink-3);
+}
+.noSpot {
+  text-align: right;
+  padding-right: 6px;
+  color: var(--ink-4);
+}
+.spot {
+  text-align: right;
+}
+.ring {
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.wide2 {
+  display: none;
+}
+.cardSpark {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 2px 0 5px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+@container (min-width: 600px) {
+  .bgrid {
+    grid-template-columns: 30px minmax(0, 1.2fr) 60px 54px 54px 54px;
+  }
+  .wide2 {
+    display: block;
+  }
+}
+.gl {
+  font-size: 0.72em;
+  margin-right: 1px;
+  vertical-align: 1px;
+}

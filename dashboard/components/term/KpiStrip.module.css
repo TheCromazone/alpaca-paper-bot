@@ -1,0 +1,288 @@
+/* KPI strip — one hairline-gridded row, exactly 92px tall (the Launchpad's
+   first-viewport math depends on it). Three primary tiles are exactly 1.5×
+   the eight secondary ones. Tile anatomy, top to bottom:
+     label · window tag (the window of the headline value)
+     value
+     one plain-language fact
+     band: caption row (what the chart is · its reference) + 16px chart,
+           or a second figure where a chart would say nothing. */
+.strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1.4fr)) repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  height: 92px;
+  background: var(--line);
+  border: 1px solid var(--line);
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 90px;
+  padding: 5px 8px 5px;
+  container-type: inline-size;
+  background: var(--bg-1);
+  color: inherit;
+}
+a.tile:hover {
+  background: var(--bg-2);
+}
+a.tile:hover .label {
+  color: var(--amber-2);
+}
+/* the primary group ends with a stronger rule */
+.groupEnd {
+  box-shadow: 1px 0 0 var(--line-2);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  height: 12px;
+  min-width: 0;
+}
+.label {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amber);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.01em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.tagDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 20px;
+  height: 20px;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.primary .value {
+  font-size: 26px;
+  line-height: 24px;
+  height: 24px;
+  margin-top: 2px;
+  letter-spacing: -0.03em;
+}
+.primary .sub {
+  margin-top: 0;
+}
+.unit {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-left: 2px;
+  letter-spacing: 0;
+}
+/* state marker: filled for a status that needs attention, ring for normal */
+.state {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.ring {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  border: 1.5px solid var(--ink-2);
+}
+
+/* one plain-language fact (two on primary tiles) */
+.sub {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  height: 14px;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: 10.5px;
+  color: var(--ink-2);
+}
+.kv {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+.v {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+/* band: caption row + chart / second figure */
+.band {
+  margin-top: auto;
+  height: 28px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+  padding-top: 2px;
+}
+.cap {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  height: 12px;
+  line-height: 12px;
+  font-size: 10px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.cap > span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  min-width: 0;
+}
+.cv {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  font-size: 10px;
+}
+.sw {
+  display: inline-block;
+  width: 8px;
+  height: 2px;
+  align-self: center;
+}
+.chart {
+  position: relative;
+  height: 12px;
+  margin-top: 1px;
+}
+.fig {
+  height: 12px;
+  margin-top: 1px;
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  line-height: 12px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* compact status chip (uses the global .pill palettes) */
+.chip {
+  height: 14px !important;
+  padding: 0 4px !important;
+  font-size: 8.5px !important;
+  letter-spacing: 0.05em !important;
+  gap: 3px !important;
+}
+/* regime chip in the value row */
+.regimeChip {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  border: 1px solid;
+}
+.dim .value,
+.dim .value * {
+  color: var(--ink-3) !important;
+}
+
+.opt {
+  /* optional fact, dropped on narrow tiles */
+}
+
+.skel {
+  display: inline-block;
+  height: 15px;
+  width: 64%;
+  vertical-align: middle;
+}
+
+@container (max-width: 140px) {
+  .opt {
+    display: none;
+  }
+}
+/* narrow primary tiles keep the chart's own caption, drop the extreme */
+@container (max-width: 150px) {
+  .primary .cap > span:nth-child(2) {
+    display: none;
+  }
+}
+/* narrow primaries: smaller headline, terse chips */
+@container (max-width: 160px) {
+  .primary .value {
+    font-size: 22px;
+  }
+  .long {
+    display: none;
+  }
+}
+/* narrow tiles (≈1100–1380px viewports): label, value, first fact, chart */
+@container (max-width: 100px) {
+  .tag {
+    display: none;
+  }
+  .sub > :nth-child(n + 2) {
+    display: none;
+  }
+  .sub,
+  .v {
+    font-size: 9.5px;
+  }
+  .kv {
+    gap: 3px;
+  }
+  .cap > span:nth-child(2) {
+    display: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .strip {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    height: auto;
+  }
+  .groupEnd {
+    box-shadow: none;
+  }
+}

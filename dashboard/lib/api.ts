@@ -199,6 +199,11 @@ export type JobRow = {
 
 export type TapeRow = { s: string; p: number; c: number };
 export type BotStatus = {
+  /** Shared "is the automation running?" answer: routines enabled AND the
+   *  newest LLM routine < 84h old. Use these instead of re-deriving. */
+  routines_enabled?: boolean;
+  stale?: boolean;
+  active?: boolean;
   last_tick_at: string | null;
   last_tick_status: string | null;
   last_tick_kind: string | null;
@@ -412,4 +417,293 @@ export const api = {
     ),
   manualTrade: (req: ManualTradeRequest) =>
     post<ManualTradeResult>("/trade/manual", req),
+};
+
+// ------ Terminal read models (api/terminal.py) ------
+
+export type QuoteRow = {
+  ticker: string;
+  name: string;
+  sector: string;
+  held: boolean;
+  as_of: string;
+  last: number | null;
+  prev: number | null;
+  chg_1d: number | null;
+  chg_5d: number | null;
+  chg_1m: number | null;
+  chg_3m: number | null;
+  chg_ytd: number | null;
+  chg_1y: number | null;
+  hi_52w: number | null;
+  lo_52w: number | null;
+  pos_52w: number | null;
+  vol_20d: number | null;
+  /** Latest session volume, its prior 20-day average, and the ratio (IEX
+   *  feed in production — compare only within the same ticker). */
+  volume?: number | null;
+  avg_volume_20d?: number | null;
+  rel_volume?: number | null;
+  /** Monitor group: Equity | Sectors | Global | Rates | Credit | FX | Commodities | Crypto. */
+  group?: string;
+  spark: (number | null)[];
+};
+
+/** One FRED macro series (yields/spreads in percent; deltas in percentage
+ *  points → ×100 for bp; "idx" series' deltas are fractional changes). */
+export type MacroRow = {
+  series_id: string;
+  group: "Treasury curve" | "Spreads" | "Funding" | "Dollar & oil" | "Volatility" | string;
+  label: string;
+  unit: "pct" | "idx";
+  as_of: string;
+  last: number | null;
+  chg_1d: number | null;
+  chg_5d: number | null;
+  chg_1m: number | null;
+  spark: (number | null)[];
+};
+
+export type MonitorResp = {
+  rows: QuoteRow[];
+  macro?: MacroRow[];
+  groups?: string[];
+  vix: {
+    ticker: "VIX";
+    name: string;
+    last: number | null;
+    chg_5d_abs: number | null;
+    spark: (number | null)[];
+    as_of: string | null;
+  } | null;
+};
+
+export type HeatCell = {
+  ticker: string;
+  sector: string;
+  last: number | null;
+  chg_1d: number | null;
+  chg_5d: number | null;
+  chg_1m: number | null;
+  held: boolean;
+  weight: number | null;
+  name?: string;
+  /** GICS-style sector from the company profile (e.g. "Communication Services",
+   *  "Consumer Cyclical"); null for ETFs or before the profile job ran. */
+  gics?: string | null;
+  /** Market cap (ETFs: AUM) in USD for area-weighted tiles; null if unknown. */
+  mcap?: number | null;
+};
+
+export type HeatmapResp = {
+  as_of: string | null;
+  cells: HeatCell[];
+  sectors: { sector: string; avg_1d: number | null; count: number }[];
+  advancers: number;
+  decliners: number;
+  /** Names inside ±unchanged_band (0.0005 = ±0.05%) — the shared breadth definition. */
+  unchanged?: number;
+  unchanged_band?: number;
+};
+
+export type UniverseRow = {
+  ticker: string;
+  name: string;
+  sector: string;
+  held: boolean;
+  kind: "equity" | "etf" | "bond_etf";
+};
+
+export type SecurityResp = {
+  ticker: string;
+  name: string;
+  sector: string;
+  in_universe: boolean;
+  quote: QuoteRow | null;
+  /** Daily bars; o/h/l/v are null for rows written before OHLCV capture. */
+  series: { d: string; c: number; o?: number | null; h?: number | null; l?: number | null; v?: number | null }[];
+  spy_series: { d: string; c: number }[];
+  stats: {
+    vol_20d: number | null;
+    vol_60d: number | null;
+    beta_1y: number | null;
+    corr_1y: number | null;
+    max_dd_1y: number | null;
+    drawdown: number | null;
+    rsi_14: number | null;
+    sma_20: number | null;
+    sma_50: number | null;
+    sma_200: number | null;
+    rel_spy_3m: number | null;
+  };
+  position: {
+    qty: number;
+    avg_cost: number;
+    market_price: number;
+    market_value: number;
+    unrealized_pnl: number;
+    unrealized_pct: number | null;
+    weight: number | null;
+    peak_price: number;
+    trail_pct: number;
+    stop_price: number;
+    stop_distance: number | null;
+    midday_cut_price: number;
+    midday_cut_distance: number | null;
+    broker_stop: boolean;
+    opened_at: string | null;
+    updated_at: string | null;
+  } | null;
+  profile: {
+    name: string | null;
+    sector: string | null;
+    industry: string | null;
+    description: string | null;
+    website: string | null;
+    exchange: string | null;
+    country: string | null;
+    market_cap: number | null;
+    employees: number | null;
+  } | null;
+  decisions: { id: number; at: string; action: string; reason: string; dry_run: boolean; trade_id: number | null }[];
+  trades: {
+    id: number;
+    side: "buy" | "sell";
+    qty: number;
+    price: number;
+    notional: number;
+    status: string;
+    dry_run: boolean;
+    submitted_at: string;
+    filled_at: string | null;
+  }[];
+  news: { id: number; title: string; url: string; source: string; published_at: string; vader_score: number | null; tickers: string[] }[];
+  signals: {
+    id: number; kind: string; source: string; direction: "buy" | "sell"; amount: number | null; as_of: string; chamber: string | null;
+    /** 13F only: holdings quarter-end, filing date, and the position change verb. */
+    period?: string | null; filed?: string | null; change?: "new" | "add" | "trim" | "exit" | string | null;
+  }[];
+  earnings: {
+    next: { report_date: string; time_of_day: string | null; eps_estimate: number | null } | null;
+    history: { quarter: string; eps_actual: number | null; eps_estimate: number | null; surprise_pct: number | null }[];
+  };
+};
+
+export type RiskGuard = {
+  ticker: string;
+  price: number;
+  avg_cost: number;
+  pnl_pct: number | null;
+  stop_price: number;
+  stop_distance: number | null;
+  cut_price: number;
+  cut_distance: number | null;
+  trail_pct: number;
+  broker_stop: boolean;
+  earnings_at: string | null;
+  earnings_in_days: number | null;
+};
+
+export type RiskResp = {
+  as_of: string;
+  equity: number | null;
+  cash: number | null;
+  cash_pct: number | null;
+  observations: number;
+  ann_return: number | null;
+  ann_vol: number | null;
+  sharpe: number | null;
+  sortino: number | null;
+  max_drawdown: number | null;
+  drawdown: number | null;
+  beta: number | null;
+  corr: number | null;
+  spy_ann_vol: number | null;
+  best_day: number | null;
+  worst_day: number | null;
+  up_days_pct: number | null;
+  positions: number;
+  max_positions: number;
+  top5_weight: number | null;
+  hhi: number | null;
+  effective_n: number | null;
+  weights: { ticker: string; sector: string; weight: number; market_value: number }[];
+  sector_load: { sector: string; weight: number; cap: number; over: boolean }[];
+  guards: RiskGuard[];
+  curve: { d: string; equity: number; bot_pct: number | null; spy_pct: number | null; dd: number | null }[];
+};
+
+export type BriefItem = {
+  kind: "perf" | "risk" | "catalyst" | "macro" | "flow" | "bot";
+  tone: "up" | "down" | "warn" | "info";
+  text: string;
+  ticker: string | null;
+  /** 0 info · 1 watch · 2 act · 3 breach. Items arrive sorted by kind, then severity. */
+  severity?: number;
+  /** Risk items: the numbers behind the sentence, for tabular rendering. */
+  metrics?: {
+    last?: number | null;
+    cut_price?: number | null;
+    cut_distance?: number | null;
+    stop_price?: number | null;
+    stop_distance?: number | null;
+    trail_pct?: number | null;
+    pnl_pct?: number | null;
+    action?: string;
+    weight?: number | null;
+    market_value?: number | null;
+    pnl_usd?: number | null;
+    /** $ already through the tightest breached guard (value × depth); 0 if none. */
+    usd_beyond?: number | null;
+  } | null;
+};
+
+export type BriefResp = {
+  as_of: string;
+  headline: string;
+  /** Book session return minus SPY's (fraction). */
+  rel_spy_1d?: number | null;
+  counts?: { breach: number; act: number; watch: number; info: number };
+  /** Shared automation state (same rule as /bot/status). */
+  bot?: { routines_enabled: boolean; stale: boolean; active: boolean; last_run_at: string | null };
+  items: BriefItem[];
+};
+
+export type TickerNews = {
+  ticker: string;
+  source: string;
+  items: { title: string; url: string; source: string; published_at: string | null; summary: string; vader_score?: number }[];
+};
+
+export type WireEvent = {
+  at: string | null;
+  type: "order" | "routine" | "job" | "politician" | "investor" | "news" | string;
+  tone: "up" | "down" | "warn" | "info";
+  ticker: string | null;
+  text: string;
+  detail: string | null;
+  url?: string;
+  /** News events: headline VADER score and all tagged tickers. */
+  vader_score?: number | null;
+  tickers?: string[];
+  /** 13F events: new | add | trim | exit. PTR events: transaction date. */
+  change?: string | null;
+  traded_on?: string | null;
+};
+
+export const term = {
+  universe: () => get<UniverseRow[]>("/terminal/universe"),
+  monitor: (tickers?: string[]) =>
+    get<MonitorResp>(`/terminal/monitor${tickers?.length ? `?tickers=${tickers.join(",")}` : ""}`),
+  heatmap: () => get<HeatmapResp>("/terminal/heatmap"),
+  security: (ticker: string, days = 730) =>
+    get<SecurityResp>(`/terminal/security/${encodeURIComponent(ticker)}?days=${days}`),
+  risk: () => get<RiskResp>("/terminal/risk"),
+  brief: () => get<BriefResp>("/terminal/brief"),
+  wire: (limit = 80) => get<WireEvent[]>(`/terminal/wire?limit=${limit}`),
+  regimeHistory: (days = 400) =>
+    get<{ d: string; label: string | null; vix: number | null; spy_trend: number | null; breadth_pct: number | null }[]>(
+      `/terminal/regime/history?days=${days}`,
+    ),
+  securityNews: (ticker: string) => get<TickerNews>(`/terminal/security/${encodeURIComponent(ticker)}/news`),
 };
