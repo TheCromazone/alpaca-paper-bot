@@ -46,12 +46,22 @@ from bot.alpaca_client import AlpacaClient
 
 _alpaca_singleton: AlpacaClient | None = None
 
+# Dev checkouts run with placeholder keys (`.env` → ALPACA_API_KEY=dev-placeholder,
+# or the .env.example value). There's no point paying a doomed auth round-trip —
+# or a 30s timeout if the network is down — on every dashboard poll, so the
+# live-first endpoints go straight to their DB fallback. Real keys never match.
+_PLACEHOLDER_KEY_PREFIXES = ("dev-placeholder", "your_alpaca")
+
 
 def _alpaca() -> AlpacaClient:
     """One-shot Alpaca client per FastAPI worker. Cheap to construct but
     we still cache it so we don't pay TCP/TLS handshake cost on every
-    `/positions` poll (10s cadence)."""
+    `/positions` poll (10s cadence). Raises on placeholder credentials;
+    every caller already treats an exception as "use the DB fallback"."""
     global _alpaca_singleton
+    key = settings.alpaca_api_key.strip().lower()
+    if not key or key.startswith(_PLACEHOLDER_KEY_PREFIXES):
+        raise RuntimeError("Alpaca credentials are dev placeholders; serving DB fallback")
     if _alpaca_singleton is None:
         _alpaca_singleton = AlpacaClient()
     return _alpaca_singleton
@@ -269,7 +279,10 @@ def positions() -> list[dict]:
     ticker so the dashboard can show "why do we own this?" inline.
     Falls back to the local Position table only if Alpaca is unreachable.
     """
-    from bot.config import SECTOR_MAP, TRAILING_STOP_PCT
+    # LLM-era stop math: each position trails by its own ``trail_pct`` (set
+    # when midday tightens a winner) or the default 10% — not the retired
+    # quant strategy's 7% ``TRAILING_STOP_PCT``.
+    from bot.config import LLM_TRAILING_STOP_PCT, SECTOR_MAP
 
     try:
         live = _alpaca().positions()
@@ -315,7 +328,8 @@ def positions() -> list[dict]:
         for p in sorted(live, key=lambda x: -x.market_value):
             local = local_pos.get(p.symbol)
             peak = (local.peak_price if local else None) or p.market_price
-            stop_price = peak * (1 - TRAILING_STOP_PCT) if peak else 0
+            trail = (local.trail_pct if local else None) or LLM_TRAILING_STOP_PCT
+            stop_price = peak * (1 - trail) if peak else 0
             d = latest_buys.get(p.symbol)
             t = latest_trades.get(p.symbol)
             # Resolve thesis: prefer the structured Decision row; fall back
@@ -359,7 +373,7 @@ def positions() -> list[dict]:
             rows = s.scalars(select(Position).order_by(desc(Position.market_value))).all()
             out = []
             for p in rows:
-                stop_price = p.peak_price * (1 - TRAILING_STOP_PCT) if p.peak_price else 0
+                stop_price = p.peak_price * (1 - (p.trail_pct or LLM_TRAILING_STOP_PCT)) if p.peak_price else 0
                 d = s.scalars(
                     select(Decision)
                     .where(Decision.ticker == p.ticker)
@@ -563,7 +577,12 @@ def regime_today() -> dict:
 def earnings_upcoming(days: int = Query(14, ge=1, le=60)) -> list[dict]:
     """Next N days of earnings reports for universe tickers, plus the
     last-4-quarter surprise % per ticker."""
-    today = datetime.now(timezone.utc)
+    # Calendar rows are stamped 00:00 UTC of the report date, so compare
+    # against the start of today (ET date) — `>= now` hid same-day reporters
+    # for the whole session they report in.
+    from zoneinfo import ZoneInfo
+    et_today = datetime.now(ZoneInfo("America/New_York")).date()
+    today = datetime(et_today.year, et_today.month, et_today.day)
     cutoff = today + timedelta(days=days)
     with SessionLocal() as s:
         rows = s.scalars(
@@ -572,6 +591,9 @@ def earnings_upcoming(days: int = Query(14, ge=1, le=60)) -> list[dict]:
             .where(EarningsCalendar.report_date <= cutoff)
             .order_by(EarningsCalendar.report_date.asc())
         ).all()
+        # One row per ticker (earliest) — older refreshes left duplicates.
+        seen: set[str] = set()
+        rows = [r for r in rows if not (r.ticker in seen or seen.add(r.ticker))]
         out = []
         for r in rows:
             history = s.scalars(
@@ -918,7 +940,16 @@ def bot_status() -> dict:
         last_tick_status = None
         last_tick_kind = None
 
+    # One answer to "is the automation running?" for every dashboard surface:
+    # routines must be enabled and the newest LLM routine younger than ~3.5
+    # days (a weekend + holiday). Mirrors api.terminal.BOT_STALE.
+    stale = last_llm is None or (
+        datetime.now(timezone.utc) - (last_llm.started_at if last_llm.started_at.tzinfo else last_llm.started_at.replace(tzinfo=timezone.utc))
+    ) > timedelta(hours=84)
     return {
+        "routines_enabled": bool(settings.llm_routines_enabled),
+        "stale": stale,
+        "active": bool(settings.llm_routines_enabled) and not stale,
         "last_tick_at": last_tick_at,
         "last_tick_status": last_tick_status,
         "last_tick_kind": last_tick_kind,
@@ -1174,3 +1205,11 @@ def trade_manual(req: ManualTradeRequest) -> dict:
         from loguru import logger as _logger
         _logger.exception("manual_trade failed: {}", exc)
         raise HTTPException(status_code=500, detail=f"internal error: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Terminal read models (Bloomberg-style launchpad) — see api/terminal.py.
+# ---------------------------------------------------------------------------
+from api.terminal import router as _terminal_router  # noqa: E402
+
+app.include_router(_terminal_router)
