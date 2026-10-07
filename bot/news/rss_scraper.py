@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Iterable
 
 import feedparser
+import requests
 from loguru import logger
 from sqlalchemy import select
 
@@ -45,20 +46,34 @@ def _parse_published(entry) -> datetime:
     return datetime.now(timezone.utc)
 
 
+FEED_TIMEOUT_S = 20
+
+
 def _fetch_one_feed(url: str, source: str):
     """Pull one feed with up to 3 attempts on transient failure (DNS / 429 /
     socket timeout). Off-hours scrapers used to drop ~5 jobs/14d on flaky
-    feeds; retrying inline keeps the batch healthy."""
+    feeds; retrying inline keeps the batch healthy.
+
+    The HTTP fetch goes through requests with a timeout: feedparser's own
+    fetcher (urllib) has none, so one stalled feed server could block the
+    research job forever — and with max_instances=1 every later run is then
+    skipped, freezing the news the LLM routines read."""
     last_exc: Exception | None = None
     for attempt in range(3):
         try:
-            parsed = feedparser.parse(url, request_headers={"User-Agent": "Mozilla/5.0"})
-            # feedparser swallows HTTP errors into ``parsed.bozo`` / ``status``
-            # rather than raising. Treat 5xx + network exceptions as retryable.
-            status = getattr(parsed, "status", 200)
-            if status and 500 <= status < 600:
-                raise RuntimeError(f"HTTP {status} from {source}")
-            return parsed
+            resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"},
+                                timeout=FEED_TIMEOUT_S)
+            # Treat 5xx + network exceptions as retryable; other non-200s
+            # parse to an empty feed, as feedparser's own fetcher did.
+            if 500 <= resp.status_code < 600:
+                raise RuntimeError(f"HTTP {resp.status_code} from {source}")
+            # feedparser only reads lowercase header keys; servers send
+            # "Content-Type", which it then ignored (feed flagged bozo, charset
+            # dropped). content-location keeps relative-link resolution
+            # working as it did when feedparser fetched the URL itself.
+            headers = {k.lower(): v for k, v in resp.headers.items()}
+            headers.setdefault("content-location", resp.url or url)
+            return feedparser.parse(resp.content, response_headers=headers)
         except Exception as exc:
             last_exc = exc
             if attempt < 2:

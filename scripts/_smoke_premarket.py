@@ -13,8 +13,13 @@ os.environ["DRY_RUN"] = "true"  # belt-and-braces; premarket has no buy/sell too
 
 from sqlalchemy import desc, select
 
+from bot.config import settings
 from bot.routines import premarket
 from bot.db import LLMRun, SessionLocal
+
+# bot.config loads .env with override=True, which clobbers the DRY_RUN env
+# var above with whatever .env says. Force it on the live settings object.
+settings.dry_run = True
 
 
 def main() -> int:

@@ -142,25 +142,6 @@ def run_routine(routine: str) -> int:
         s.flush()
         run_id = row.id
 
-    # --- Build system + first user message ---
-    system = prompts.build_system_messages(budget_remaining, provider=provider)
-    user_prompt = prompts.user_prompt_for(routine)
-    messages: list[dict] = [{"role": "user", "content": user_prompt}]
-
-    local_tools = tools.tools_for_routine(routine)
-    # Codex/Plus OAuth path has no server-side web_search tool; surface that
-    # difference to the model via the prompt (handled in prompts.py) rather
-    # than wiring the SDK to a no-op.
-    enable_web_search = (
-        provider == "anthropic" and routine in {"premarket", "weekly_review"}
-    )
-
-    if provider == "codex_oauth":
-        from bot.llm.openai_client import CodexClient  # local import — keeps anthropic-only deploys lighter
-        client: Any = CodexClient(model=active_model)
-    else:
-        client = AnthropicClient(model=active_model)
-
     # Accumulators persisted to the row at the end.
     usage = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0, "web_search": 0}
     tool_trace: list[dict] = []
@@ -173,6 +154,29 @@ def run_routine(routine: str) -> int:
     iter_cap = LLM_PREMARKET_MAX_ITERATIONS if routine == "premarket" else LLM_MAX_TOOL_ITERATIONS
 
     try:
+        # Setup lives inside the try: a failure here — codex_auth import or
+        # OAuth token refresh, client construction, the regime DB read in the
+        # prompt prelude — used to escape run_routine and leave this LLMRun
+        # row at status='running' forever with no error recorded.
+        # --- Build system + first user message ---
+        system = prompts.build_system_messages(budget_remaining, provider=provider)
+        user_prompt = prompts.user_prompt_for(routine)
+        messages: list[dict] = [{"role": "user", "content": user_prompt}]
+
+        local_tools = tools.tools_for_routine(routine)
+        # Codex/Plus OAuth path has no server-side web_search tool; surface that
+        # difference to the model via the prompt (handled in prompts.py) rather
+        # than wiring the SDK to a no-op.
+        enable_web_search = (
+            provider == "anthropic" and routine in {"premarket", "weekly_review"}
+        )
+
+        if provider == "codex_oauth":
+            from bot.llm.openai_client import CodexClient  # local import — keeps anthropic-only deploys lighter
+            client: Any = CodexClient(model=active_model)
+        else:
+            client = AnthropicClient(model=active_model)
+
         for step in range(iter_cap):
             # Throttle: slow back-to-back turns so we don't burst past the
             # org's per-minute input-token limit. Skip the first turn.
@@ -250,6 +254,11 @@ def run_routine(routine: str) -> int:
             for tu in tool_uses:
                 tname = tu.get("name")
                 targs = tu.get("input") or {}
+                if not isinstance(targs, dict):
+                    # Malformed arguments (e.g. Codex emitting a JSON list)
+                    # would crash _args_summary in the finally below and kill
+                    # the whole routine; an empty dict gets a clean ToolError.
+                    targs = {}
                 t0 = time.monotonic()
                 ok = True
                 try:
@@ -310,6 +319,15 @@ def run_routine(routine: str) -> int:
         logger.exception("run_routine({}) crashed: {}", routine, exc)
         status = "failed"
         error_msg = repr(exc)
+
+    if status == "ok" and not tool_trace and not final_text:
+        # No tool call and no text at all is never a real routine (each one
+        # starts by reading memory). It's what a broken backend looks like —
+        # e.g. a Codex stream that ends without output — and it used to be
+        # persisted as a clean status='ok' run.
+        status = "failed"
+        error_msg = "model returned an empty response (no text, no tool calls)"
+        logger.warning("run_routine({}): {}", routine, error_msg)
 
     # Final cost computation (provider-aware; codex_oauth returns 0.0).
     usd_cost = _compute_cost(provider, usage)

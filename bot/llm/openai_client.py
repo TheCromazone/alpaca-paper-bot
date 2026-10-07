@@ -248,13 +248,30 @@ class CodexClient:
         # items off the stream and grab usage from ``response.completed``.
         output_items: list[Any] = []
         final_resp: Any = None
+        failure: str | None = None
         stream = self.client.responses.create(**kwargs, stream=True)
         for ev in stream:
             etype = getattr(ev, "type", "")
             if etype == "response.output_item.done":
                 output_items.append(ev.item)
-            elif etype == "response.completed":
+            elif etype in ("response.completed", "response.incomplete"):
+                # incomplete = truncated but usable; keep what arrived.
                 final_resp = getattr(ev, "response", None)
+            elif etype == "response.failed":
+                err = getattr(getattr(ev, "response", None), "error", None)
+                failure = f"{getattr(err, 'code', '') or 'error'}: {getattr(err, 'message', '') or err}"
+            elif etype == "error":
+                failure = f"{getattr(ev, 'code', '') or 'error'}: {getattr(ev, 'message', '') or ev}"
+
+        # Failure events used to be ignored: the turn came back empty, the
+        # runner saw "no tool calls" and recorded the routine as a clean
+        # status='ok' run that did nothing. Raise instead — the message keeps
+        # the upstream code (e.g. rate_limit_exceeded) so the runner's 429
+        # backoff still recognises rate limits.
+        if failure is not None:
+            raise RuntimeError(f"codex stream failed — {failure}")
+        if final_resp is None and not output_items:
+            raise RuntimeError("codex stream ended without a completed response or any output")
 
         usage = getattr(final_resp, "usage", None)
         in_tok = int(getattr(usage, "input_tokens", 0) or 0)

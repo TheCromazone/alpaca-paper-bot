@@ -5,9 +5,11 @@ is making the call deliberately, so we **don't** enforce the conviction caps
 (5%/position, 15-position max, 2-fresh-names/day, wash-trade lookback) — those
 are LLM-discipline rules, not user-discipline rules. We *do* still:
 
-  * pre-cancel any opposite-side open orders on the symbol (the fix for last
-    week's 44% Alpaca wash-trade rejection rate — same pattern as place_buy).
-  * honor ``settings.dry_run`` — no Alpaca submit when paper-mode is forced off.
+  * pre-cancel conflicting open orders on the symbol and wait for Alpaca to
+    confirm: open sells before a buy (the fix for last week's 44% Alpaca
+    wash-trade rejection rate — same pattern as place_buy); EVERY open order
+    before a sell (stops hold the shares — same as place_sell).
+  * honor ``settings.dry_run`` — no Alpaca submit or cancel in dry-run.
   * persist a ``Trade`` row plus a ``Decision`` row tagged ``manual_{side}``
     so the dashboard's trade journal renders the row identically to a routine.
   * append a ``MANUAL`` line to ``memory/trade_log.md``.
@@ -24,9 +26,9 @@ from typing import Optional
 
 from loguru import logger
 
-from bot.alpaca_client import AlpacaClient
+from bot.alpaca_client import AlpacaClient, cancel_and_wait, remaining_qty
 from bot.config import settings
-from bot.db import Decision, SessionLocal, Trade
+from bot.db import Decision, Position, SessionLocal, Trade
 from bot.llm import memory
 
 
@@ -38,20 +40,24 @@ def _alpaca() -> AlpacaClient:
     return AlpacaClient()
 
 
-def _cancel_opposite_open_orders(symbol: str, opposite_side: str) -> int:
-    """Cancel all open Alpaca orders on ``symbol`` whose side is
-    ``opposite_side``. Returns count cancelled. No-op safety net.
+def _cancel_conflicting_open_orders(c: AlpacaClient, symbol: str, side: str) -> dict:
+    """Cancel the open orders on ``symbol`` that would block a ``side``
+    market order, and wait (bounded) for Alpaca to confirm.
+
+    Buy → open sells (wash-trade guard). Sell → every open order: buys for
+    the same wash-trade reason, and all sells, because a trailing stop (or
+    an earlier sell) holds the shares — a sell submitted while one was still
+    pending_cancel came back "insufficient qty". Returns ``cancel_and_wait``'s
+    result. No-op in dry-run.
     """
-    c = _alpaca()
-    n = 0
-    for o in c.open_orders():
-        if o["symbol"].upper() != symbol.upper():
-            continue
-        if o["side"].lower() != opposite_side:
-            continue
-        if c.cancel_order_by_id(o["id"]):
-            n += 1
-    return n
+    if settings.dry_run:
+        return {"cancelled": [], "filled": [], "unresolved": []}
+    targets = [
+        o for o in c.open_orders()
+        if o["symbol"].upper() == symbol.upper()
+        and (side == "sell" or o["side"].lower() == "sell")
+    ]
+    return cancel_and_wait(c, targets)
 
 
 def manual_trade(
@@ -143,20 +149,46 @@ def manual_trade(
 
     notional = qty * mid
 
-    # ---- pre-cancel opposite-side open orders (wash-trade fix) ----
-    opposite = "sell" if side == "buy" else "buy"
+    # ---- pre-cancel conflicting open orders (confirmed; no-op in dry-run) ----
     try:
-        cancelled = _cancel_opposite_open_orders(symbol, opposite)
+        res = _cancel_conflicting_open_orders(c, symbol, side)
     except Exception as exc:
         # Pre-cancel is best-effort — don't block the user-initiated trade
         # on a list-orders hiccup.
         logger.warning("manual {} {}: pre-cancel scan failed: {}", side, symbol, exc)
-        cancelled = 0
+        res = {"cancelled": [], "filled": [], "unresolved": []}
+    cancelled = len(res["cancelled"])
     if cancelled:
-        logger.info(
-            "manual {} {}: pre-cancelled {} open {} order(s)",
-            side, symbol, cancelled, opposite,
-        )
+        logger.info("manual {} {}: pre-cancelled {} open order(s)", side, symbol, cancelled)
+
+    if side == "sell" and not settings.dry_run:
+        if res["cancelled"] or res["filled"]:
+            # The position's broker stop is gone (or fired); let the 5-min
+            # sync re-arm the synthetic stop for whatever remains.
+            with SessionLocal.begin() as s:
+                row = s.get(Position, symbol)
+                if row is not None:
+                    row.stop_order_id = None
+        if res["filled"] or res["unresolved"]:
+            # A stop fired instead of cancelling, or a cancel didn't confirm
+            # in time and still holds shares: re-check before selling.
+            live = next((p for p in c.positions() if p.symbol == symbol), None)
+            if live is None:
+                raise ManualTradeError(
+                    f"{symbol} was closed by an existing order (e.g. its stop) "
+                    "while cancelling it; nothing left to sell"
+                )
+            held_by_orders = sum(
+                remaining_qty(o) for o in res["unresolved"] if o["side"].lower() == "sell"
+            )
+            free = round(float(live.qty) - held_by_orders, 9)
+            if qty > free + 1e-4:
+                raise ManualTradeError(
+                    f"only {max(free, 0):g} of {live.qty:g} {symbol} can be sold now — "
+                    f"{held_by_orders:g} are still held by order(s) "
+                    f"{[o['id'] for o in res['unresolved']]} that did not cancel in time; "
+                    "retry in a few seconds"
+                )
 
     # ---- submit (or simulate) ----
     now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")

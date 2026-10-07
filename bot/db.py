@@ -17,7 +17,9 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     create_engine,
+    event,
 )
+from loguru import logger
 from sqlalchemy.orm import DeclarativeBase, Session, relationship, sessionmaker
 
 from bot.config import ROOT, settings
@@ -31,8 +33,31 @@ def _engine_url() -> str:
     return f"sqlite:///{db_path.as_posix()}"
 
 
-engine = create_engine(_engine_url(), future=True, echo=False)
+# Three writers share this file (bot scheduler threads, the API, manual
+# trades). pysqlite's default 5 s busy timeout turned ordinary contention —
+# e.g. the earnings refresh holding one long write transaction — into
+# "database is locked" failures, including on the Trade insert right after
+# an order was already submitted to Alpaca. Wait up to 30 s instead.
+SQLITE_BUSY_TIMEOUT_S = 30
+
+engine = create_engine(_engine_url(), future=True, echo=False,
+                       connect_args={"timeout": SQLITE_BUSY_TIMEOUT_S})
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False, future=True)
+
+
+@event.listens_for(engine, "connect")
+def _sqlite_wal(dbapi_conn, _record) -> None:
+    """WAL journal: readers (API, dashboard polling) no longer block the
+    bot's writers and vice versa. Persistent in the file once set; the
+    -wal/-shm side files are gitignored. Local disk only (data/), which WAL
+    requires. Best-effort — if the switch can't happen right now (another
+    connection mid-transaction) the DB keeps working in its current mode."""
+    try:
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.close()
+    except Exception as exc:  # pragma: no cover — depends on concurrent access
+        logger.warning("could not enable SQLite WAL mode: {}", exc)
 
 
 def _utcnow() -> datetime:
@@ -157,14 +182,36 @@ class JobRun(Base):
 
 
 class PriceHistory(Base):
-    """Rolling daily closes used for momentum and 52w-high calculations."""
+    """Rolling daily bars. ``close`` drives momentum and 52w-high
+    calculations; open/high/low/volume (nullable — rows written before they
+    were captured have only a close) feed the dashboard's candles and
+    relative-volume reads. Volume is the data feed's (IEX on the free plan),
+    so compare it only against the same ticker's own history."""
     __tablename__ = "price_history"
     id = Column(Integer, primary_key=True)
     ticker = Column(String(16), index=True, nullable=False)
     trade_date = Column(DateTime(timezone=True), index=True, nullable=False)
     close = Column(Float, nullable=False)
+    open = Column(Float)
+    high = Column(Float)
+    low = Column(Float)
+    volume = Column(Float)
     __table_args__ = (
         UniqueConstraint("ticker", "trade_date", name="uq_price_ticker_date"),
+    )
+
+
+class MacroSeries(Base):
+    """Daily macro observations from FRED (Treasury yields, credit spreads,
+    dollar, oil, VIX). One row per (series_id, obs_date); written by
+    ``bot.signals.macro`` and read by the dashboard's rates monitor."""
+    __tablename__ = "macro_series"
+    id = Column(Integer, primary_key=True)
+    series_id = Column(String(32), index=True, nullable=False)
+    obs_date = Column(DateTime(timezone=True), index=True, nullable=False)
+    value = Column(Float)
+    __table_args__ = (
+        UniqueConstraint("series_id", "obs_date", name="uq_macro_series_date"),
     )
 
 
@@ -264,6 +311,21 @@ class EarningsHistory(Base):
     )
 
 
+def _add_column(table: str, col: str, typ: str) -> None:
+    """ALTER TABLE ADD COLUMN that tolerates losing a race: run_bot.bat
+    starts the bot and the API back to back and both call init_db(), so the
+    other process may add the column between our inspect and our ALTER."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import OperationalError
+
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {typ}"))
+    except OperationalError as exc:
+        if "duplicate column name" not in str(exc).lower():
+            raise
+
+
 def _migrate_sqlite() -> None:
     """Tiny migration helper: add new columns to existing tables without
     re-creating them. SQLite is permissive about ALTER TABLE ADD COLUMN.
@@ -271,34 +333,41 @@ def _migrate_sqlite() -> None:
     New LLM-era tables come in via ``Base.metadata.create_all`` — this helper
     only exists for in-place additions to already-populated tables.
     """
-    from sqlalchemy import inspect, text
+    from sqlalchemy import inspect
     insp = inspect(engine)
     tables = set(insp.get_table_names())
 
-    if "news_items" in tables:
-        existing = {c["name"] for c in insp.get_columns("news_items")}
-        news_additions = [
-            ("article_text",       "TEXT"),
+    additions: dict[str, list[tuple[str, str]]] = {
+        "news_items": [
+            ("article_text", "TEXT"),
             ("article_fetched_at", "DATETIME"),
-            ("article_status",     "VARCHAR(16)"),
-        ]
-        with engine.begin() as conn:
-            for col, typ in news_additions:
-                if col not in existing:
-                    conn.execute(text(f"ALTER TABLE news_items ADD COLUMN {col} {typ}"))
-
-    if "positions" in tables:
-        pos_cols = {c["name"] for c in insp.get_columns("positions")}
-        if "stop_order_id" not in pos_cols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE positions ADD COLUMN stop_order_id VARCHAR(64)"))
-        if "trail_pct" not in pos_cols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE positions ADD COLUMN trail_pct FLOAT"))
+            ("article_status", "VARCHAR(16)"),
+        ],
+        "price_history": [("open", "FLOAT"), ("high", "FLOAT"), ("low", "FLOAT"), ("volume", "FLOAT")],
+        "positions": [("stop_order_id", "VARCHAR(64)"), ("trail_pct", "FLOAT")],
+    }
+    for table, cols in additions.items():
+        if table not in tables:
+            continue
+        existing = {c["name"] for c in insp.get_columns(table)}
+        for col, typ in cols:
+            if col not in existing:
+                _add_column(table, col, typ)
 
 
 def init_db() -> None:
-    Base.metadata.create_all(engine)
+    from sqlalchemy.exc import OperationalError
+
+    # create_all checks-then-creates per table; when the bot and the API boot
+    # together, the other process can create a table in between. A second
+    # pass sees it and moves on.
+    for attempt in range(3):
+        try:
+            Base.metadata.create_all(engine)
+            break
+        except OperationalError as exc:
+            if "already exists" not in str(exc).lower() or attempt == 2:
+                raise
     _migrate_sqlite()
 
 

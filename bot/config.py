@@ -145,6 +145,45 @@ SECTOR_MAP: dict[str, str] = {
 
 FULL_UNIVERSE: List[str] = EQUITY_UNIVERSE + FIXED_INCOME_UNIVERSE
 
+# Monitor-only instruments: priced daily alongside the universe so the
+# dashboard's cross-asset monitor can show sectors, global equity, FX,
+# commodities and crypto. They are not in FULL_UNIVERSE (so no signal job,
+# breadth calc or heatmap includes them) and deliberately absent from
+# TICKER_NAMES so the news ticker extractor never tags "gold" or "dollar"
+# headlines with these symbols. NOTE: place_buy does not restrict symbols to
+# FULL_UNIVERSE, so the LLM *could* buy one of these if it chose to.
+MONITOR_EXTRA: dict[str, tuple[str, str]] = {
+    # ticker: (group, display name)
+    "XLK": ("Sectors", "Technology"),
+    "XLF": ("Sectors", "Financials"),
+    "XLV": ("Sectors", "Health Care"),
+    "XLY": ("Sectors", "Cons. Discretionary"),
+    "XLP": ("Sectors", "Cons. Staples"),
+    "XLI": ("Sectors", "Industrials"),
+    "XLE": ("Sectors", "Energy"),
+    "XLB": ("Sectors", "Materials"),
+    "XLU": ("Sectors", "Utilities"),
+    "XLRE": ("Sectors", "Real Estate"),
+    "XLC": ("Sectors", "Communication"),
+    "EFA": ("Global", "Developed ex-US"),
+    "EEM": ("Global", "Emerging Mkts"),
+    "EWJ": ("Global", "Japan"),
+    "FXI": ("Global", "China Large-Cap"),
+    "EWG": ("Global", "Germany"),
+    "UUP": ("FX", "US Dollar Index"),
+    "FXE": ("FX", "Euro"),
+    "FXY": ("FX", "Japanese Yen"),
+    "FXB": ("FX", "British Pound"),
+    "GLD": ("Commodities", "Gold"),
+    "SLV": ("Commodities", "Silver"),
+    "USO": ("Commodities", "WTI Crude"),
+    "UNG": ("Commodities", "Natural Gas"),
+    "CPER": ("Commodities", "Copper"),
+    "DBA": ("Commodities", "Agriculture"),
+    "IBIT": ("Crypto", "Bitcoin"),
+    "ETHA": ("Crypto", "Ether"),
+}
+
 # Human-readable names used by the ticker extractor.
 TICKER_NAMES: dict[str, List[str]] = {
     "AAPL": ["Apple"],
@@ -333,44 +372,45 @@ WEIGHT_INVESTOR = 0.20
 WEIGHT_MOMENTUM = 0.15
 WEIGHT_DIP_BONUS = 0.05
 
-# Tracked 13F CIKs (zero-padded strings). Expanded from 10 → 30 funds for
-# broader signal coverage. Verify CIKs at https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany
+# Tracked 13F filers: one display name per filer CIK (zero-padded). Each CIK
+# was checked against EDGAR's submissions JSON on 2026-10-07 to be the named
+# manager with a live 13F-HR series (Q2-2026 filed). When a manager's 13F
+# moves to a new reporting entity, point the name at the new CIK (e.g.
+# Pershing Square → Pershing Square Inc., Greenlight → DME Capital); never
+# list two names for one CIK — the same changes would be stored twice.
+# Lookup: https://efts.sec.gov/LATEST/search-index?keysTyped=<name>
 TRACKED_INVESTORS: dict[str, str] = {
     # Original 10
     "Berkshire Hathaway":       "0001067983",
-    "Pershing Square":          "0001336528",
-    "Scion (Michael Burry)":    "0001649339",
+    "Pershing Square":          "0002026053",  # Pershing Square Inc. (reports PSCM's book since Q2-2026)
     "Bridgewater":              "0001350694",
     "Renaissance Technologies": "0001037389",
     "ARK Investment":           "0001697748",
     "Third Point":              "0001040273",
     "Appaloosa":                "0001656456",
-    "Greenlight Capital":       "0001079114",
+    "Greenlight Capital":       "0001489933",  # DME Capital Management (Einhorn; files since 2024)
     "Baupost Group":            "0001061768",
     # Expansion: macro / quant / multi-strat
     "Citadel Advisors":         "0001423053",
     "Millennium Management":    "0001273087",
-    "Two Sigma Advisers":       "0001478735",
+    "Two Sigma Investments":    "0001179392",
     "D.E. Shaw":                "0001009207",
-    "Tudor Investment":         "0001037389",
+    "Tudor Investment":         "0000923093",
     "Point72 Asset Mgmt":       "0001603466",
-    "Balyasny Asset Mgmt":      "0001162188",
+    "Balyasny Asset Mgmt":      "0001218710",
     # Expansion: long/short equity + activist
     "Tiger Global Mgmt":        "0001167483",
     "Coatue Management":        "0001135730",
     "Lone Pine Capital":        "0001061165",
     "Viking Global Investors":  "0001103804",
-    "Maverick Capital":         "0001015308",
+    "Maverick Capital":         "0000934639",
     "Soros Fund Mgmt":          "0001029160",
     "Elliott Investment Mgmt":  "0001791786",
     "Icahn Capital":            "0000921669",
-    "Pershing Square Tontine":  "0001823584",
     # Expansion: famous specialists / tech
-    "Whale Rock Capital":       "0001396092",
-    "Greenoaks Capital":        "0001602119",
-    "Dan Loeb (Third Point)":   "0001040273",  # alias kept for tracking
+    "Whale Rock Capital":       "0001387322",
+    "Greenoaks Capital":        "0001840735",  # GREENOAKS LLC
     "Stanley Druckenmiller":    "0001536411",  # Duquesne Family Office
-    "Seth Klarman (Baupost)":   "0001061768",  # alias kept for tracking
 }
 
 # Per-investor conviction weight applied to 13F deltas. Default 1.0.
@@ -380,7 +420,6 @@ TRACKED_INVESTORS: dict[str, str] = {
 INVESTOR_WEIGHTS: dict[str, float] = {
     "Berkshire Hathaway": 2.0,
     "Pershing Square": 1.6,
-    "Scion (Michael Burry)": 1.6,
     "Stanley Druckenmiller": 1.6,
     "Soros Fund Mgmt": 1.5,
     "Elliott Investment Mgmt": 1.5,
@@ -398,7 +437,7 @@ INVESTOR_WEIGHTS: dict[str, float] = {
     "Renaissance Technologies": 0.8,  # high-frequency rebalance noise
     "Citadel Advisors": 0.8,       # multi-strat noise
     "Millennium Management": 0.8,
-    "Two Sigma Advisers": 0.8,
+    "Two Sigma Investments": 0.8,
     "D.E. Shaw": 0.8,
     "Point72 Asset Mgmt": 0.8,
     "Balyasny Asset Mgmt": 0.8,
