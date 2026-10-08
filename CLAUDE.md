@@ -26,7 +26,9 @@ routine is skipped (JobRun status `skipped`) on NYSE holidays.
 | `close` (Mon-Fri 16:00) | log only | append day P/L to `research_log.md` |
 | `weekly_review` (Fri 17:00) | post-mortem | propose strategy.md edits in plain text — user applies manually |
 
-`bot/llm/tools.py` is **the trust boundary** — every hard cap (5%/position — halved in risk_off, 25-position max, 10% trailing stop, 7% midday cut, 3-day wash window, 2-day earnings blackout, 120-char thesis minimum, 2 new positions/day — 1 in risk_off, bond-ETF avoidance) is enforced in handler code, **not** in prompts. The model proposes; tools verify and execute. If you're tempted to relax a cap by tweaking a prompt, fix it in `tools.py` instead.
+`bot/llm/tools.py` is **the trust boundary** — 5%/position (halved in risk_off; pending orders count), 25-position max (pending orders count), 10% trailing stop, 3-day (calendar) wash window, 2-day earnings blackout (whole dates), 120-char thesis minimum and 2 fresh names/day (1 in risk_off) are enforced in handler code. **Not** enforced in code (prompt-only): the 7% midday cut, bond-ETF avoidance, and restricting symbols to FULL_UNIVERSE (MONITOR_EXTRA ETFs are buyable). The model proposes; tools verify and execute. If you're tempted to relax a cap by tweaking a prompt, fix it in `tools.py` instead.
+
+**Who actually sells a breached position.** Alpaca rejects GTC trailing stops on fractional positions, so most positions have no broker stop. `bot/main.py`'s `sync_account` job (every 5 min, independent of the LLM routines) sells synthetically when price < peak × (1 − trail) — but only while the scheduler runs and DRY_RUN is off. The −7% cut is sold only by the midday routine. `api/terminal.py:_stop_protection` / `/bot/status.synthetic_stops` report this; the dashboard shows MANUAL SELL when nothing will act.
 
 `memory/` holds four committed markdown files that *are* the bot's persistent state across restarts: `strategy.md` (rulebook, hand-authored, never written by the LLM), `portfolio.md` (regenerated every trading routine), `trade_log.md` (append-only by tool handlers), `research_log.md` (append-only daily ledger). The runner injects `strategy.md` behind an Anthropic prompt-cache breakpoint, so the second routine of the day reads the rulebook at cache-read pricing.
 
@@ -74,8 +76,15 @@ scripts\run_dashboard.bat
 scripts\register_task.bat
 schtasks /Delete /TN AlpacaBot /F
 
-# Tests (pytest scaffolded in tests/, no tests written yet)
-.venv\Scripts\python -m pytest
+# Tests: ~285, Alpaca fully faked, temp DB (macOS/Linux: .venv/bin/python)
+.venv\Scripts\python -m pytest -q
+
+# Dev checkout without the live DB: build data/trading.db from real yfinance/RSS/SEC/FRED
+# data + memory/*.md (needs DRY_RUN=true; never contacts Alpaca)
+.venv/bin/python scripts/dev_bootstrap.py --force
+
+# Playwright without its bundled Chromium: drive the system Chrome
+cd dashboard && PW_CHROME_CHANNEL=chrome npx playwright test
 
 # Dashboard E2E (Playwright, chromium-only, against the live stack)
 cd dashboard && npm run test:e2e
@@ -97,13 +106,14 @@ There is no lint config; the dashboard has `npm run lint` (eslint) but it isn't 
 Single DB shared by bot and API. Tables (in `bot/db.py`):
 - `news_items`, `signals`, `decisions`, `trades`, `portfolio_snapshots`, `positions` — used by both strategies.
 - `job_runs` — every scheduled job run (research_tick, llm_*, regime_refresh, earnings_refresh, senate_refresh, etc.) for observability.
-- `price_history` — daily closes for momentum + the dashboard tape.
+- `price_history` — daily bars (close + nullable open/high/low/volume; IEX volume = relative only) for the universe plus `MONITOR_EXTRA` monitor-only ETFs (sectors, global, FX, commodities, crypto — not in FULL_UNIVERSE or TICKER_NAMES).
+- `macro_series` — FRED yields/spreads/dollar/oil/VIX plus same-day Yahoo closes for the monitor's underlyings (series_id `YF:<symbol>`; `bot/signals/macro.py`, daily 17:40 ET). `company_profiles` is also refreshed weekly for the whole universe (`bot/signals/profiles.py`, Sun 05:00 UTC).
 - `llm_runs` — per-routine token + cost + tool_trace ledger; backs `/llm/runs` and `/llm/cost`.
 - `market_regime` — daily snapshot (VIX, SPY trend, T10Y2Y, breadth, label).
 - `earnings_calendar`, `earnings_history` — upcoming reports + last-4-quarter EPS surprise.
 - `company_profiles` — yfinance-sourced company metadata (name, description, sector, mcap), lazily cached with a 30-day TTL by the API's `/company/{ticker}`; feeds the holdings dossier. `/market/recap` (indexes, movers, analyst headlines, close-routine narrative) backs the dashboard's Closing Bell.
 
-`init_db()` calls `Base.metadata.create_all` (creates new tables) and then `_migrate_sqlite()` (idempotent ALTER TABLE ADD COLUMN for in-place migrations on existing tables — used for `news_items.article_*` and `positions.stop_order_id`).
+`init_db()` calls `Base.metadata.create_all` (creates new tables) and then `_migrate_sqlite()` (idempotent ALTER TABLE ADD COLUMN for in-place migrations on existing tables — used for `news_items.article_*` and `positions.stop_order_id`). It is race-tolerant (bot and API boot together); SQLite runs in WAL mode with a 30s busy timeout. Keep writes out of network calls (fetch first, then one short transaction).
 
 Bot writes timestamps via `datetime.now(timezone.utc)` but SQLite strips tz info on read. `api/main.py` has an `_iso_utc()` helper that re-tags every datetime with `+00:00` on the way out — without it, the browser interprets times as local and breaks every "time ago" / "next cycle" countdown. **Use `_iso_utc(...)` for any new datetime field surfaced through the API.**
 
@@ -142,7 +152,18 @@ The other specs lock specific behaviors: `/bot/status` must surface a *recent* L
 
 ## Watch out for: `/bot/status` and the LLM-era
 
-Pre-Apr-27, `/bot/status` only queried `JobRun` rows where `job_name == "strategy_tick"` — a job that no longer fires (the quant tick is retired). Result: dashboard's BotRibbon showed `last_tick_at` from days ago even when 4 LLM routines had run that morning. Endpoint now picks the most recent of (`last_llm_run`, `last_job_run`) and exposes both `last_llm_run` and `last_tick_kind` so the BotRibbon can show `"close 1m ago · 4 tools · $0.37"`. **When you add a new dashboard surface that needs "is the bot alive?", read `last_llm_run` (LLM era) or any `job_runs` row by recency — never special-case `strategy_tick`.**
+Pre-Apr-27, `/bot/status` only queried `JobRun` rows where `job_name == "strategy_tick"` — a job that no longer fires (the quant tick is retired). Result: dashboard's BotRibbon showed `last_tick_at` from days ago even when 4 LLM routines had run that morning. Endpoint now picks the most recent of (`last_llm_run`, `last_job_run`) and exposes both `last_llm_run` and `last_tick_kind` so the top-bar heartbeat / BOT panel can show `"close 1m ago · 4 tools · $0.37"`. **When you add a new dashboard surface that needs "is the bot alive?", read `last_llm_run` (LLM era) or any `job_runs` row by recency — never special-case `strategy_tick`.**
+
+## Dashboard = CROMAZ Terminal
+
+Bloomberg-style terminal. Design contract (tokens, alert-vs-direction colors, staleness and reconciliation rules) in `dashboard/design/TERMINAL.md`; primitives in `components/term/ui.tsx`; shell (command line, Alt+1–7, alert chips, paged tape) in `components/term/Shell.tsx`. Read models live in `api/terminal.py` (`/terminal/*`, read-only; network only for `/terminal/security/{t}/news`). Every panel reads the one guard calculation (`_guard`: binding guard = higher of stop and cut) and the brief's `counts` — never re-derive them. Bot-staleness rule is `BOT_STALE_MS` in ui.tsx / `BOT_STALE` in the API.
+
+## Gotchas
+
+- `bot.config` runs `load_dotenv(.env, override=True)`: setting `DB_PATH=...` in the environment does NOT redirect the DB. For a scratch DB, neutralize `dotenv.load_dotenv` before importing `bot` (see tests/conftest.py) and assert `settings.db_path`.
+- Turbopack can keep serving a stale `globals.css` from `dashboard/.next/dev`; fix: stop the dev server, `rm -rf dashboard/.next/dev`, restart.
+- `earnings_calendar.report_date` is stored as 00:00 UTC of the report day: read it as a date, never convert to ET (shows the previous evening). Compare report dates with today's New York date, not UTC.
+- `staleness.spec.ts` / `health.spec.ts` (/routines/next) assert a live scheduler with routines enabled; they fail by design on a dev checkout.
 
 ## A note on `dashboard/AGENTS.md`
 
