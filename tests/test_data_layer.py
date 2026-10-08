@@ -184,3 +184,20 @@ def test_init_db_retries_when_a_table_appears_mid_create(monkeypatch):
     monkeypatch.setattr(db.Base.metadata, "create_all", flaky)
     db.init_db()
     assert calls["n"] == 2
+
+
+def test_yahoo_spot_rows_parse_a_grouped_download_frame():
+    import math
+
+    import pandas as pd
+
+    from bot.signals.macro import yf_rows
+
+    idx = pd.to_datetime(["2026-10-06", "2026-10-07"])
+    cols = pd.MultiIndex.from_tuples([("^NDX", "Close"), ("^NDX", "Open"), ("GC=F", "Close")])
+    frame = pd.DataFrame([[31000.5, 30900.0, 4100.0], [31160.0762, 31000.0, math.nan]], index=idx, columns=cols)
+    rows = yf_rows(frame, "^NDX")
+    assert [(d.date().isoformat(), v) for d, v in rows] == [("2026-10-06", 31000.5), ("2026-10-07", 31160.0762)]
+    assert rows[0][0].tzinfo is not None
+    assert [v for _, v in yf_rows(frame, "GC=F")] == [4100.0]  # NaN close dropped
+    assert yf_rows(frame, "MISSING") == []

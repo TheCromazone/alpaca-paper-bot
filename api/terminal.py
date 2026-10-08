@@ -517,7 +517,9 @@ def _macro_block(s: Session) -> list[dict]:
     """Latest FRED observations with 1D/5D/1M changes (percentage points for
     yields and spreads — the UI shows them as bp) and a 60-observation
     sparkline. Empty until the macro job has run."""
-    from bot.signals.macro import SERIES
+    from bot.signals.macro import SERIES, YF_SERIES
+
+    catalog = {**SERIES, **{f"YF:{k}": v for k, v in YF_SERIES.items()}}
 
     since = (datetime.now(timezone.utc) - timedelta(days=200)).replace(tzinfo=None)
     rows = s.execute(
@@ -538,7 +540,7 @@ def _macro_block(s: Session) -> list[dict]:
         if derived:
             by[sid] = derived
     out = []
-    for sid, (group, label, unit) in SERIES.items():
+    for sid, (group, label, unit) in catalog.items():
         ser = by.get(sid)
         if not ser:
             continue

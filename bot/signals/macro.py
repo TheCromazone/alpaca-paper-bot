@@ -1,4 +1,4 @@
-"""Daily macro series from FRED for the dashboard's rates & macro monitor.
+"""Daily macro series (FRED + Yahoo closes) for the dashboard's market monitor.
 
 Treasury yields across the curve, curve spreads, credit spreads, the dollar,
 oil and VIX — the context a trader reads before any single stock. Pulled
@@ -49,6 +49,32 @@ SERIES: dict[str, tuple[str, str, str]] = {
     "DHHNGSP": ("Spot levels", "Henry Hub gas", "idx"),
     "CBBTCUSD": ("Spot levels", "Bitcoin", "idx"),
     "CBETHUSD": ("Spot levels", "Ether", "idx"),
+}
+
+# Same-day closes for the monitor's underlyings from Yahoo (no key): the real
+# index/FX/futures/crypto level behind each ETF row. FRED's spot series lag
+# (FX ~T-3) and have no Nasdaq-100, Russell, Nikkei, DAX, Hang Seng or metals
+# futures. Stored as "YF:<symbol>"; FRED stays the source for rates/spreads.
+YF_SERIES: dict[str, tuple[str, str, str]] = {
+    "^GSPC": ("Spot levels", "S&P 500", "idx"),
+    "^NDX": ("Spot levels", "Nasdaq-100", "idx"),
+    "^DJI": ("Spot levels", "Dow Jones", "idx"),
+    "^RUT": ("Spot levels", "Russell 2000", "idx"),
+    "^N225": ("Spot levels", "Nikkei 225", "idx"),
+    "^GDAXI": ("Spot levels", "DAX", "idx"),
+    "^HSI": ("Spot levels", "Hang Seng", "idx"),
+    "^STOXX50E": ("Spot levels", "Euro Stoxx 50", "idx"),
+    "DX-Y.NYB": ("Spot levels", "DXY", "idx"),
+    "EURUSD=X": ("Spot levels", "EURUSD", "idx"),
+    "JPY=X": ("Spot levels", "USDJPY", "idx"),
+    "GBPUSD=X": ("Spot levels", "GBPUSD", "idx"),
+    "GC=F": ("Spot levels", "Gold fut", "idx"),
+    "SI=F": ("Spot levels", "Silver fut", "idx"),
+    "CL=F": ("Spot levels", "WTI fut", "idx"),
+    "NG=F": ("Spot levels", "Nat gas fut", "idx"),
+    "HG=F": ("Spot levels", "Copper fut", "idx"),
+    "BTC-USD": ("Spot levels", "Bitcoin", "idx"),
+    "ETH-USD": ("Spot levels", "Ether", "idx"),
 }
 
 
@@ -106,12 +132,47 @@ def store(series_id: str, rows: list[tuple[datetime, float | None]]) -> int:
     return changed
 
 
+def yf_rows(frame, symbol: str) -> list[tuple[datetime, float | None]]:
+    """One symbol's daily closes from a ``yf.download(group_by="ticker")``
+    frame → [(date at 00:00 UTC, close)], NaN rows dropped."""
+    try:
+        closes = frame[symbol]["Close"].dropna()
+    except (KeyError, TypeError):
+        return []
+    return [
+        (datetime(d.year, d.month, d.day, tzinfo=timezone.utc), round(float(v), 6))
+        for d, v in closes.items()
+    ]
+
+
+def fetch_yahoo(days: int = 400) -> dict[str, list[tuple[datetime, float | None]]]:
+    """All YF_SERIES in one batched download; {} on any failure."""
+    try:
+        import yfinance as yf
+
+        frame = yf.download(
+            list(YF_SERIES), period=f"{days}d", interval="1d", group_by="ticker",
+            auto_adjust=False, progress=False, threads=True,
+        )
+    except Exception as exc:
+        logger.warning("Yahoo spot download failed: {}", exc)
+        return {}
+    return {sym: yf_rows(frame, sym) for sym in YF_SERIES}
+
+
 def refresh_all(days: int = 400) -> dict[str, int]:
     out: dict[str, int] = {}
     for sid in SERIES:
         try:
             out[sid] = store(sid, fetch_series(sid, days=days))
         except Exception as exc:  # one bad series never sinks the rest
+            logger.warning("macro {} failed: {}", sid, exc)
+            out[sid] = -1
+    for sym, rows in fetch_yahoo(days).items():
+        sid = f"YF:{sym}"
+        try:
+            out[sid] = store(sid, rows) if rows else -1
+        except Exception as exc:
             logger.warning("macro {} failed: {}", sid, exc)
             out[sid] = -1
     return out
