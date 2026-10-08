@@ -41,8 +41,8 @@ function Sma({ sma, last }: { sma: number | null; last: number | null | undefine
   return (
     <>
       {fmtNum(sma, sma >= 100 ? 1 : 2)}
-      <span className={`${s.statSub} ${above ? "up" : "down"}`}>
-        {above ? "▲" : "▼"}
+      <span className={`${s.statSub} ${s.smaDist} ${above ? "up" : "down"}`} title={`Last close is ${Math.abs(d * 100).toFixed(1)}% ${above ? "above" : "below"} this average`}>
+        {above ? "+" : "−"}
         {Math.abs(d * 100).toFixed(1)}%
       </span>
     </>

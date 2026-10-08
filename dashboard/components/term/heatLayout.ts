@@ -198,10 +198,11 @@ export function aggFit(w: number, h: number, label: string): AggFit | null {
   // 10px small caps ≈ 5.5px/char; change line 10px mono below.
   // 10px semibold condensed caps ≈ 5.4px/char; the change line ("−1.4%",
   // 10px mono) needs 32px. Two stacked 10px lines need 24px.
-  if (w >= Math.max(label.length * 5.4 + 4, 32) && h >= 24) return "line";
+  // Labels keep 3px clear of the dashed inner border (inset 2px) on all sides.
+  if (w >= Math.max(label.length * 5.4 + 10, 40) && h >= 30) return "line";
   const words = label.split(" ");
   const longest = Math.max(...words.map((x) => x.length));
-  if (words.length > 1 && w >= Math.max(longest * 5.4 + 2, 32) && h >= 12 * words.length + 13) return "stack";
+  if (words.length > 1 && w >= Math.max(longest * 5.4 + 10, 40) && h >= 12 * words.length + 22) return "stack";
   return null;
 }
 /** First label variant that fits, or null. */
@@ -478,5 +479,5 @@ export function layout(cells: HeatCell[], W: number, H: number): { blocks: Block
 }
 
 /** Header text that fits a block width; null avg when even that won't fit. */
-export const headerText = (b: Block) => (b.r.w >= headerW(b.name) ? b.name : b.short);
+export const headerText = (b: Block) => (b.r.w >= b.name.length * 5.6 + 50 ? b.name : b.short);
 export const headerHasAvg = (b: Block) => b.r.w >= headerW(b.short) - 6;

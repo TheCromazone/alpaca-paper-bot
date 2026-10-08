@@ -1271,7 +1271,8 @@ def brief() -> dict:
             b_ = regime.breadth_pct if regime.breadth_pct > 1 else regime.breadth_pct * 100
             bits.append(f"breadth {b_:.0f}% > 50DMA")
         if regime.t10y2y is not None:
-            bits.append(f"2s10s {'+' if regime.t10y2y > 0 else '−' if regime.t10y2y < 0 else ''}{abs(regime.t10y2y):.2f}")
+            # In bp, the unit the market monitor uses for the same spread.
+            bits.append(f"2s10s {'+' if regime.t10y2y > 0 else '−' if regime.t10y2y < 0 else ''}{abs(regime.t10y2y) * 100:.0f}bp")
         tone = {"risk_on": "up", "risk_off": "down"}.get(regime.regime_label or "", "info")
         suffix = " — sizes halve and only 1 new name/day." if regime.regime_label == "risk_off" else "."
         add("macro", tone, " · ".join(bits) + suffix, at=regime.as_of)

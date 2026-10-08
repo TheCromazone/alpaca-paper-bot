@@ -622,7 +622,7 @@ export function SecurityChart({
           {relSpy != null && (
             <Stat label="Rel" value={fmtPts(relSpy)} cls={tone(relSpy)} />
           )}
-          <Stat label="Vol" value={win.vol != null ? `${(win.vol * 100).toFixed(1)}%` : "—"} />
+          <Stat label={`Vol ${win.truncated ? "max" : range}`} value={win.vol != null ? `${(win.vol * 100).toFixed(1)}%` : "—"} />
           <Stat label="Max DD" value={fmtChg(mdd, 1)} cls={mdd < 0 ? "down" : "flat"} />
         </span>
       }

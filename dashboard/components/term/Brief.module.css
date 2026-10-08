@@ -865,3 +865,66 @@ a.t:hover {
 .digest .mk {
   margin-top: 4px;
 }
+
+/* final pass */
+.bsum {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 18px;
+  padding: 0 10px;
+  font-size: 10.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.bsum .stPill {
+  flex: none;
+}
+.bsumWhy {
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.gpx {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.brow {
+  height: 16px;
+}
+/* age never touches the +N chip */
+.digest .ageCell {
+  padding-right: 6px;
+}
+/* final pass: fit every breach + every kind (BOT now wraps) at 1440×900 */
+.bsum {
+  height: 16px;
+}
+.bthead,
+.bfoot {
+  height: 15px;
+}
+.brow {
+  height: 15px;
+  font-size: 10.5px;
+}
+.digest {
+  line-height: 1.2;
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+.digest .ageCell,
+.digest .dtag {
+  line-height: 13.2px;
+}
+.digest .mk {
+  margin-top: 3.5px;
+}
+.headline {
+  line-height: 1.15;
+}

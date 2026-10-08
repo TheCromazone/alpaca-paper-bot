@@ -10,7 +10,7 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 import type { SecurityResp, TickerNews } from "@/lib/api";
 import { fmtBig, fmtChg, fmtET, fmtNum, tone } from "@/lib/format";
 import { Panel, Skeleton, useNow } from "../ui";
-import { FitLines, FitList } from "./Fit";
+import { FitLines, FitList, WordClamp } from "./Fit";
 import { dayNum, daysUntil, etDate, fmtD, ymd, MONTHS } from "./util";
 import type { Profile } from "./SecurityHeader";
 import s from "./security.module.css";
@@ -62,6 +62,13 @@ function SentNum({ v }: { v: number | null }) {
   );
 }
 
+/** Feed names → a short source tag ("Yahoo Finance" → "Yahoo", "CNBC Top News" → "CNBC"). */
+const srcShort = (src: string) => {
+  const m = src.match(/^(Yahoo|CNBC|MarketWatch|Reuters|Bloomberg|Barron|WSJ|Wall Street Journal|Seeking Alpha|Benzinga|Motley Fool|Investopedia|Zacks|Forbes|FT|Financial Times)/i);
+  if (m) return m[1].replace(/Wall Street Journal/i, "WSJ").replace(/Financial Times/i, "FT").replace(/Barron/i, "Barron's");
+  return src.split(/[\s·|-]+/)[0].slice(0, 10);
+};
+
 const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 export function SecNews({
@@ -92,6 +99,8 @@ export function SecNews({
   const relevant = items.filter((n) => mentions(`${n.title} ${n.summary}`) || n.tickers.includes(data.ticker));
   const nOther = items.length - relevant.length;
   const [showAll, setShowAll] = useState(false);
+  const nowMs = useNow(60_000);
+  const today = nowMs ? etDate(new Date(nowMs).toISOString()) : "";
   const shown = showAll ? items : relevant;
   const scored = shown.filter((n) => n.v != null);
   const avg = scored.length ? scored.reduce((a, n) => a + (n.v as number), 0) / scored.length : null;
@@ -138,30 +147,22 @@ export function SecNews({
       ) : (
         <FitList unit="headlines">
           {shown.map((n) => {
-            const when = n.at ? fmtET(n.at) : "—";
-            const others = n.tickers.filter((t) => t !== data.ticker).slice(0, 3);
+            // Time if today (NY), otherwise the date — one column, one format.
+            const when = n.at ? (etDate(n.at) === today ? fmtET(n.at, false) : fmtD(etDate(n.at))) : "—";
             const named = relevant.includes(n);
+            const others = n.tickers.filter((t) => t !== data.ticker);
             return (
-              <a key={n.key} href={n.url} target="_blank" rel="noopener noreferrer" className={s.news} title={`${n.source}${n.summary ? ` — ${n.summary}` : ""}`}>
-                <span className="num" style={{ fontSize: 10.5, color: "var(--ink-3)", lineHeight: 1.35 }}>
-                  {when.slice(0, 6)}
-                  <br />
-                  <span style={{ color: "var(--ink-2)" }}>{when.slice(7)}</span>
-                </span>
-                <span style={{ minWidth: 0 }}>
-                  <span className={s.newsTitle} style={named ? undefined : { color: "var(--ink-3)" }}>
-                    {n.title}
-                  </span>
-                  {others.length > 0 && (
-                    <span style={{ display: "flex", gap: 4, marginTop: 3 }}>
-                      {others.map((t) => (
-                        <span key={t} className={s.chip}>
-                          {t}
-                        </span>
-                      ))}
-                    </span>
-                  )}
-                </span>
+              <a
+                key={n.key}
+                href={n.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={s.newsLine}
+                title={`${n.title}\n${n.source}${n.at ? ` · ${fmtET(n.at)} ET` : ""}${others.length ? ` · also ${others.join(", ")}` : ""}${n.summary ? `\n\n${n.summary}` : ""}`}
+              >
+                <span className="num" style={{ color: "var(--ink-3)" }}>{when}</span>
+                <WordClamp text={n.title} className={s.newsHead} style={named ? undefined : { color: "var(--ink-3)" }} />
+                <span className={s.newsSrc}>{srcShort(n.source)}</span>
                 <SentNum v={n.v} />
               </a>
             );
@@ -225,7 +226,7 @@ export function SecFlow({ data, className = "", style }: P & { data: SecurityRes
   const ptrBuys = ptr.reduce((a, r) => a + (r.up ? r.n : 0), 0);
   const ptrNet = ptr.reduce((a, r) => a + (r.up ? 1 : -1) * (r.mid ?? 0) * r.n, 0);
   // 13F: quarter-end holdings changes — top holders by reported position value.
-  const f13: F13Row[] = sig
+  const f13All: F13Row[] = sig
     .filter((x) => x.kind === "investor")
     .map((g) => {
       const change = (g.change ?? "").toLowerCase();
@@ -241,9 +242,12 @@ export function SecFlow({ data, className = "", style }: P & { data: SecurityRes
       };
     })
     .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
-  const periods = [...new Set(f13.map((r) => r.period).filter((x): x is string => !!x))].sort();
+  // An EXIT is not a holder: exits go to a one-line footer with their former value.
+  const f13 = f13All.filter((r) => r.verb !== "EXIT");
+  const f13Exits = f13All.filter((r) => r.verb === "EXIT");
+  const periods = [...new Set(f13All.map((r) => r.period).filter((x): x is string => !!x))].sort();
   const latest = periods[periods.length - 1] ?? null;
-  const filedDays = [...new Set(f13.map((r) => r.filed).filter((x): x is string => !!x))].sort();
+  const filedDays = [...new Set(f13All.map((r) => r.filed).filter((x): x is string => !!x))].sort();
   const age = latest && now ? dayNum(etDate(new Date(now).toISOString())) - dayNum(latest) : null;
   const f13Adds = f13.filter((r) => r.up).length;
   /** "~$16K mid": total of the disclosed-range midpoints (×N already folded in). */
@@ -307,10 +311,10 @@ export function SecFlow({ data, className = "", style }: P & { data: SecurityRes
             title="13F filings report quarter-end holdings, filed up to 45 days later — position changes, not trades."
           >
             <span className="label">13F top holders</span>
-            {f13.length > 0 ? (
+            {f13All.length > 0 ? (
               <span
                 className="num dim"
-                title={filedDays.length ? `Filed ${fmtD(filedDays[0])}${filedDays.length > 1 ? `–${fmtD(filedDays[filedDays.length - 1])}` : ""} · ${f13Adds} new/add · ${f13.length - f13Adds} trim/exit` : undefined}
+                title={filedDays.length ? `Filed ${fmtD(filedDays[0])}${filedDays.length > 1 ? `–${fmtD(filedDays[filedDays.length - 1])}` : ""} · ${f13Adds} new/add · ${f13.length - f13Adds} trim · ${f13Exits.length} exit` : undefined}
               >
                 {latest ? `${qLabel(latest)} holdings` : "—"}
                 {age != null ? ` · ${age}d old` : ""}
@@ -336,6 +340,15 @@ export function SecFlow({ data, className = "", style }: P & { data: SecurityRes
                   </div>
                 ))}
               </FitList>
+            </div>
+          )}
+          {f13Exits.length > 0 && (
+            <div className={s.flowExits}>
+              <span className="down" style={{ fontWeight: 600, flex: "none" }}>▼ EXITS</span>
+              <WordClamp
+                text={f13Exits.map((r) => `${r.who} (was $${fmtBig(r.value)})`).join(" · ")}
+                style={{ flex: 1, color: "var(--ink-2)" }}
+              />
             </div>
           )}
         </div>

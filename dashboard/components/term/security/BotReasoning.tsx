@@ -12,7 +12,7 @@ import { api, term, type SecurityResp } from "@/lib/api";
 import { fmtChg, fmtET, fmtNum, fmtPx, fmtUSD, tone } from "@/lib/format";
 import { thesisHeadline, thesisParts } from "@/lib/thesis";
 import { Panel, useNow } from "../ui";
-import { FitList } from "./Fit";
+import { FitList, WordClamp } from "./Fit";
 import type { ThesisState } from "./thesisStatus";
 import { daysUntil, etDate, fmtD } from "./util";
 import s from "./security.module.css";
@@ -77,9 +77,7 @@ function DecisionItem({
         </span>
       </button>
       {!open ? (
-        <div className={s.decLine} title={d.reason}>
-          {thesisHeadline(d.reason, 220)}
-        </div>
+        <WordClamp text={thesisHeadline(d.reason, 400)} className={s.decLine} />
       ) : structured ? (
         <dl className={s.dl}>
           {parts.map((p, i) =>

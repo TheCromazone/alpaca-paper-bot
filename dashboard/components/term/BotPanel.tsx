@@ -694,7 +694,41 @@ function jobMsg(m: string | null | undefined) {
     .join(" · ");
 }
 
-const JOB_COLS = { gridTemplateColumns: "12px 158px 58px minmax(0, 1fr)" } as const;
+const JOB_COLS = { gridTemplateColumns: "12px 170px 34px minmax(0, 1fr)" } as const;
+
+/**
+ * Expected cadence per job, in minutes. A ✓ means "ran on time": within
+ * cadence. Overdue → warn; more than 3× overdue → alert. Daily/weekly jobs
+ * don't fire on weekends, so weekend hours are not counted against them.
+ */
+const H = 60;
+function cadenceMin(name: string): { min: number; business: boolean } | null {
+  if (/^sync_account/.test(name)) return { min: 5, business: false };
+  if (/^(news_refresh|article_scrape)/.test(name)) return { min: /offhours/.test(name) ? 30 : 15, business: false };
+  if (/^(regime|earnings|politicians|senate|macro|price)/.test(name)) return { min: 24 * H, business: true };
+  if (/^(investors|profiles)/.test(name)) return { min: 7 * 24 * H, business: false };
+  return null;
+}
+/** Minutes between two instants, minus Sat/Sun when `business`. */
+function elapsedMin(fromMs: number, toMs: number, business: boolean) {
+  let m = (toMs - fromMs) / 60_000;
+  if (business) {
+    for (let d = new Date(fromMs); d.getTime() < toMs; d = new Date(d.getTime() + 86_400_000)) {
+      const wd = d.getUTCDay();
+      if (wd === 0 || wd === 6) m -= 24 * H;
+    }
+  }
+  return Math.max(0, m);
+}
+type Lateness = "ok" | "late" | "dead" | "unknown";
+function lateness(name: string, startedAt: string, now: number): { state: Lateness; cad: number | null } {
+  const c = cadenceMin(name);
+  if (!c || !now) return { state: "unknown", cad: c?.min ?? null };
+  const age = elapsedMin(new Date(startedAt).getTime(), now, c.business);
+  return { state: age <= c.min ? "ok" : age <= c.min * 3 ? "late" : "dead", cad: c.min };
+}
+const fmtCad = (m: number) => (m >= 7 * 24 * H ? "weekly" : m >= 24 * H ? "daily" : `every ${m}m`);
+const LATE_C: Record<Lateness, string> = { ok: "var(--ink-3)", late: "var(--warn)", dead: "var(--alert)", unknown: "var(--ink-3)" };
 
 function JobFeed({ now }: { now: number }) {
   const { data, isLoading } = useQuery({ queryKey: ["jobs"], queryFn: api.jobs, refetchInterval: 30_000 });
@@ -715,16 +749,37 @@ function JobFeed({ now }: { now: number }) {
       {rows.map((j) => {
         const dur = j.finished_at ? (new Date(j.finished_at).getTime() - new Date(j.started_at).getTime()) / 1000 : null;
         const msg = jobMsg(j.message);
-        const bad = j.status === "failed" || j.status === "error";
+        const failed = j.status === "failed" || j.status === "error";
+        const { state, cad } = lateness(j.job_name, j.started_at, now);
+        const c = failed ? "var(--alert)" : j.status === "skipped" ? "var(--ink-4)" : LATE_C[state];
+        const glyph = failed ? "!" : j.status === "skipped" ? "–" : state === "ok" || state === "unknown" ? "✓" : "!";
+        const why = failed
+          ? "last run failed"
+          : state === "ok"
+            ? `on time (${cad != null ? fmtCad(cad) : ""})`
+            : state === "late"
+              ? `overdue — expected ${cad != null ? fmtCad(cad) : ""}`
+              : state === "dead"
+                ? `more than 3× overdue — expected ${cad != null ? fmtCad(cad) : ""}`
+                : "cadence unknown";
         return (
-          <div key={j.job_name} className={s.jobRow} style={JOB_COLS} data-row="" data-cut-ok="" title={`${j.job_name} · ${j.status} · ${fmtET(j.started_at)} ET${dur != null ? ` · ${dur.toFixed(1)}s` : ""}${j.message ? ` · ${j.message}` : ""}`}>
-            <span className={s.jobSt} style={{ color: bad ? "var(--alert)" : j.status === "skipped" ? "var(--ink-4)" : "var(--ink-3)" }}>
-              {bad ? "!" : j.status === "skipped" ? "–" : "✓"}
+          <div
+            key={j.job_name}
+            className={s.jobRow}
+            style={JOB_COLS}
+            data-row=""
+            data-cut-ok=""
+            title={`${j.job_name} · ${why} · last run ${fmtET(j.started_at)} ET${dur != null ? ` · ${dur.toFixed(1)}s` : ""}${j.message ? ` · ${j.message}` : ""}`}
+          >
+            <span className={s.jobSt} style={{ color: c }}>
+              {glyph}
             </span>
             <span className={s.jobName}>{j.job_name}</span>
-            <span className={s.jobAge}>{now ? `${fmtAge(j.started_at, now)} ago` : ""}</span>
-            <span className={s.jobMsg} style={{ color: bad ? "var(--alert)" : undefined }}>
-              {msg}
+            <span className={s.jobAge} style={{ color: state === "ok" || state === "unknown" ? undefined : c }}>
+              {now ? fmtAge(j.started_at, now) : ""}
+            </span>
+            <span className={s.jobMsg} style={{ color: failed ? "var(--alert)" : msg ? undefined : "var(--ink-3)" }}>
+              {msg || "—"}
             </span>
           </div>
         );
@@ -738,8 +793,10 @@ function JobHead() {
   return (
     <div className={`${s.jobRow} ${s.jobHead}`} style={JOB_COLS}>
       <span />
-      <span title="Scheduled data jobs keep running while LLM routines are off">Data jobs · live</span>
-      <span style={{ textAlign: "right" }}>Ran</span>
+      <span title="Scheduled data jobs. ✓ = ran within its expected cadence; ! = overdue (warn) or more than 3× overdue (alert).">Data jobs</span>
+      <span style={{ textAlign: "right" }} title="Time since the last run">
+        Age
+      </span>
       <span>Result</span>
     </div>
   );

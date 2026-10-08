@@ -193,3 +193,47 @@ export function FitLines({ text, lines = 3, lineHeight = 18, className = "" }: {
     </div>
   );
 }
+
+/**
+ * One line of text truncated at a WORD boundary (never mid-word) to the width
+ * it's given, ending in "…"; the full text is the tooltip. Measured with
+ * canvas against the element's computed font, re-fitted on resize.
+ */
+export function WordClamp({ text, className = "", style }: { text: string; className?: string; style?: CSSProperties }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [out, setOut] = useState(text);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (!el || !ctx) return;
+    const fit = () => {
+      const w = el.clientWidth - 2;
+      if (w <= 0) return;
+      const cs = getComputedStyle(el);
+      ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      if (ctx.measureText(text).width <= w) {
+        setOut(text);
+        return;
+      }
+      const words = text.split(/\s+/);
+      const cut = (k: number) => `${words.slice(0, k).join(" ").replace(/[\s,;:.\-–—(]+$/, "")}…`;
+      let lo = 0;
+      let hi = words.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (ctx.measureText(cut(mid)).width <= w) lo = mid;
+        else hi = mid - 1;
+      }
+      setOut(lo ? cut(lo) : "…");
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]);
+  return (
+    <span ref={ref} className={className} title={text} style={{ display: "block", whiteSpace: "nowrap", overflow: "hidden", minWidth: 0, ...style }}>
+      {out}
+    </span>
+  );
+}

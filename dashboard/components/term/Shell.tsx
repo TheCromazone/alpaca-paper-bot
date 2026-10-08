@@ -118,7 +118,7 @@ function CommandLine() {
         ref={inputRef}
         className="cmd-input"
         value={value}
-        placeholder="Ticker or function — NVDA GP · PORT · TOP · RISK"
+        placeholder="Ticker or function — NVDA · PORT · RISK"
         aria-label="Command line"
         spellCheck={false}
         autoComplete="off"
@@ -223,7 +223,7 @@ function Heartbeat() {
   const run = data?.last_llm_run;
   const stale = !!run && !!now && now - new Date(run.started_at).getTime() > BOT_STALE_MS;
   const failed = !!run && run.status !== "ok";
-  const color = stale || failed ? "var(--down)" : "var(--up)";
+  const color = "var(--ink-2)"; // live = neutral pulse; green is direction-only
   return (
     <Link
       href="/bot"
@@ -233,7 +233,8 @@ function Heartbeat() {
       <span className="label cyan">BOT</span>
       {run ? (
         <span className="num" style={{ fontSize: 11, color: "var(--ink-2)", display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span className={`dot${stale || failed ? "" : " live"}`} style={{ color: stale || failed ? "var(--alert)" : color }} />
+          {/* Stale/failed: the pill says it; a dot beside it read as "live". */}
+          {!(stale || failed) && <span className="dot live" style={{ color }} />}
           <span className="dim">last run</span> {run.routine} {now ? `· ${fmtAge(run.started_at, now)} ago` : ""}
           {stale && <span className="pill alert">Stale</span>}
           {failed && !stale && <span className="pill alert">{run.status}</span>}
@@ -296,11 +297,14 @@ function AlertSummary() {
   const c = data?.counts;
   if (!data || !c) return null;
   const soon = data.items.find((i) => i.kind === "catalyst" && i.tone === "warn" && i.ticker);
-  // Report days are bare dates; count whole calendar days from today (ET-ish, local midnight).
-  const soonDays =
-    soon?.at && now
-      ? Math.max(0, Math.round((new Date(`${soon.at.slice(0, 10)}T00:00:00`).getTime() - new Date(new Date(now).toDateString()).getTime()) / 86_400_000))
-      : null;
+  // Report days are market dates: whole days from today's date in New York.
+  const soonDays = (() => {
+    if (!soon?.at || !now) return null;
+    const [y, m, d] = soon.at.slice(0, 10).split("-").map(Number);
+    const [ty, tm, td] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" })
+      .format(new Date(now)).split("-").map(Number);
+    return Math.max(0, Math.round((Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / 86_400_000));
+  })();
   return (
     <span className="fn-alerts hide-md" aria-label="Alerts">
       {c.breach > 0 && (
@@ -458,7 +462,8 @@ export function StatusBar() {
   // Markets lead, then what we hold, then the rest of the universe.
   const ordered = [...markets, ...cells.filter((c) => c.held), ...cells.filter((c) => !c.held)];
   const label = regime?.regime_label?.replace("_", " ").toUpperCase();
-  const rTone = regime?.regime_label === "risk_on" ? "up" : regime?.regime_label === "risk_off" ? "down" : "";
+  // Regime is a state, not a direction: neutral ink, alert only for risk-off.
+  const rTone = regime?.regime_label === "risk_off" ? "alert" : "";
   return (
     <footer className="statusbar">
       <div className="seg" style={{ borderLeft: 0 }}>

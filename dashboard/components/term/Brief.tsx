@@ -164,8 +164,11 @@ function ageOf(at: string | null | undefined, now: number): { text: string; titl
   if (!at || !now) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(at)) {
     const [y, m, d] = at.split("-").map(Number);
-    const today = new Date(now);
-    const t0 = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+    // Report days are market dates: compare with today's date in New York,
+    // not UTC (after 8pm ET, UTC is already tomorrow).
+    const [ty, tm, td] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" })
+      .format(new Date(now)).split("-").map(Number);
+    const t0 = Date.UTC(ty, tm - 1, td);
     const days = Math.round((Date.UTC(y, m - 1, d) - t0) / 86_400_000);
     if (days > 0) return { text: `in ${days}d`, title: `Scheduled for ${at}`, future: true };
     if (days === 0) return { text: "today", title: `Today, ${at}`, future: true };
@@ -181,10 +184,10 @@ function ageOf(at: string | null | undefined, now: number): { text: string; titl
 type RowModel =
   | { type: "sec"; key: string; tag: string; text: string }
   | { type: "thead"; key: string }
-  | { type: "bhead"; key: string; n: number }
+  | { type: "bhead"; key: string; n: number; common: Status | null }
   | { type: "bfoot"; key: string; n: number; names: string }
   | { type: "guard"; key: string; it: BriefItem }
-  | { type: "breach"; key: string; it: BriefItem }
+  | { type: "breach"; key: string; it: BriefItem; common?: boolean }
   | { type: "item"; key: string; it: BriefItem; tag?: string; more?: number }
   | { type: "kmore"; key: string; kind: Kind; n: number; text: string };
 
@@ -243,11 +246,13 @@ export function Brief({ className = "", style }: { className?: string; style?: C
       .map((x) => x.it);
   }, [data]);
 
+  // Tab counts include the headline line (shown as the hero above the list),
+  // so ALL = the tabs' sum = the severity counts' sum.
   const kindCount = useMemo(() => {
     const c = new Map<Kind, number>();
-    for (const it of items) c.set(it.kind, (c.get(it.kind) ?? 0) + 1);
+    for (const it of data?.items ?? []) c.set(it.kind, (c.get(it.kind) ?? 0) + 1);
     return c;
-  }, [items]);
+  }, [data]);
   // The API's `counts` are the single truth (the top bar uses them too);
   // fall back to counting items (headline included) for older payloads.
   const sevCount = useMemo(() => {
@@ -293,8 +298,13 @@ export function Brief({ className = "", style }: { className?: string; style?: C
         const urgent = guards.filter((g) => sevOf(g) >= 2);
         const restN = risk.length - urgent.length;
         const names = `${guards.filter((g) => sevOf(g) < 2).map((g) => g.ticker).join(" ")}${notes.length ? " · slots note" : ""}`.trim();
-        out.push({ type: "bhead", key: "bhead", n: urgent.length });
-        urgent.forEach((it, i) => out.push({ type: "breach", key: `b-${it.ticker}-${i}`, it }));
+        // One shared action is said once, in the header; rows then use the
+        // status column for what differs per row (the guard price).
+        const sts = urgent.map((g) => status(metricsOf(g).action, metricsOf(g).reason));
+        const same = sts.length > 1 && sts.every((x) => x.main === sts[0].main && x.sub === sts[0].sub);
+        const common = same ? sts[0] : null;
+        out.push({ type: "bhead", key: "bhead", n: urgent.length, common });
+        urgent.forEach((it, i) => out.push({ type: "breach", key: `b-${it.ticker}-${i}`, it, common: !!common }));
         if (restN > 0) out.push({ type: "bfoot", key: "bfoot", n: restN, names });
       }
       for (const k of KINDS) {
@@ -371,8 +381,9 @@ export function Brief({ className = "", style }: { className?: string; style?: C
   };
 
   const rel = data?.rel_spy_1d;
-  const relTxt =
-    rel == null ? null : Math.abs(rel) < 0.01 ? `${rel > 0 ? "+" : rel < 0 ? "−" : ""}${Math.abs(rel * 10000).toFixed(Math.abs(rel) < 0.001 ? 1 : 0)}bp` : fmtChg(rel);
+  // Whole basis points, like every other bp on the terminal.
+  const relBp = rel == null ? null : Math.round(rel * 10000);
+  const relTxt = relBp == null ? null : Math.abs(rel!) < 0.01 ? `${relBp > 0 ? "+" : relBp < 0 ? "−" : ""}${Math.abs(relBp)}bp` : fmtChg(rel);
   // "Book −$117 (−0.22%) vs SPY −0.24%." → book move (hero), SPY context.
   const head = (data?.headline ?? "").replace(/\s+on the session\b/i, "");
   const vsM = head.match(/^(.*?)\s+vs\s+SPY\s+(.+?)\.?$/);
@@ -463,7 +474,7 @@ export function Brief({ className = "", style }: { className?: string; style?: C
                   {relTxt && (
                     <>
                       {" · "}
-                      <span className={rel! > 0 ? "up" : rel! < 0 ? "down" : ""}>{relTxt}</span> (1d)
+                      <span className={relBp! > 0 ? "up" : relBp! < 0 ? "down" : ""}>{relTxt}</span> (1d)
                     </>
                   )}
                 </span>
@@ -514,13 +525,28 @@ export function Brief({ className = "", style }: { className?: string; style?: C
                 );
               if (r.type === "bhead")
                 return (
-                  <div key={r.key} data-row="head" className={`${s.bt} ${s.bthead}`} style={hide}>
+                  <div key={r.key} style={{ display: "contents" }}>
+                    {r.common && (
+                      <div data-row="head" className={s.bsum} style={hide} title={r.common.sub}>
+                        <span className={s.btag}>RISK</span>
+                        <span>
+                          {r.n} breaches ·
+                        </span>
+                        <Pill st={r.common} />
+                        {r.common.sub && <span className={s.bsumWhy}>— {r.common.sub.replace(/^nothing will sell it — /, "")}</span>}
+                      </div>
+                    )}
+                  <div data-row="head" className={`${s.bt} ${s.bthead}`} style={hide}>
                     <span className={s.btag} title={`${r.n} position${r.n === 1 ? "" : "s"} through a guard`}>
-                      RISK
+                      {r.common ? "TKR" : "RISK"}
                     </span>
-                    <span title="SELL MANUALLY (outlined) = nothing will sell it; STOP UNFILLED (solid) = a broker stop exists but hasn't filled; SELL @ MIDDAY / SELLS @ SYNC (warn) = the bot will sell">
-                      STATUS
-                    </span>
+                    {r.common ? (
+                      <span title="The binding guard's price (the tighter of the 10% trailing stop and the −7% cut)">GUARD PX</span>
+                    ) : (
+                      <span title="SELL MANUALLY (outlined) = nothing will sell it; STOP UNFILLED (solid) = a broker stop exists but hasn't filled; SELL @ MIDDAY / SELLS @ SYNC (warn) = the bot will sell">
+                        STATUS
+                      </span>
+                    )}
                     <span className={s.r} title="Last price vs the binding guard (the tighter of the 10% trailing stop and the −7% cut) — same as PORT's DIST. Negative = already through it.">
                       TO GUARD
                     </span>
@@ -531,6 +557,7 @@ export function Brief({ className = "", style }: { className?: string; style?: C
                       WT
                     </span>
                   </div>
+                  </div>
                 );
               if (r.type === "bfoot")
                 return (
@@ -540,7 +567,7 @@ export function Brief({ className = "", style }: { className?: string; style?: C
                     <span className={s.go}>→</span>
                   </button>
                 );
-              if (r.type === "breach") return <BreachRow key={r.key} it={r.it} style={hide} />;
+              if (r.type === "breach") return <BreachRow key={r.key} it={r.it} style={hide} guardCol={!!r.common} />;
               if (r.type === "guard") return <GuardRow key={r.key} it={r.it} style={hide} />;
               if (r.type === "kmore")
                 return (
@@ -564,7 +591,7 @@ export function Brief({ className = "", style }: { className?: string; style?: C
                   key={r.key}
                   data-row="body"
                   data-clamp={r.tag ? r.key : undefined}
-                  data-noclamp={it.kind === "catalyst" || it.kind === "macro" ? "" : undefined}
+                  data-noclamp={it.kind === "catalyst" || it.kind === "macro" || it.kind === "bot" ? "" : undefined}
                   data-prio={prio}
                   className={`${s.item}${r.tag ? ` ${s.digest}` : ""}`}
                   style={hide}
@@ -653,7 +680,7 @@ function GuardRow({ it, style }: { it: BriefItem; style?: CSSProperties }) {
 }
 
 /** ALL view: one line per breach — TKR · STATUS · TO GUARD · $ BELOW · WT. */
-function BreachRow({ it, style }: { it: BriefItem; style?: CSSProperties }) {
+function BreachRow({ it, style, guardCol = false }: { it: BriefItem; style?: CSSProperties; guardCol?: boolean }) {
   const m = metricsOf(it);
   const t = it.ticker ?? "";
   const st = status(m.action, m.reason);
@@ -670,12 +697,18 @@ function BreachRow({ it, style }: { it: BriefItem; style?: CSSProperties }) {
         <SevMark sev={sevOf(it)} />
         <span className={s.gtkr}>{t}</span>
       </span>
-      <span className={s.st} title={st.sub}>
-        <Pill st={st} />
-      </span>
+      {guardCol ? (
+        <span className={s.gpx} title={`${st.main} — ${st.sub ?? ""}`}>
+          {fmtPx(m.guard_price)} <i className={s.gk}>{m.guard_kind}</i>
+        </span>
+      ) : (
+        <span className={s.st} title={st.sub}>
+          <Pill st={st} />
+        </span>
+      )}
       <span className={`${s.r} ${s.cell} ${distTint(gd)}`} title={m.guard_kind ? `binding guard: ${m.guard_kind} at ${fmtPx(m.guard_price)}` : undefined}>
         {fmtChg(gd, 1)}
-        {m.guard_kind && <i className={s.gk}>{m.guard_kind}</i>}
+        {m.guard_kind && !guardCol && <i className={s.gk}>{m.guard_kind}</i>}
       </span>
       <span className={`${s.r} ${s.cell} ${m.usd_beyond ? s.tAlert : ""}`}>{m.usd_beyond ? `$${Math.round(m.usd_beyond)}` : "—"}</span>
       <span className={`${s.r} ${s.wt}`}>{m.weight != null ? `${(m.weight * 100).toFixed(1)}%` : "—"}</span>

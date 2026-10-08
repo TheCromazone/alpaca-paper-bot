@@ -386,19 +386,23 @@ export function TimeSeriesChart({
     }
     if (showZero && lo > 0 && lo < (hi - lo) * 0.25) lo = 0;
     const span = hi - lo || Math.abs(hi) * 0.02 || 1;
-    return { lo: lo - span * (markers.length ? 0.12 : 0.08), hi: hi + span * (markers.length || keys.length ? 0.16 : 0.1) };
-  }, [series, refs, showZero, markers.length, keys.length]);
+    // on-line markers / an in-plot key need headroom; a trade lane does not
+    const onLine = markers.length > 0 && !markerLane;
+    return { lo: lo - span * (onLine ? 0.12 : 0.06), hi: hi + span * (onLine || keys.length ? 0.16 : 0.05) };
+  }, [series, refs, showZero, markers.length, keys.length, markerLane]);
 
   // ── layout ──
   const geo = useMemo(() => {
     if (!dom || !w || !h) return null;
-    const padT = 6;
+    // annotation labels get their own band above the plot, never on the data
+    const annRows = annotations.length ? Math.max(...annotations.map((a) => a.row ?? 0)) + 1 : 0;
+    const padT = 6 + (annRows ? annRows * 13 + 2 : 0);
     const dateH = 17;
     const laneH = markerLane && markers.length ? 26 : 0;
     const drawH = Math.max(40, h - padT - dateH - capH - laneH);
     const subH = sub ? Math.round(drawH * (sub.ratio ?? 0.24)) : 0;
     const mainH = drawH - subH;
-    const yT = niceTicks(dom.lo, dom.hi, Math.max(2, Math.floor(mainH / 28)));
+    const yT = niceTicks(dom.lo, dom.hi, Math.max(2, Math.floor(mainH / 24)));
     const tagTexts = [
       ...series.filter((s) => s.tag !== false).map((s) => {
         const li = lastIdx(s.data);
@@ -430,7 +434,7 @@ export function TimeSeriesChart({
     const tagX = inside ? x1 - tagW - 2 : x1 + 1;
     const tagRectW = inside ? tagW : axisW - 1;
     return { axisW, tagW: tagRectW, tagX, x0, x1, xr, mainTop, mainBot, laneTop, laneBot, laneH, capTop, subTop, subBot, subH, x, y, yInv, yT, step, leftV, dateY: sub ? subBot : laneBot };
-  }, [dom, w, h, sub, capH, series, refs, n, tFmt, vFmt, inside, markerLane, markers.length, valueAxis]);
+  }, [dom, w, h, sub, capH, series, refs, n, tFmt, vFmt, inside, markerLane, markers.length, valueAxis, annotations]);
 
   // ── sub-pane scale: floor/ceil to a nice tick so the extreme is labelled
   // and the series never sits on the pane edge ──
@@ -755,10 +759,10 @@ export function TimeSeriesChart({
               const right = xx > geo.xr - 150;
               return (
                 <g key={`an${k}`}>
-                  <line x1={xx} x2={xx} y1={geo.mainTop} y2={geo.dateY} stroke={a.color ?? "var(--ink-3)"} strokeDasharray="2 3" shapeRendering="crispEdges" />
+                  <line x1={xx} x2={xx} y1={6 + (a.row ?? 0) * 13 + 2} y2={geo.dateY} stroke={a.color ?? "var(--ink-3)"} strokeDasharray="2 3" shapeRendering="crispEdges" />
                   <text
                     x={right ? xx - 5 : xx + 5}
-                    y={geo.mainTop + 11 + (a.row ?? 0) * 13}
+                    y={6 + 9 + (a.row ?? 0) * 13}
                     textAnchor={right ? "end" : "start"}
                     fontSize={10}
                     fill={a.color ?? "var(--ink-2)"}

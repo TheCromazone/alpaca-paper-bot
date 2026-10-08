@@ -241,6 +241,11 @@
   font-size: 10px;
   margin-left: 3px;
 }
+.smaDist {
+  font-size: 9.5px;
+  letter-spacing: -0.02em;
+  margin-left: 4px;
+}
 
 /* Below ~1400px the stats grid drops to its own full-width row. */
 @media (max-width: 1400px) {
@@ -751,9 +756,6 @@
 .decLine {
   font-size: 11.5px;
   color: var(--ink-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .fillRow {
   display: grid;
@@ -1031,6 +1033,44 @@ a.chip:hover {
 }
 .flowLine .flowWho {
   font-size: 11.5px;
+}
+
+/* CN one-line rows */
+.newsLine {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto 32px;
+  align-items: center;
+  gap: 8px;
+  height: 23px;
+  padding: 0 10px 0 8px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+}
+.newsLine:hover {
+  background: var(--bg-2);
+}
+.newsHead {
+  font-size: 12px;
+  color: var(--ink);
+}
+.newsLine:hover .newsHead {
+  color: var(--amber-2) !important;
+}
+.newsSrc {
+  font-size: 10px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.flowExits {
+  flex: none;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  height: 21px;
+  padding: 0 10px;
+  border-top: 1px solid var(--line);
+  font-size: 10.5px;
+  min-width: 0;
 }
 
 /* description */

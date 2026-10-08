@@ -191,7 +191,7 @@ function RailKey() {
           <rect x={9} y={1} width={9} height={10} fill="var(--ink-3)" />
           <line x1={9} x2={9} y1={0} y2={12} stroke="var(--ink-2)" />
         </svg>
-        binding guard · S stop · C cut
+        S stop · C cut
       </span>
       <span className={s.key}>left of 0 = breached</span>
     </span>
@@ -354,24 +354,33 @@ function Weights({ d }: { d: RiskResp }) {
 
 // ── guard table ──────────────────────────────────────────────────────────
 
-/** How breached stops get executed right now (broker order / sync job / nobody). */
+const enfOf = (g: GuardX) => g.stop_enforced_by ?? (g.broker_stop ? "broker" : "none");
+/** The single exit-by value when every row agrees, else null. */
+const uniformEnf = (d: RiskResp) => {
+  const vals = new Set((d.guards as GuardX[]).map(enfOf));
+  return vals.size === 1 ? [...vals][0] : null;
+};
+
+/** How breached stops get executed right now — said once for the book. */
 function StopNote({ d }: { d: RiskResp }) {
   if (!d.guards.length) return null;
   const p = protectionOf(d);
-  const n = d.guards.filter((g) => g.broker_stop).length;
-  const armed = !!p?.synthetic_stops;
   const why = [p?.scheduler_alive === false ? "scheduler down" : null, p?.dry_run ? "dry run" : null].filter(Boolean).join(" · ");
-  if (n === d.guards.length) return <span className="pill" title="Every position has a live broker trailing-stop order">Broker stops</span>;
+  const u = uniformEnf(d);
+  if (u === "none")
+    return (
+      <span
+        className="pill alert"
+        title={`No broker stop orders, and the 5-min sync_account job that sells breached synthetic stops is not running${why ? ` (${why})` : ""}. Nothing sells a breach automatically; the −7% cut needs the midday routine.`}
+      >
+        Exit by: none{why ? ` — ${why.split(" · ")[0]}` : ""}
+      </span>
+    );
+  if (u === "broker") return <span className="pill" title="Every position has a live Alpaca trailing-stop order">Exit by: broker</span>;
+  if (u === "synthetic") return <span className="pill" title="Breached trailing stops are sold by the 5-min sync_account sweep">Exit by: sync job</span>;
   return (
-    <span
-      className={`pill ${armed ? "" : "alert"}`}
-      title={
-        armed
-          ? "Breached trailing stops without a broker order are sold by the 5-min sync_account job."
-          : `No broker stop orders${n ? ` on ${d.guards.length - n} positions` : ""}, and the 5-min sync_account job that sells breached synthetic stops is not running${why ? ` (${why})` : ""}. Nothing will sell a breach automatically; the −7% cut needs the midday routine.`
-      }
-    >
-      {armed ? "Synthetic stops armed" : "Stops not armed"}
+    <span className={`pill ${p?.synthetic_stops ? "" : "alert"}`} title="Mixed: see the Exit by column">
+      {p?.synthetic_stops ? "Synthetic stops armed" : "Stops not armed"}
     </span>
   );
 }
@@ -382,6 +391,7 @@ function GuardTable({ d, page }: { d: RiskResp; page: boolean }) {
   const guards = useMemo(() => [...d.guards].sort((a, b) => minDist(a) - minDist(b)), [d.guards]);
   const wt = useMemo(() => new Map(d.weights.map((w) => [w.ticker, w.weight])), [d.weights]);
   const railW = page ? 200 : 160;
+  const showEnf = uniformEnf(d) == null;
   if (!guards.length) return <Empty>No open positions — nothing to guard.</Empty>;
   return (
     <table className={`tbl ${s.guards}`}>
@@ -399,9 +409,11 @@ function GuardTable({ d, page }: { d: RiskResp; page: boolean }) {
           {page && <th>Cut px</th>}
           <th title="Distance from price down to the midday −7% from-cost cut">→ Cut</th>
           {page && <th>Trail</th>}
-          <th title="Who executes the trailing stop on a breach: broker = live Alpaca order · sync job = 5-min synthetic-stop sweep · none = nothing will (manual action needed)">
-            Exit by
-          </th>
+          {showEnf && (
+            <th title="Who executes the trailing stop on a breach: broker = live Alpaca order · sync job = 5-min synthetic-stop sweep · none = nothing will (manual action needed)">
+              Exit by
+            </th>
+          )}
           <th title="Days to next earnings report (≤2 = blackout)">Ern</th>
           <th title="Weight of equity">Wt</th>
         </tr>
@@ -410,7 +422,7 @@ function GuardTable({ d, page }: { d: RiskResp; page: boolean }) {
         {(guards as GuardX[]).map((g) => {
           // Row state follows the BINDING guard — the same rule as the badges.
           const bt = distTone(binding(g).d);
-          const enf = g.stop_enforced_by ?? (g.broker_stop ? "broker" : "none");
+          const enf = enfOf(g);
           return (
             <tr key={g.ticker} data-row="" data-cut-ok="" data-breach={bt === "breach" || undefined} data-near={bt === "near" || undefined}>
               <td>
@@ -431,22 +443,21 @@ function GuardTable({ d, page }: { d: RiskResp; page: boolean }) {
               {page && <td style={{ color: "var(--ink-3)" }}>{fmtPx(g.cut_price)}</td>}
               <DistCell d={g.cut_distance} title={`Midday cut ${fmtPx(g.cut_price)} (cost −${MIDDAY_CUT * 100}%)`} />
               {page && <td style={{ color: "var(--ink-3)" }}>{pct(g.trail_pct, 0)}</td>}
-              <td
-                className={s.enf}
-                data-enf={enf}
-                data-hot={(enf === "none" && bt === "breach") || undefined}
-                title={
-                  enf === "none"
-                    ? bt === "breach"
-                      ? `Breached and nothing will sell it automatically${g.usd_beyond ? ` — $${fmtNum(g.usd_beyond, 0)} beyond the guard` : ""}`
-                      : "No broker order and the sync job is not armed"
-                    : enf === "broker"
-                      ? "Live Alpaca trailing-stop order"
-                      : "Sold by the 5-min sync_account sweep on a breach"
-                }
-              >
-                {ENF_TEXT[enf]}
-              </td>
+              {showEnf && (
+                <td
+                  className={s.enf}
+                  data-enf={enf}
+                  title={
+                    enf === "none"
+                      ? `No broker order and the sync job is not armed${bt === "breach" && g.usd_beyond ? ` — $${fmtNum(g.usd_beyond, 0)} beyond the guard` : ""}`
+                      : enf === "broker"
+                        ? "Live Alpaca trailing-stop order"
+                        : "Sold by the 5-min sync_account sweep on a breach"
+                  }
+                >
+                  {ENF_TEXT[enf]}
+                </td>
+              )}
               <td>
                 <Ern g={g} />
                 {page && g.earnings_at && <span style={{ color: "var(--ink-4)", marginLeft: 5 }}>{fmtD(g.earnings_at)}</span>}

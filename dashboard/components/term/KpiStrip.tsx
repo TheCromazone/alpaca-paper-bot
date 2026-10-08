@@ -449,7 +449,7 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
       <Tile
         href="/risk"
         label="Beta"
-        title="Beta to SPY since inception; the chart is the rolling 20-session beta, dashed line at 1.0"
+        title={`Beta to SPY since inception; the chart is the rolling 20-session beta (now ${finite(lastBeta) ? fmtNum(lastBeta, 2) : "—"}), dashed line at β 1.0`}
         loading={risk.isLoading}
         value={
           <Flash value={R?.beta}>
@@ -458,15 +458,8 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
         }
         sub={<KV k="Correlation" v={finite(R?.corr) ? fmtNum(R?.corr, 2) : "—"} />}
         band={
-          <Band
-            left={<>rolling 20-day</>}
-            right={
-              <>
-                now <span className={s.cv}>{finite(lastBeta) ? fmtNum(lastBeta, 2) : "—"}</span>
-              </>
-            }
-          >
-            <MicroLine lines={[{ data: d.beta, color: "var(--ink-2)" }]} refLine={1} refLabel="β 1.0" />
+          <Band left={<>rolling 20-day</>} right={<>┄ β 1.0</>}>
+            <MicroLine lines={[{ data: d.beta, color: "var(--ink-2)" }]} refLine={1} />
           </Band>
         }
       />
@@ -515,8 +508,8 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
         value={rg ? <span className={s.regimeChip} style={{ color: rg.color, background: rg.bg, borderColor: rg.border }}>{rg.text}</span> : <span>—</span>}
         sub={<KV k="VIX" v={finite(G?.vix) ? fmtNum(G?.vix, 2) : "—"} />}
         band={
-          <Band left={<>VIX, last 30 days</>}>
-            {vix?.spark?.length ? <MicroLine lines={[{ data: vix.spark, color: "var(--ink-2)" }]} refLine={20} refAlways refLabel="VIX 20 stress" /> : null}
+          <Band left={<>VIX, 30 days</>} right={<>┄ 20 stress</>}>
+            {vix?.spark?.length ? <MicroLine lines={[{ data: vix.spark, color: "var(--ink-2)" }]} refLine={20} refAlways /> : null}
           </Band>
         }
       />
@@ -613,7 +606,7 @@ function KV({ k, v, color, after }: { k?: string; v: string; color?: string; aft
 // 12px tall, stretch to the tile, hairline strokes (non-scaling), dashed
 // reference line named in the caption row, lines end in a 3px dot.
 
-const MH = 12;
+const MH = 10;
 const FILL = 0.2;
 
 function MicroLine({

@@ -201,7 +201,17 @@ function fmtLast(r: Row): string {
       return fmtLevel(v);
   }
 }
-const fmtDelta = (r: Row, v: number | null) => (r.kind === "yld" || r.kind === "spr" ? fmtBp(v) : fmtChg(v));
+/** Change as printed: rates/spreads in bp, VIX in index points (it sits
+ *  under a bp header, so never a %), everything else in %. */
+const fmtDelta = (r: Row, v: number | null) => {
+  if (r.kind === "yld" || r.kind === "spr") return fmtBp(v);
+  if (r.kind === "vix") {
+    if (v == null || r.last == null || !Number.isFinite(v)) return "—";
+    const pts = r.last - r.last / (1 + v);
+    return `${pts > 0 ? "+" : pts < 0 ? MINUS : ""}${Math.abs(pts).toFixed(2)}pt`;
+  }
+  return fmtChg(v);
+};
 
 /** Business days from a print's date to the equity close (0 = same day). */
 function lagDays(asOf: string | null | undefined, close: string | null | undefined): number {
@@ -262,11 +272,13 @@ function fill(r: Row, v: number | null, h: H, close?: string): { bg: string; fg:
   return { bg: `rgb(${mix(cr, 0)},${mix(cg, 1)},${mix(cb, 2)})`, fg: k > 0.6 ? "#fff" : "var(--ink)", ring: false };
 }
 
+const fmtDeltaNum = (r: Row, v: number) => (r.last == null ? 0 : r.last - r.last / (1 + v));
+
 /** The change as printed: rates/vol carry a ▲/▼ glyph (their color is neutral). */
 function deltaText(r: Row, v: number | null): string {
   const t = fmtDelta(r, v);
   if (!neutralKind(r) || v == null || t === "—") return t;
-  const rounded = r.kind === "vix" ? Math.round(v * 10000) : Math.round(v * 100);
+  const rounded = r.kind === "vix" ? Math.round(Math.abs(fmtDeltaNum(r, v)) * 100) : Math.round(v * 100);
   if (rounded === 0) return t.replace(/^[+−]/, "");
   return `${v > 0 ? "▲" : "▼"}${t.replace(/^[+−]/, "")}`;
 }
@@ -434,7 +446,17 @@ function fromVix(v: NonNullable<MonitorResp["vix"]>, fred?: MacroRow): Row {
 
 // ── layout definitions ───────────────────────────────────────────────────
 
-type Group = { label: string; keys: string[]; sortable?: boolean; curve?: boolean; trim?: boolean; subhead?: boolean };
+type Group = {
+  label: string;
+  keys: string[];
+  sortable?: boolean;
+  curve?: boolean;
+  trim?: boolean;
+  /** Own header row: [label, col3, col4, col5] — which number the 1D is for. */
+  cols?: [string, string, string, string];
+  /** Tooltips for those columns. */
+  colTips?: [string, string, string];
+};
 
 /** Extra board groups, added per column (in order) only when they fit whole. */
 const BOARD_EXTRA: Group[][] = [
@@ -449,19 +471,32 @@ const B_GROUP = 16;
 const B_HEAD = 18;
 /** The Treasury-curve row under the Treasuries header. */
 const B_CURVE = 36;
-/** Column sub-header inside a block (ETF rows under a rates header). */
-const B_SUB = 14;
+
 
 const BOARD: Group[][] = [
   [
     { label: "US equity", keys: ["SPY", "QQQ", "DIA", "IWM"] },
     { label: "Global", keys: ["EFA", "EEM", "EWJ", "FXI", "EWG"] },
-    { label: "FX", keys: ["UUP", "FXE", "FXY", "FXB"] },
+    {
+      label: "FX",
+      keys: ["UUP", "FXE", "FXY", "FXB"],
+      cols: ["FX", "Rate", "ETF", "1D rate"],
+      colTips: [
+        "The currency itself (DXY, EURUSD, USDJPY, GBPUSD) — the bright, primary value",
+        "The ETF's price (dim, secondary)",
+        "The currency's own move, in the ETF's direction (FXY: the yen's move)",
+      ],
+    },
   ],
   [
     { label: "Treasuries", keys: ["DGS2", "DGS10", "T10Y2Y"], curve: true },
     { label: "Credit · vol", keys: ["BAMLC0A0CM", "BAMLH0A0HYM2", "VIX"] },
-    { label: "Commodities · crypto", keys: ["GLD", "USO", "IBIT", "ETHA"], subhead: true },
+    {
+      label: "Commodities · crypto",
+      keys: ["GLD", "USO", "IBIT", "ETHA"],
+      cols: ["Real assets", "Spot", "ETF", "1D ETF"],
+      colTips: ["The underlying's real level (dim, secondary)", "The ETF's price — the bright, primary value", "The ETF's own move"],
+    },
   ],
 ];
 
@@ -645,7 +680,7 @@ function Board({
   });
   const cols = BOARD.map((base, ci) => {
     const out = [...base];
-    let used = B_HEAD + base.reduce((a, g) => a + B_GROUP + (g.curve ? B_CURVE : 0) + (g.subhead ? B_SUB : 0) + g.keys.filter((k) => rows.has(k)).length * B_ROW, 0);
+    let used = B_HEAD + base.reduce((a, g) => a + B_GROUP + (g.curve ? B_CURVE : 0) + g.keys.filter((k) => rows.has(k)).length * B_ROW, 0);
     for (const g of BOARD_EXTRA[ci]) {
       const keys = g.keys.filter((k) => rows.has(k));
       const need = B_GROUP + keys.length * B_ROW;
@@ -712,6 +747,22 @@ function Board({
           )}
           {col.map((g) => (
             <div key={g.label} style={{ display: "contents" }}>
+              {g.cols ? (
+                <div className={`${s.bgrid} ${s.ghead}`}>
+                  <span className={s.groupLabel} style={{ gridColumn: "span 2" }} title={g.label}>
+                    {g.cols[0]}
+                  </span>
+                  <span className={s.r} title={g.colTips?.[0]}>
+                    {g.cols[1]}
+                  </span>
+                  <span className={s.r} title={g.colTips?.[1]}>
+                    {g.cols[2]}
+                  </span>
+                  <span className={`${s.r} ${s.gheadChg}`} title={g.colTips?.[2]}>
+                    {g.cols[3].replace("1D", period)}
+                  </span>
+                </div>
+              ) : (
               <div className={s.bgroup}>
                 <span className={s.groupLabel}>{g.label}</span>
                 <span className={s.groupRule} />
@@ -721,23 +772,8 @@ function Board({
                   </span>
                 )}
               </div>
-              {g.curve && <CurveRow ys={curve} ago={curve1m} asOf={curveRows[0]?.asOf} close={close} onClick={onMacro} />}
-              {g.subhead && (
-                <div className={`${s.bgrid} ${s.subhead}`}>
-                  <span style={{ gridColumn: "span 2" }} title="ETF ticker and what it tracks">
-                    ETF
-                  </span>
-                  <span className={s.r} title={SPOT_TIP}>
-                    Spot
-                  </span>
-                  <span className={s.r} title="Last price of the ETF">
-                    Last
-                  </span>
-                  <span className={s.r} title="Change over the selected horizon">
-                    {period}
-                  </span>
-                </div>
               )}
+              {g.curve && <CurveRow ys={curve} ago={curve1m} asOf={curveRows[0]?.asOf} close={close} onClick={onMacro} />}
               {(g.sortable && !g.label.includes("best / worst") ? [...g.keys].sort((a, b) => (rows.get(b)?.chg[period] ?? -Infinity) - (rows.get(a)?.chg[period] ?? -Infinity)) : g.keys).map((k) => {
                 const r = rows.get(k);
                 if (!r) return null;

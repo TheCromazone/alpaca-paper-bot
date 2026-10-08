@@ -258,10 +258,7 @@ table.guards td.enf {
 table.guards td.enf[data-enf="none"] {
   color: var(--ink-3);
 }
-table.guards td.enf[data-hot="true"] {
-  color: var(--alert);
-  font-weight: 600;
-}
+
 .flag {
   font-family: var(--font-plex-mono), monospace;
   font-size: 9.5px;

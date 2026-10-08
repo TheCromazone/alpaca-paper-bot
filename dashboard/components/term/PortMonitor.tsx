@@ -134,8 +134,8 @@ const COLS: { k: Key | "spark"; label: string; title: string; w?: number }[] = [
   { k: "pnlPct", label: "P&L %", title: "Unrealized P&L (% of cost)" },
   {
     k: "guardPx",
-    label: "Guard",
-    title: "The binding guard price — S = 10% trailing stop off the peak, C = −7% cut from cost; whichever is higher fires first.",
+    label: "Guard lvl",
+    title: "Level the bot watches — S = 10% trailing stop off the peak, C = −7% cut from cost; whichever is higher binds. See ORDER for what would actually sell.",
   },
   { k: "guard", label: "Dist", title: "Distance from price to the binding guard" },
   { k: "status", label: "Status", title: "BREACHED = price at/below the binding guard · NEAR = within 2% of it. Default order: breached, near, then by weight." },
@@ -237,7 +237,18 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
 
   const sorted = useMemo(() => {
     const { k, dir } = sort;
-    if (k === "status") return [...rows].sort((a, b) => (a.sevRank - b.sevRank) * dir || (finite(b.w) && finite(a.w) ? b.w - a.w : b.mv - a.mv));
+    if (k === "status")
+      // same order as the BRIEF: status group, then $ already past the guard,
+      // then distance — deepest breach first, closest call first otherwise
+      return [...rows].sort((a, b) => {
+        const g = (a.sevRank - b.sevRank) * dir;
+        if (g) return g;
+        const usd = (b.usdBeyond || 0) - (a.usdBeyond || 0);
+        if (usd) return usd;
+        const da = Math.abs(a.guard ?? 0);
+        const db = Math.abs(b.guard ?? 0);
+        return a.sev === "breached" ? db - da : da - db;
+      });
     return [...rows].sort((a, b) => {
       const va = a[k];
       const vb = b[k];
@@ -265,6 +276,9 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
       dayBase: dayRows.reduce((a, r) => a + r.mv - (r.day as number), 0),
     };
   }, [rows, equity]);
+
+  // book day % on equity (prior close) — the same base as the KPI strip and the BRIEF
+  const dayPctEq = tot.day != null && equity ? tot.day / (equity - tot.day) : null;
 
   const sectors = useMemo(() => {
     const load = risk.data?.sector_load;
@@ -335,10 +349,10 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
           <Stat label="Buying power" title="Buying power, including margin">
             {usdK(summary.data?.buying_power)}
           </Stat>
-          <Stat label="Day P&L" title="Today's P&L on the held book: Σ qty × (last − previous close)">
+          <Stat label="Day P&L" title="Today's P&L on the held book (Σ qty × (last − previous close)), % of equity at the prior close">
             <span style={{ color: toneVar(tot.day) }}>{tot.day == null ? "—" : fmtSignedUSD(tot.day, 0)}</span>
             <span className={s.statSub} style={{ color: toneVar(tot.day) }}>
-              {tot.day != null && tot.dayBase > 0 ? fmtChg(tot.day / tot.dayBase) : ""}
+              {dayPctEq != null ? fmtChg(dayPctEq) : ""}
             </span>
           </Stat>
           <Stat label="$ past guards" title="Σ (guard − last) × qty across breached positions — what is already below the binding guards">
@@ -410,14 +424,14 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
                     {r.day == null ? "—" : fmtSignedUSD(r.day, 0).replace("$", "")}
                   </td>
                   <td className={cx("qty")} style={{ color: "var(--ink-2)" }}>
-                    {fmtNum(r.qty, 2)}
+                    {fmtNum(r.qty, Number.isInteger(r.qty) ? 0 : 2)}
                   </td>
                   <td className={HIDE.avg} style={{ color: "var(--ink-2)" }}>
                     {fmtPx(r.avg)}
                   </td>
                   <td>{fmtNum(r.mv, 0)}</td>
                   <td className={HIDE.w} style={{ color: "var(--ink-2)" }}>
-                    {r.w != null ? (r.w * 100).toFixed(1) : "—"}
+                    {r.w != null ? `${(r.w * 100).toFixed(1)}%` : "—"}
                   </td>
                   <td className={GRP.pnl} style={{ color: toneVar(r.pnl) }}>
                     {fmtSignedUSD(r.pnl, 0).replace("$", "")}
@@ -429,7 +443,9 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
                     title={`${r.guardKind === "S" ? `S — ${Math.round(r.trail * 100)}% trailing stop` : "C — −7% cut from cost"} binds at ${fmtPx(r.guardPx)}. Avg cost ${fmtPx(r.avg)} · trail stop ${fmtPx(r.stopPx)} (${fmtChg(r.stopDist, 1)}) · cut ${fmtPx(r.cutPx)} (${fmtChg(r.cutDist, 1)})`}
                   >
                     {fmtPx(r.guardPx)}
-                    <span className={s.gk}>{r.guardKind}</span>
+                    <span className={s.gk} title={`${r.guardKind === "S" ? "Trailing-stop level" : "−7% cut level"} the bot watches — not an order; see ORDER for what would sell`}>
+                      {r.guardKind}
+                    </span>
                   </td>
                   <td style={{ color: r.sev === "breached" ? "var(--alert)" : r.sev === "near" ? "var(--warn)" : "var(--ink-2)" }}>{fmtChg(r.guard, 1)}</td>
                   <td>
@@ -471,7 +487,9 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
                 </td>
                 <td className={HIDE.spark} />
                 <td className={GRP.last} />
-                <td />
+                <td style={{ color: toneVar(dayPctEq) }} title="Book day change, % of equity at the prior close">
+                  {fmtChg(dayPctEq)}
+                </td>
                 <td className={HIDE.day} style={{ color: toneVar(tot.day) }} title="Σ today's P&L across positions">
                   {tot.day == null ? "—" : fmtSignedUSD(tot.day, 0).replace("$", "")}
                 </td>

@@ -237,6 +237,8 @@ export function EquityGP({ className = "", style }: { className?: string; style?
     return [{ i: start, label: `behind SPY since ${MON[+d.slice(5, 7) - 1]} ${d.slice(8, 10)}`, color: "var(--down)", row: 1 }];
   }, [view]);
 
+  const allAnnotations = useMemo(() => [...annotations, ...behind], [annotations, behind]);
+
   // largest daily trade count in the window — the trade-lane scale
   const maxTrades = useMemo(() => {
     const per = new Map<string, number>();
@@ -345,7 +347,7 @@ export function EquityGP({ className = "", style }: { className?: string; style?
             markerSeries="bot"
             shade={shade}
             shadeStyle="fill"
-            annotations={[...annotations, ...behind]}
+            annotations={allAnnotations}
             markerLane
             valueAxis="left"
             tagPlacement="axis"
