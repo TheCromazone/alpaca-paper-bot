@@ -72,24 +72,26 @@ function distTone(d: number | null | undefined): "breach" | "near" | "ok" | "na"
   return "ok";
 }
 
-function Dist({ d, title }: { d: number | null | undefined; title: string }) {
+/** Distance cell: the number stays ink; the CELL is tinted by state. */
+function DistCell({ d, title }: { d: number | null | undefined; title: string }) {
   const t = distTone(d);
   return (
-    <span className={`num ${s.dist}`} data-t={t} title={t === "breach" ? `${title}: price is BELOW this level` : title}>
+    <td className={s.distCell} data-t={t} title={t === "breach" ? `${title} — price is BELOW this level` : t === "near" ? `${title} — within 2%` : title}>
       {d == null ? "—" : `${d > 0 ? "+" : d < 0 ? "−" : ""}${Math.abs(d * 100).toFixed(2)}%`}
-    </span>
+    </td>
   );
 }
 
 /**
  * Cushion bars on ONE common axis for every row: x = % distance from price
- * down to the guard (0 = at the guard). Upper bar → trailing stop, lower bar
- * → midday cut. Right of 0 = cushion, left of 0 = breached. Same color rule
- * as the cells: alert when breached, warn within 2%, neutral otherwise.
+ * down to the guard (0 = at the guard), fixed ±25%. Upper bar → trailing
+ * stop, lower bar → midday cut. Right of 0 = cushion, left = breached.
+ * Beyond ±25% the bar ends in an arrow with its value printed at the end.
  */
-const AX = 0.15;
+const AX = 0.25;
 const axX = (v: number, w: number) => ((Math.max(-AX, Math.min(AX, v)) + AX) / (2 * AX)) * w;
 const TONE_C = { breach: "var(--alert)", near: "var(--warn)", ok: "var(--ink-3)", na: "var(--ink-4)" } as const;
+const TICKS = [-0.2, -0.1, 0.1, 0.2];
 
 function CushionBars({ g, width = 116, height = 18 }: { g: RiskGuard; width?: number; height?: number }) {
   const x0 = axX(0, width);
@@ -97,25 +99,29 @@ function CushionBars({ g, width = 116, height = 18 }: { g: RiskGuard; width?: nu
     if (d == null || !Number.isFinite(d)) return null;
     const x1 = axX(d, width);
     const c = TONE_C[distTone(d)];
-    const clipped = Math.abs(d) > AX;
+    const over = Math.abs(d) > AX;
+    const label = `${d > 0 ? "+" : "−"}${Math.round(Math.abs(d) * 100)}%`;
     return (
       <g key={key}>
-        <rect x={Math.min(x0, x1)} y={y} width={Math.max(1.5, Math.abs(x1 - x0))} height={h} fill={c} />
-        {clipped && (
-          <path
-            d={d > 0 ? `M${width - 4},${y - 1}L${width},${y + h / 2}L${width - 4},${y + h + 1}Z` : `M4,${y - 1}L0,${y + h / 2}L4,${y + h + 1}Z`}
-            fill={c}
-          />
+        <rect x={Math.min(x0, x1)} y={y} width={Math.max(1.5, Math.abs(x1 - x0) - (over ? 5 : 0))} height={h} fill={c} transform={over && d < 0 ? "translate(5,0)" : undefined} />
+        {over && (
+          <>
+            <path d={d > 0 ? `M${width - 6},${y - 1.5}L${width},${y + h / 2}L${width - 6},${y + h + 1.5}Z` : `M6,${y - 1.5}L0,${y + h / 2}L6,${y + h + 1.5}Z`} fill={c} />
+            <rect x={d > 0 ? width - 31 : 7} y={y + h / 2 - 5} width={24} height={10} fill="#000" />
+            <text x={d > 0 ? width - 8 : 9} y={y + h / 2 + 3.2} textAnchor={d > 0 ? "end" : "start"} fill={c} fontSize={8.5} fontFamily="var(--font-plex-mono)" fontWeight={600}>
+              {label}
+            </text>
+          </>
         )}
       </g>
     );
   };
   const f = (d: number | null) => (d == null ? "—" : `${d >= 0 ? "+" : "−"}${Math.abs(d * 100).toFixed(2)}%`);
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: "block", marginLeft: "auto" }} role="img">
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: "block", marginLeft: "auto", overflow: "visible" }} role="img">
       <title>{`${g.ticker} ${fmtPx(g.price)} · to stop ${fmtPx(g.stop_price)}: ${f(g.stop_distance)} · to cut ${fmtPx(g.cut_price)}: ${f(g.cut_distance)}`}</title>
-      {[-0.1, -0.05, 0.05, 0.1].map((v) => (
-        <line key={v} x1={axX(v, width)} x2={axX(v, width)} y1={1} y2={height - 1} stroke="var(--line)" strokeWidth={1} />
+      {TICKS.map((v) => (
+        <line key={v} x1={axX(v, width)} x2={axX(v, width)} y1={1} y2={height - 1} stroke="var(--line-2)" strokeWidth={1} strokeDasharray="1 2" />
       ))}
       {bar(g.stop_distance, 3, 5, "s")}
       {bar(g.cut_distance, 10, 5, "c")}
@@ -124,11 +130,11 @@ function CushionBars({ g, width = 116, height = 18 }: { g: RiskGuard; width?: nu
   );
 }
 
-/** Header ticks for the common cushion axis. */
+/** Header ticks for the common cushion axis (percent). */
 function CushionAxis({ width = 116 }: { width?: number }) {
   return (
-    <svg width={width} height={11} viewBox={`0 0 ${width} 11`} style={{ display: "block", marginLeft: "auto" }} aria-label="Cushion axis −15% to +15%">
-      {[-0.1, 0, 0.1].map((v) => (
+    <svg width={width} height={11} viewBox={`0 0 ${width} 11`} style={{ display: "block", marginLeft: "auto", overflow: "visible" }} aria-label="Cushion axis −25% to +25%">
+      {[-0.2, -0.1, 0, 0.1, 0.2].map((v) => (
         <text
           key={v}
           x={axX(v, width)}
@@ -138,7 +144,7 @@ function CushionAxis({ width = 116 }: { width?: number }) {
           fontSize={9}
           fontFamily="var(--font-plex-mono)"
         >
-          {v === 0 ? "0" : `${v > 0 ? "+" : "−"}${Math.abs(v * 100)}%`}
+          {v === 0 ? "0" : `${v > 0 ? "+" : "−"}${Math.abs(v * 100)}`}
         </text>
       ))}
     </svg>
@@ -147,16 +153,16 @@ function CushionAxis({ width = 116 }: { width?: number }) {
 
 function RailKey() {
   return (
-    <span className={s.railKey}>
-      <span className={s.key} title="Each row: % distance from price down to the guard, on one common ±15% axis">
+    <span className={s.railKey} title="Each row: % distance from price down to the guard, on one common ±25% axis. Left of 0 = price below the guard (breached).">
+      <span className={s.key}>
         <svg width={16} height={12} aria-hidden="true">
           <rect x={8} y={1} width={8} height={4} fill="var(--ink-3)" />
           <rect x={8} y={7} width={5} height={4} fill="var(--ink-3)" />
           <line x1={8} x2={8} y1={0} y2={12} stroke="var(--ink-2)" />
         </svg>
-        upper → 10% stop · lower → −7% cut
+        upper = stop · lower = cut
       </span>
-      <span className={s.key}>0 = at guard · left of 0 = breached</span>
+      <span className={s.key}>cushion % · left of 0 = breached</span>
     </span>
   );
 }
@@ -363,7 +369,7 @@ function GuardTable({ d, page }: { d: RiskResp; page: boolean }) {
           <th>Last</th>
           {page && <th>Avg cost</th>}
           <th>P&amp;L</th>
-          <th title="Cushion to each guard on one common ±15% axis (upper bar = stop, lower bar = cut)" style={{ paddingTop: 2, paddingBottom: 1 }}>
+          <th title="Cushion to each guard on one common ±25% axis (upper bar = stop, lower bar = cut)" style={{ paddingTop: 2, paddingBottom: 1 }}>
             <CushionAxis width={page ? 180 : 116} />
           </th>
           {page && <th>Stop px</th>}
@@ -401,13 +407,9 @@ function GuardTable({ d, page }: { d: RiskResp; page: boolean }) {
                 <CushionBars g={g} width={page ? 180 : 116} />
               </td>
               {page && <td style={{ color: "var(--ink-3)" }}>{fmtPx(g.stop_price)}</td>}
-              <td>
-                <Dist d={g.stop_distance} title={`Trailing stop ${fmtPx(g.stop_price)} (${pct(g.trail_pct, 0)} trail)`} />
-              </td>
+              <DistCell d={g.stop_distance} title={`Trailing stop ${fmtPx(g.stop_price)} (${pct(g.trail_pct, 0)} trail)`} />
               {page && <td style={{ color: "var(--ink-3)" }}>{fmtPx(g.cut_price)}</td>}
-              <td>
-                <Dist d={g.cut_distance} title={`Midday cut ${fmtPx(g.cut_price)} (cost −${MIDDAY_CUT * 100}%)`} />
-              </td>
+              <DistCell d={g.cut_distance} title={`Midday cut ${fmtPx(g.cut_price)} (cost −${MIDDAY_CUT * 100}%)`} />
               {page && <td style={{ color: "var(--ink-3)" }}>{pct(g.trail_pct, 0)}</td>}
               {showStp && (
                 <td>
@@ -542,11 +544,13 @@ export function RiskPanel({
           </div>
           <SectorLoad d={data} page={false} />
           <div className={s.secHead}>
-            <span className={s.secTitle}>Guards · most at risk first</span>
-            <span className={s.secMeta}>{uniformStops(data) && <StopNote d={data} />}</span>
-          </div>
-          <div className={s.keyRow}>
-            <RailKey />
+            <span className={s.secTitle} title="Sorted most at risk first">
+              Guards ↓risk
+            </span>
+            <span className={s.secMeta}>
+              <RailKey />
+              {uniformStops(data) && <StopNote d={data} />}
+            </span>
           </div>
           <ScrollHost>
             <GuardTable d={data} page={false} />

@@ -333,9 +333,17 @@ export function marketSession(now: number): { label: string; tone: "up" | "warn"
   const mins = (parseInt(get("hour"), 10) % 24) * 60 + parseInt(get("minute"), 10);
   const weekend = wd === "Sat" || wd === "Sun";
   const fmt = (m: number) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
-  if (weekend) return { label: "Closed", tone: "flat", detail: "weekend" };
+  // Minutes to the next 09:30 ET weekday open (holidays not modelled).
+  const toOpen = () => {
+    if (mins < 570) return 570 - mins;
+    const days = wd === "Fri" ? 3 : 1;
+    return (1440 - mins) + (days - 1) * 1440 + 570;
+  };
+  if (weekend) return { label: "Closed", tone: "flat", detail: "opens Mon 09:30" };
   if (mins >= 570 && mins < 960) return { label: "Open", tone: "up", detail: `${fmt(960 - mins)} to close` };
   if (mins >= 240 && mins < 570) return { label: "Pre-mkt", tone: "warn", detail: `opens in ${fmt(570 - mins)}` };
-  if (mins >= 960 && mins < 1200) return { label: "After-hrs", tone: "warn", detail: "post-market" };
-  return { label: "Closed", tone: "flat", detail: "overnight" };
+  const open = toOpen();
+  const detail = open < 1440 ? `opens in ${fmt(open)}` : "opens Mon 09:30";
+  if (mins >= 960 && mins < 1200) return { label: "After-hrs", tone: "warn", detail };
+  return { label: "Closed", tone: "flat", detail };
 }

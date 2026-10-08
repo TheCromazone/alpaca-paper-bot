@@ -8,7 +8,7 @@
            or a second figure where a chart would say nothing. */
 .strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1.4fr)) repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1.4fr)) repeat(8, minmax(0, 1fr));
   gap: 1px;
   height: 92px;
   background: var(--line);
@@ -102,7 +102,7 @@ a.tile:hover .label {
 .unit {
   font-size: 11px;
   color: var(--ink-3);
-  margin-left: 2px;
+  margin-left: 4px;
   letter-spacing: 0;
 }
 /* state marker: filled for a status that needs attention, ring for normal */
@@ -172,6 +172,25 @@ a.tile:hover .label {
   align-items: baseline;
   gap: 3px;
   min-width: 0;
+}
+.cap > .capMid {
+  flex: 1;
+  justify-content: center;
+  color: var(--ink-3);
+}
+/* inline label at the end of a reference line */
+.refLabel {
+  position: absolute;
+  right: 0;
+  padding: 0 3px;
+  font-size: 9px;
+  line-height: 10px;
+  color: var(--ink-2);
+  background: var(--bg-1);
+  white-space: nowrap;
+}
+a.tile:hover .refLabel {
+  background: var(--bg-2);
 }
 .cv {
   font-family: var(--font-plex-mono), monospace;
@@ -244,7 +263,7 @@ a.tile:hover .label {
 }
 /* narrow primary tiles keep the chart's own caption, drop the extreme */
 @container (max-width: 150px) {
-  .primary .cap > span:nth-child(2) {
+  .primary .cap > .capR {
     display: none;
   }
 }
@@ -258,7 +277,7 @@ a.tile:hover .label {
   }
 }
 /* narrow tiles (≈1100–1380px viewports): label, value, first fact, chart */
-@container (max-width: 100px) {
+@container (max-width: 104px) {
   .tag {
     display: none;
   }
@@ -272,7 +291,8 @@ a.tile:hover .label {
   .kv {
     gap: 3px;
   }
-  .cap > span:nth-child(2) {
+  .cap > .capR,
+  .cap:has(.capMid) > span:not(.capMid) {
     display: none;
   }
 }

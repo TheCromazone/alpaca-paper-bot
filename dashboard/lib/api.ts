@@ -656,6 +656,9 @@ export type BriefItem = {
     /** $ already through the tightest breached guard (value × depth); 0 if none. */
     usd_beyond?: number | null;
   } | null;
+  /** When the underlying fact was observed: ISO timestamp, or a bare date
+   * ("2026-10-08") for report days. Null when unknown. */
+  at?: string | null;
 };
 
 export type BriefResp = {

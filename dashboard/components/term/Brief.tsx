@@ -8,16 +8,19 @@
  *  · kicker: bot state first (an alert pill when off / stale), then the age
  *    of the book data — dimmed when older than a trading day
  *  · hero: the book's session move, sign-colored; vs SPY as muted context
- *  · ALL is a digest of every kind: the deepest risk guards as a table, then
- *    the top line of events, performance, macro, flow and the bot (each with
- *    its age and a "+N" to open the rest). Picking a kind shows all of it.
+ *  · ALL lists EVERY breach as a one-line row (ticker · status · to stop ·
+ *    $ past), then one line each for events, performance, macro, flow and
+ *    the bot (with its age and a "+N" to open the rest).
+ *  · RISK: single-line header; each guard on two lines — LAST · P&L ·
+ *    STATUS, then a labelled line (wt · to cut · to stop · $ past).
  *
- * Guard table (two-line cells): TKR/WT · LAST/P&L · TO CUT/TO STOP ·
- * STOP PX/$ PAST · STATUS pill; breaches ranked by $ already past the guard.
  * Status ≠ direction: action states use --alert pills (solid = the broker
- * stop failed, outlined = a manual sell is due), watch states --warn pills;
- * green/red only ever mark the sign of a number.
- * One marker system: a severity square on every row.
+ * stop didn't fill, outlined = a manual sell is due), watch / scheduled
+ * states --warn pills. Distances are ink numbers in a state-tinted cell
+ * (alert when through the level, warn within 2%). Green/red only ever mark
+ * the sign of a number (P&L, the book, vs SPY).
+ * One marker system: every row carries its severity mark (■ breach, ○ act,
+ * ■ watch in warn, □ info).
  * The list never ends mid-line: rows that don't fit fold into "+N more".
  */
 import Link from "next/link";
@@ -40,9 +43,6 @@ const KINDS: { kind: Kind; tag: string; name: string }[] = [
 ];
 const RANK = new Map(KINDS.map((k, i) => [k.kind, i]));
 const TAG = new Map(KINDS.map((k) => [k.kind, k.tag]));
-/** Digest shows the deepest guards: every breach, at least 4, at most 5. */
-const GUARD_CAP_MAX = 5;
-const GUARD_CAP_MIN = 1;
 
 type Metrics = NonNullable<BriefItem["metrics"]>;
 const metricsOf = (it: BriefItem): Metrics => it.metrics ?? {};
@@ -51,8 +51,6 @@ const metricsOf = (it: BriefItem): Metrics => it.metrics ?? {};
  *  guard (value × depth), then position size. */
 const rankKey = (it: BriefItem): [number, number] => [metricsOf(it).usd_beyond ?? 0, metricsOf(it).market_value ?? 0];
 
-/** "$2.4k" */
-const fmtK = (v: number | null | undefined) => (v == null ? "—" : Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${Math.round(v)}`);
 
 type Sev = 0 | 1 | 2 | 3;
 const SEV_LABEL = ["INFO", "WATCH", "ACT", "BREACH"] as const;
@@ -135,15 +133,17 @@ function segments(text: string, tickers: Set<string>, own: string | null): React
 }
 
 /** Fact bright, boilerplate tail (repeated, or on info lines) dimmed. */
-function sentence(text: string, tickers: Set<string>, own: string | null, dimTail: boolean): ReactNode {
+function sentence(text: string, tickers: Set<string>, own: string | null, dimTail: boolean, wrapAtDots = true): ReactNode {
+  // One-line clamps fill to the true edge; multi-line text wraps at " · ".
+  const seg = (t: string) => (wrapAtDots ? segments(t, tickers, own) : rich(t, tickers, own));
   const cut = text.indexOf(" — ");
-  if (cut < 0 || !dimTail) return segments(text, tickers, own);
+  if (cut < 0 || !dimTail) return seg(text);
   return (
     <>
-      {segments(text.slice(0, cut), tickers, own)}
+      {seg(text.slice(0, cut))}
       <span className={s.aside}>
         {" — "}
-        {segments(text.slice(cut + 3), tickers, own)}
+        {seg(text.slice(cut + 3))}
       </span>
     </>
   );
@@ -170,18 +170,20 @@ function ageOf(at: string | null | undefined, now: number): { text: string; titl
 
 type RowModel =
   | { type: "sec"; key: string; tag: string; text: string }
-  | { type: "thead"; key: string; tag?: string; more?: { n: number; names: string } }
+  | { type: "thead"; key: string }
+  | { type: "bhead"; key: string; n: number; more?: { n: number; names: string } }
   | { type: "guard"; key: string; it: BriefItem }
+  | { type: "breach"; key: string; it: BriefItem }
   | { type: "item"; key: string; it: BriefItem; tag?: string; more?: number }
   | { type: "kmore"; key: string; kind: Kind; n: number; text: string };
 
 const MORE_H = 22;
 
-/** Distance to a level: through it (negative) is a status → --alert;
- *  otherwise plain ink. Never green/red: this isn't a P&L sign. */
-const distColor = (d: number | null | undefined) => (d == null ? "var(--ink-4)" : d < 0 ? "var(--alert)" : "var(--ink-2)");
+/** Distance to a level → cell tint: through it = alert, within 2% = warn.
+ *  The number itself stays ink: this is a state, not a P&L sign. */
+const distTint = (d: number | null | undefined) => (d == null ? "" : d < 0 ? s.tAlert : d < 0.02 ? s.tWarn : "");
 
-type Status = { main: string; sub?: string; pill: "solid" | "alert" | "warn" | "plain" };
+type Status = { main: string; short?: string; sub?: string; pill: "solid" | "alert" | "warn" | "plain" };
 
 /** API action → status pill. Solid alert = the broker stop failed;
  *  outlined alert = a manual sell is due; warn = a scheduled sell / watch. */
@@ -190,8 +192,10 @@ function status(action: string | undefined): Status {
   const [main0, ...rest] = a.split(" · ");
   const main = main0.toUpperCase();
   const sub = rest.join(" · ") || undefined;
-  if (main.startsWith("STOP BREACHED") || main === "STOP") return { main: "STOP BREACHED", sub: sub ?? "unfilled", pill: "solid" };
-  if (main.startsWith("MANUAL SELL")) return { main: "MANUAL SELL", sub, pill: "alert" };
+  // The pill text alone says which: the broker stop didn't fill vs a
+  // manual sell is due — solid vs outlined only reinforces it.
+  if (main.startsWith("STOP BREACHED") || main === "STOP") return { main: "STOP UNFILLED", short: "UNFILLED", sub: "stop breached, order didn't fill", pill: "solid" };
+  if (main.startsWith("MANUAL SELL")) return { main: "SELL MANUALLY", short: "SELL NOW", sub: sub ? `below cut · ${sub}` : "below cut", pill: "alert" };
   if (main.startsWith("SELL")) return { main: main.replace(/^SELL\s*/, "SELL "), sub, pill: "warn" };
   if (main.startsWith("WATCH")) {
     const what = main.replace(/^WATCH\s*/, "").toLowerCase();
@@ -243,14 +247,11 @@ export function Brief({ className = "", style }: { className?: string; style?: C
   }, [items]);
 
   const [listH, setListH] = useState(0);
-  // ALL shows as many guards as fit while every other kind keeps its line.
-  // First trade guard rows down to 3, then clamp info lines to one line
-  // ("tight") and try again, then trade guard rows down to 1.
-  const [capState, setCapState] = useState<{ key: string; cap: number; tight: boolean } | null>(null);
-  const capKey = `${data?.as_of}|${only}|${tickers.size}`;
-  const capOk = capState && capState.key === `${capKey}|${listH}`;
-  const guardCap = capOk ? capState.cap : GUARD_CAP_MAX;
-  const tight = capOk ? capState.tight : false;
+  // When ALL overflows, wrapped info lines drop to one line — lowest
+  // priority first, only as many as needed — before anything is hidden.
+  const [clampSt, setClampSt] = useState<{ key: string; keys: string[] } | null>(null);
+  const capKey = `${data?.as_of}|${only}|${tickers.size}|${listH}`;
+  const clamped = new Set(clampSt?.key === capKey ? clampSt.keys : []);
 
   const rows: RowModel[] = useMemo(() => {
     const out: RowModel[] = [];
@@ -267,12 +268,12 @@ export function Brief({ className = "", style }: { className?: string; style?: C
     if (only === "all") {
       // Digest: every kind on one screen.
       if (risk.length) {
-        const nG = guardCap;
-        const rest = risk.length - Math.min(nG, guards.length);
-        const names = `${guards.slice(nG).map((g) => g.ticker).join(" ")}${notes.length ? " · slots note" : ""}`.trim();
-        if (guards.length) out.push({ type: "thead", key: "thead", tag: "RISK", more: rest > 0 ? { n: rest, names } : undefined });
-        else out.push({ type: "sec", key: "sec-risk", tag: "RISK", text: riskText() });
-        guards.slice(0, nG).forEach((it, i) => out.push({ type: "guard", key: `g-${it.ticker}-${i}`, it }));
+        // Every breach (and act) gets a one-line row; the rest fold to "+N".
+        const urgent = guards.filter((g) => sevOf(g) >= 2);
+        const restN = risk.length - urgent.length;
+        const names = `${guards.filter((g) => sevOf(g) < 2).map((g) => g.ticker).join(" ")}${notes.length ? " · slots note" : ""}`.trim();
+        out.push({ type: "bhead", key: "bhead", n: urgent.length, more: restN > 0 ? { n: restN, names } : undefined });
+        urgent.forEach((it, i) => out.push({ type: "breach", key: `b-${it.ticker}-${i}`, it }));
       }
       for (const k of KINDS) {
         if (k.kind === "risk") continue;
@@ -295,7 +296,7 @@ export function Brief({ className = "", style }: { className?: string; style?: C
       list.forEach((it, i) => out.push({ type: "item", key: `${k.kind}-${i}`, it }));
     }
     return out;
-  }, [items, only, guardCap]);
+  }, [items, only]);
 
   // ── fit: end on whole rows, never mid-line ──
   const listEl = useRef<HTMLDivElement | null>(null);
@@ -308,7 +309,7 @@ export function Brief({ className = "", style }: { className?: string; style?: C
     ro.observe(el);
     roRef.current = ro;
   }, []);
-  const fitKey = `${data?.as_of}|${only}|${listH}|${rows.length}|${tickers.size}|${guardCap}|${tight}`;
+  const fitKey = `${data?.as_of}|${only}|${listH}|${rows.length}|${tickers.size}|${[...clamped].join(",")}`;
   const [fit, setFit] = useState<{ key: string; from: number } | null>(null);
   useLayoutEffect(() => {
     const el = listEl.current;
@@ -317,12 +318,16 @@ export function Brief({ className = "", style }: { className?: string; style?: C
     const kids = [...el.querySelectorAll<HTMLElement>("[data-row]")];
     const bottom = (r: HTMLElement) => r.getBoundingClientRect().bottom - top;
     const over = kids.length > 0 && bottom(kids[kids.length - 1]) > el.clientHeight + 0.5;
-    // In ALL, every kind keeps its line: trade guard rows down to 3, then
-    // go tight (info lines on one line), then trade guard rows down to 1.
-    const step = !over || only !== "all" ? null : guardCap > 3 || (tight && guardCap > GUARD_CAP_MIN) ? { cap: guardCap - 1, tight } : !tight ? { cap: GUARD_CAP_MAX, tight: true } : null;
-    if (step) {
-      setCapState({ key: `${capKey}|${listH}`, ...step });
-      return;
+    // In ALL: clamp the next wrapped info line (info → watch → act; bottom
+    // rows first) before hiding anything.
+    if (over && only === "all") {
+      const cands = [...el.querySelectorAll<HTMLElement>("[data-clamp]")]
+        .filter((r) => !clamped.has(r.dataset.clamp!) && (r.querySelector<HTMLElement>("[data-text]")?.offsetHeight ?? 0) > 20)
+        .sort((a, b) => Number(a.dataset.prio) - Number(b.dataset.prio));
+      if (cands.length) {
+        setClampSt({ key: capKey, keys: [...clamped, cands[0].dataset.clamp!] });
+        return;
+      }
     }
     let from = kids.length;
     if (over) {
@@ -332,9 +337,10 @@ export function Brief({ className = "", style }: { className?: string; style?: C
       while (from > 0 && kids[from - 1].dataset.row !== "body") from--;
     }
     setFit({ key: fitKey, from });
-  }, [fitKey, fit, expanded, only, guardCap, capKey, listH, tight]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `clamped` is encoded in fitKey
+  }, [fitKey, fit, expanded, only, capKey]);
   const cutFrom = !expanded && fit && fit.key === fitKey ? fit.from : Infinity;
-  const hiddenRows = rows.slice(cutFrom).filter((r): r is Extract<RowModel, { it: BriefItem }> => r.type === "guard" || r.type === "item");
+  const hiddenRows = rows.slice(cutFrom).filter((r): r is Extract<RowModel, { it: BriefItem }> => r.type === "guard" || r.type === "breach" || r.type === "item");
   const hiddenItems = hiddenRows.length;
 
   const pick = (k: Kind | "all") => {
@@ -432,7 +438,12 @@ export function Brief({ className = "", style }: { className?: string; style?: C
               {vsM && (
                 <span className={s.vs} title="SPY's session move, and the book's return minus SPY's (one session)">
                   vs SPY {vsM[2].replace(/^-/, "−")}
-                  {relTxt && ` · ${relTxt} (1d)`}
+                  {relTxt && (
+                    <>
+                      {" · "}
+                      <span className={rel! > 0 ? "up" : rel! < 0 ? "down" : ""}>{relTxt}</span> (1d)
+                    </>
+                  )}
                 </span>
               )}
             </p>
@@ -464,32 +475,46 @@ export function Brief({ className = "", style }: { className?: string; style?: C
                 return (
                   <div key={r.key} data-row="head" className={`${s.gt} ${s.gthead}`} style={hide}>
                     <span />
-                    <span className={s.h2} title="Ticker / its weight in the book">
-                      {r.tag ? <b>{r.tag}</b> : "TKR"}
-                      <i>WT</i>
-                    </span>
-                    <span className={`${s.h2} ${s.r}`} title="Last price / unrealized P&L ($ and % on cost)">
+                    <span title="Ticker">TKR</span>
+                    <span className={s.r} title="Last price">
                       LAST
-                      <i>P&amp;L</i>
                     </span>
-                    <span className={`${s.h2} ${s.r}`} title="Distance from the last price to the −7% midday cut / to the 10% trailing stop. Negative = already through that level.">
-                      TO CUT
-                      <i>TO STOP</i>
+                    <span className={s.r} title="Unrealized P&L on cost, $ and %">
+                      P&amp;L
                     </span>
-                    <span className={`${s.h2} ${s.r} ${s.gstop}`} title="Trailing-stop price / $ value already past the tightest breached level (position value × depth). Ranks the breaches.">
-                      STOP PX
-                      <i>$ PAST</i>
-                    </span>
-                    <span className={s.stHead} title="What has to happen: STOP BREACHED (solid) = the broker stop didn't fill; MANUAL SELL (outlined) = a sell is due and the bot is off; WATCH = near a level">
+                    <span
+                      className={s.stHead}
+                      title="STOP UNFILLED (solid) = the trailing stop was breached but the broker order didn't fill; SELL MANUALLY (outlined) = below the −7% cut and the bot is off; WATCH = near a level"
+                    >
                       STATUS
-                      {r.more && (
-                        <button type="button" className={s.dmore} onClick={() => pick("risk")} title={`${r.more.n} more risk items: ${r.more.names}`}>
-                          +{r.more.n}
-                        </button>
-                      )}
                     </span>
                   </div>
                 );
+              if (r.type === "bhead")
+                return (
+                  <div key={r.key} data-row="head" className={`${s.bt} ${s.bthead}`} style={hide}>
+                    <span className={s.btag} title={`${r.n} position${r.n === 1 ? "" : "s"} through a guard`}>
+                      RISK
+                    </span>
+                    <span title="STOP UNFILLED (solid) = the trailing stop was breached but the broker order didn't fill; SELL MANUALLY (outlined) = below the −7% cut and the bot is off">
+                      STATUS
+                    </span>
+                    <span className={s.r} title="Last price vs the 10% trailing stop; negative = already through it">
+                      TO STOP
+                    </span>
+                    <span className={s.r} title="$ value already past the tightest breached level (position value × depth); ranks the breaches">
+                      $ PAST
+                    </span>
+                    {r.more ? (
+                      <button type="button" className={s.dmore} onClick={() => pick("risk")} title={`${r.more.n} more risk items: ${r.more.names}`}>
+                        +{r.more.n}
+                      </button>
+                    ) : (
+                      <span className={s.dmoreGap} />
+                    )}
+                  </div>
+                );
+              if (r.type === "breach") return <BreachRow key={r.key} it={r.it} style={hide} />;
               if (r.type === "guard") return <GuardRow key={r.key} it={r.it} style={hide} />;
               if (r.type === "kmore")
                 return (
@@ -505,13 +530,15 @@ export function Brief({ className = "", style }: { className?: string; style?: C
               const age = ageOf(at, now);
               // The age column already dates a disclosure: don't say it twice.
               const text = r.tag && at ? it.text.replace(/,\s*disclosed [A-Z][a-z]{2} \d{1,2}\.?$/, ".") : it.text;
-              const lines = r.tag ? (tight && sevOf(it) === 0 ? s.clamp1 : s.clamp2) : "";
+              const lines = r.tag ? (clamped.has(r.key) ? s.clamp1 : s.clamp2) : "";
+              // Clamp priority: info before watch before act; lower rows first.
+              const prio = sevOf(it) * 100 - idx;
               return (
-                <div key={r.key} data-row="body" className={`${s.item}${r.tag ? ` ${s.digest}` : ""}`} style={hide}>
+                <div key={r.key} data-row="body" data-clamp={r.tag ? r.key : undefined} data-prio={prio} className={`${s.item}${r.tag ? ` ${s.digest}` : ""}`} style={hide}>
                   {r.tag && <span className={s.dtag}>{r.tag}</span>}
                   <Marker it={it} />
-                  <span className={`${s.text}${sevOf(it) >= 1 ? ` ${s.strong}` : ""} ${lines}`} title={r.tag ? it.text : undefined}>
-                    {sentence(text, tickers, it.ticker, dim)}
+                  <span data-text className={`${s.text}${sevOf(it) >= 1 ? ` ${s.strong}` : ""} ${lines}`} title={r.tag ? it.text : undefined}>
+                    {sentence(text, tickers, it.ticker, dim, lines !== s.clamp1)}
                   </span>
                   <span className={s.ageCell} title={age?.title}>
                     {age?.text ?? ""}
@@ -544,39 +571,75 @@ export function Brief({ className = "", style }: { className?: string; style?: C
   );
 }
 
+const fmtUsd0 = (v: number | null | undefined) => (v == null ? "—" : `${v < 0 ? "−" : "+"}$${Math.abs(v).toFixed(0)}`);
+const sign = (v: number | null | undefined) => (v == null ? "" : v > 0 ? "up" : v < 0 ? "down" : "");
+
+function Pill({ st }: { st: Status }) {
+  return (
+    <span className={`pill ${st.pill === "solid" ? `alert ${s.solid}` : st.pill === "plain" ? "" : st.pill} ${s.stPill}`}>
+      <span className={st.short ? s.pillLong : undefined}>{st.main}</span>
+      {st.short && <span className={s.pillShort}>{st.short}</span>}
+    </span>
+  );
+}
+
+/** RISK tab: two lines — LAST · P&L · STATUS, then a labelled detail line. */
 function GuardRow({ it, style }: { it: BriefItem; style?: CSSProperties }) {
   const m = metricsOf(it);
-  const sev = sevOf(it);
   const t = it.ticker ?? "";
   const st = status(m.action);
-  const pnl = m.pnl_usd;
-  const pnlPct = m.pnl_pct;
-  const sign = (v: number | null | undefined) => (v == null ? "" : v > 0 ? "up" : v < 0 ? "down" : "");
   return (
     <Link href={`/security/${encodeURIComponent(t)}`} data-row="body" className={`${s.gt} ${s.grow}`} style={style} title={it.text}>
-      <SevMark sev={sev} />
-      <span className={s.c2}>
+      <SevMark sev={sevOf(it)} />
+      <span className={s.gtkr}>{t}</span>
+      <span className={s.r}>{fmtPx(m.last)}</span>
+      <span className={`${s.r} ${sign(m.pnl_usd)}`}>
+        {fmtUsd0(m.pnl_usd)} <span className={s.pnlPct}>{fmtChg(m.pnl_pct, 1)}</span>
+      </span>
+      <span className={s.st} title={st.sub}>
+        <Pill st={st} />
+      </span>
+      <span className={s.detail}>
+        <span>wt {m.weight != null ? `${(m.weight * 100).toFixed(1)}%` : "—"}</span>
+        <span title={m.cut_price != null ? `−7% cut at ${fmtPx(m.cut_price)}` : undefined}>
+          to cut <b className={distTint(m.cut_distance)}>{fmtChg(m.cut_distance, 1)}</b>
+        </span>
+        <span title={m.stop_price != null ? `10% trailing stop at ${fmtPx(m.stop_price)}` : undefined}>
+          to stop <b className={distTint(m.stop_distance)}>{fmtChg(m.stop_distance, 1)}</b>
+        </span>
+        {m.usd_beyond ? (
+          <span>
+            <b className={s.tAlert}>${Math.round(m.usd_beyond)}</b> past
+          </span>
+        ) : null}
+      </span>
+    </Link>
+  );
+}
+
+/** ALL view: one line per breach — TKR · STATUS · TO STOP · $ PAST. */
+function BreachRow({ it, style }: { it: BriefItem; style?: CSSProperties }) {
+  const m = metricsOf(it);
+  const t = it.ticker ?? "";
+  const st = status(m.action);
+  return (
+    <Link
+      href={`/security/${encodeURIComponent(t)}`}
+      data-row="body"
+      className={`${s.bt} ${s.brow}`}
+      style={style}
+      title={`${it.text}\nLast ${fmtPx(m.last)} · P&L ${fmtUsd0(m.pnl_usd)} ${fmtChg(m.pnl_pct, 1)} · weight ${m.weight != null ? `${(m.weight * 100).toFixed(1)}%` : "—"} · to cut ${fmtChg(m.cut_distance, 1)} · stop ${fmtPx(m.stop_price)}`}
+    >
+      <span className={s.bname}>
+        <SevMark sev={sevOf(it)} />
         <span className={s.gtkr}>{t}</span>
-        <i>{m.weight != null ? `${(m.weight * 100).toFixed(1)}%` : "—"}</i>
       </span>
-      <span className={`${s.c2} ${s.r}`}>
-        <span>{fmtPx(m.last)}</span>
-        <i className={sign(pnl)}>
-          {pnl != null ? `${pnl < 0 ? "−" : "+"}$${Math.abs(pnl).toFixed(0)}` : "—"} {fmtChg(pnlPct, 1)}
-        </i>
+      <span className={s.st} title={st.sub}>
+        <Pill st={st} />
       </span>
-      <span className={`${s.c2} ${s.r}`} title={m.cut_price != null ? `Cut at ${fmtPx(m.cut_price)}` : undefined}>
-        <span style={{ color: distColor(m.cut_distance) }}>{fmtChg(m.cut_distance, 1)}</span>
-        <i style={{ color: distColor(m.stop_distance) }}>{fmtChg(m.stop_distance, 1)}</i>
-      </span>
-      <span className={`${s.c2} ${s.r} ${s.gstop}`}>
-        <span className={s.stopPx}>{fmtPx(m.stop_price)}</span>
-        <i style={m.usd_beyond ? { color: "var(--alert)" } : undefined}>{m.usd_beyond ? fmtK(m.usd_beyond) : "—"}</i>
-      </span>
-      <span className={s.st}>
-        <span className={`pill ${st.pill === "solid" ? `alert ${s.solid}` : st.pill === "plain" ? "" : st.pill} ${s.stPill}`}>{st.main}</span>
-        {st.sub && <i>{st.sub}</i>}
-      </span>
+      <span className={`${s.r} ${s.cell} ${distTint(m.stop_distance)}`}>{fmtChg(m.stop_distance, 1)}</span>
+      <span className={`${s.r} ${s.cell} ${m.usd_beyond ? s.tAlert : ""}`}>{m.usd_beyond ? `$${Math.round(m.usd_beyond)}` : "—"}</span>
+      <span className={s.dmoreGap} />
     </Link>
   );
 }

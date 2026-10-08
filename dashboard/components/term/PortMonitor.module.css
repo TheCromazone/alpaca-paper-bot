@@ -292,30 +292,35 @@
   display: inline-block;
 }
 
-/* responsive columns: the core set fits ~580px; wider panels add the 30D
-   spark (+ its % change), then days held, then avg cost (always in the
-   row tooltip and the Guard cell's hover); narrow ones shed columns */
+/* responsive columns: the core set (incl. avg cost and order) fits ~690px;
+   wider panels add the 30D spark (+ % change), then days held; narrower
+   ones shed weight, qty, then day $ instead of scrolling sideways */
 .c-avg,
 .c-spark,
 .c-days {
   display: none;
 }
-@container (min-width: 650px) {
-  .c-spark {
-    display: table-cell;
-  }
-}
-@container (min-width: 700px) {
-  .c-days {
-    display: table-cell;
-  }
-}
-@container (min-width: 770px) {
+@container (min-width: 680px) {
   .c-avg {
     display: table-cell;
   }
 }
-@container (max-width: 575px) {
+@container (min-width: 775px) {
+  .c-spark {
+    display: table-cell;
+  }
+}
+@container (min-width: 815px) {
+  .c-days {
+    display: table-cell;
+  }
+}
+@container (max-width: 660px) {
+  .c-wt {
+    display: none;
+  }
+}
+@container (max-width: 600px) {
   .c-qty {
     display: none;
   }
@@ -326,12 +331,7 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
-@container (max-width: 530px) {
-  .c-wt {
-    display: none;
-  }
-}
-@container (max-width: 490px) {
+@container (max-width: 540px) {
   .c-day {
     display: none;
   }

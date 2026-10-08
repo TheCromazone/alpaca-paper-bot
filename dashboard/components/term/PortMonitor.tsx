@@ -80,6 +80,8 @@ type Row = {
   /** Today's $ change on the position: qty × (last − previous close). */
   day: number | null;
   broker: boolean;
+  /** Who would actually close this position at its guard. */
+  order: "broker" | "synthetic" | "none";
   opened: string | null;
   days: number | null;
   spark: (number | null)[];
@@ -88,7 +90,7 @@ type Row = {
   earnIn: number | null;
 };
 
-type Key = "t" | "last" | "chg1d" | "day" | "qty" | "avg" | "mv" | "w" | "pnl" | "pnlPct" | "guardPx" | "guard" | "status" | "days";
+type Key = "t" | "last" | "chg1d" | "day" | "qty" | "avg" | "mv" | "w" | "pnl" | "pnlPct" | "guardPx" | "guard" | "status" | "order" | "days";
 
 /** Responsive column classes (see the @container rules in the CSS module). */
 const HIDE: Partial<Record<Key | "spark", string>> = {
@@ -122,6 +124,11 @@ const COLS: { k: Key | "spark"; label: string; title: string; w?: number }[] = [
   },
   { k: "guard", label: "Dist", title: "Distance from price to the binding guard" },
   { k: "status", label: "Status", title: "BREACHED = price at/below the binding guard · NEAR = within 2% of it. Default order: breached, near, then by weight." },
+  {
+    k: "order",
+    label: "Order",
+    title: "What would close the position at its guard — broker: a live stop order at Alpaca · synthetic: no broker order, the midday routine sells · none: no broker order and the bot is off, so nothing sells automatically",
+  },
   { k: "days", label: "Days", title: "Days held" },
 ];
 
@@ -132,6 +139,8 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
   const monitor = useHeldMonitor(positions.data);
   const summary = useQuery({ queryKey: ["summary"], queryFn: api.summary, refetchInterval: 15_000 });
   const risk = useQuery({ queryKey: ["risk"], queryFn: term.risk, refetchInterval: 60_000 });
+  const bot = useQuery({ queryKey: ["bot-status"], queryFn: api.botStatus, refetchInterval: 30_000 });
+  const botActive = bot.data?.active ?? true;
   // default: what needs attention first — breached, then near, then by weight
   const [sort, setSort] = useState<{ k: Key; dir: 1 | -1 }>({ k: "status", dir: -1 });
   const [tip, setTip] = useState<{ row: Row; rect: DOMRect; panel: DOMRect } | null>(null);
@@ -178,6 +187,7 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
         sev,
         sevRank: sev === "breached" ? 2 : sev === "near" ? 1 : 0,
         broker: g?.broker_stop ?? !!p.stop_order_id,
+        order: g?.broker_stop || p.stop_order_id ? "broker" : botActive ? "synthetic" : "none",
         opened: p.opened_at,
         days: now && p.opened_at ? Math.max(0, Math.floor((now - new Date(p.opened_at).getTime()) / 86_400_000)) : null,
         spark: q?.spark ?? [],
@@ -186,7 +196,7 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
         earnIn: g?.earnings_in_days ?? null,
       };
     });
-  }, [positions.data, monitor.data, risk.data, equity, now]);
+  }, [positions.data, monitor.data, risk.data, equity, now, botActive]);
 
   const sorted = useMemo(() => {
     const { k, dir } = sort;
@@ -289,7 +299,7 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
           <Stat label="Unrealized / cost">
             <span style={{ color: toneVar(tot.pnl) }}>{fmtSignedUSD(tot.pnl, 0)}</span>
             <span className={s.statSub} style={{ color: toneVar(tot.pnl) }}>
-              {fmtChg(tot.pnlPct)}
+              {fmtChg(tot.pnlPct, 1)}
             </span>
           </Stat>
           <Stat label="Guards" title="Positions at/below their binding guard (breached) · within 3% of it (near)">
@@ -340,7 +350,10 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
                     <Link href={`/security/${encodeURIComponent(r.t)}`} className={s.tkr} onClick={(e) => e.stopPropagation()} prefetch={false}>
                       {r.t}
                       {finite(r.earnIn) && r.earnIn >= -0.5 && r.earnIn <= 7 && (
-                        <span className={s.evt} title={`Earnings in ${r.earnIn < 1 ? "under a day" : `${Math.round(r.earnIn)} days`}`}>
+                        <span
+                          className={r.earnIn <= 2 ? `pill warn ${s.chip}` : s.evt}
+                          title={`Earnings in ${r.earnIn < 1 ? "under a day" : `${Math.round(r.earnIn)} days`}${r.earnIn <= 2 ? " — inside the 2-day earnings blackout" : ""}`}
+                        >
                           E{Math.max(0, Math.round(r.earnIn))}
                         </span>
                       )}
@@ -381,7 +394,7 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
                     {fmtPx(r.guardPx)}
                     <span className={s.gk}>{r.guardKind}</span>
                   </td>
-                  <td style={{ color: toneVar(r.guard) }}>{fmtChg(r.guard, 1)}</td>
+                  <td style={{ color: r.sev === "breached" ? "var(--alert)" : r.sev === "near" ? "var(--warn)" : "var(--ink-2)" }}>{fmtChg(r.guard, 1)}</td>
                   <td>
                     {r.sev === "breached" ? (
                       <span className={`pill alert ${s.chip}`}>BREACHED</span>
@@ -390,6 +403,20 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
                     ) : (
                       <span className={s.statusOk}>OK</span>
                     )}
+                  </td>
+                  <td
+                    title={
+                      r.order === "broker"
+                        ? "A live stop order is working at Alpaca"
+                        : r.order === "synthetic"
+                          ? "No broker order — the midday routine sells at the guard"
+                          : r.sev === "breached"
+                            ? "Breached with no broker stop and the bot off — nothing will sell this automatically; sell it by hand"
+                            : "No broker order and the bot is off — nothing will sell this automatically"
+                    }
+                    style={{ fontFamily: "var(--font-plex-cond), sans-serif", fontSize: 10.5, color: r.order === "broker" ? "var(--ink-2)" : r.order === "synthetic" ? "var(--ink-3)" : r.sev === "breached" ? "var(--alert)" : "var(--ink-3)" }}
+                  >
+                    {r.order === "broker" ? "broker" : r.order === "synthetic" ? "synthetic" : r.sev === "breached" ? "manual" : "none"}
                   </td>
                   <td className={HIDE.days} style={{ color: "var(--ink-2)" }}>
                     {r.days ?? "—"}
@@ -419,7 +446,7 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
                 <td className={HIDE.avg} />
                 <td title="Σ market value">{fmtNum(tot.mv, 0)}</td>
                 <td className={HIDE.w} style={{ color: "var(--ink-2)" }} title="Σ weight — invested share of equity">
-                  {tot.w != null ? (tot.w * 100).toFixed(1) : "—"}
+                  {tot.w != null ? `${(tot.w * 100).toFixed(1)}%` : "—"}
                 </td>
                 <td className={GRP.pnl} style={{ color: toneVar(tot.pnl) }} title="Σ unrealized P&L">
                   {fmtSignedUSD(tot.pnl, 0).replace("$", "")}
@@ -438,6 +465,7 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
                     near
                   </span>
                 </td>
+                <td />
                 <td className={HIDE.days} />
               </tr>
             </tfoot>
@@ -494,12 +522,12 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
     <Panel
       code="PORT"
       title="Portfolio monitor"
-      sub={n ? `${n} / ${risk.data?.max_positions ?? 25} positions · by weight` : undefined}
+      sub={n ? `${n} / ${risk.data?.max_positions ?? 25} positions · ${sort.k === "status" ? "needs attention first" : `by ${COLS.find((c) => c.k === sort.k)?.label.toLowerCase() ?? sort.k}`}` : undefined}
       className={className}
       style={style}
       flush
       testId="panel-port"
-      actions={<DataAge at={summary.data?.as_of} snapshot={summary.data?.source === "db_fallback"} />}
+      actions={<DataAge at={positions.data?.[0]?.updated_at ?? summary.data?.as_of} snapshot={summary.data?.source === "db_fallback"} bookAt={summary.data?.as_of} />}
     >
       {body}
     </Panel>
@@ -518,7 +546,7 @@ function Stat({ label, title, className, children }: { label: string; title?: st
 }
 
 /** 30-session sparkline, line and fill colored by its own 30-day direction. */
-function Spark30({ data, w = 40, h = 18 }: { data: (number | null)[]; w?: number; h?: number }) {
+function Spark30({ data, w = 30, h = 16 }: { data: (number | null)[]; w?: number; h?: number }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
   const pts = data.map((v) => (finite(v) ? v : null));
   const vals = pts.filter(finite);

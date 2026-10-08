@@ -207,7 +207,7 @@ function Session() {
   const s = marketSession(now);
   return (
     <div className="top-cell hide-sm">
-      <span className={`pill ${s.tone === "up" ? "up" : s.tone === "warn" ? "warn" : ""}`}>
+      <span className={`pill ${s.tone === "warn" ? "warn" : ""}`}>
         <span className={`dot${s.tone === "up" ? " live" : ""}`} />
         NYSE {s.label}
       </span>
@@ -283,7 +283,47 @@ export function FnBar() {
         </span>
       )}
       <span className="fn-spacer" />
+      <AlertSummary />
     </nav>
+  );
+}
+
+/** What needs attention, from the brief: counts by severity plus the next
+ * held-name earnings inside the blackout. Shares the Launchpad brief's query. */
+function AlertSummary() {
+  const { data } = useQuery({ queryKey: ["brief"], queryFn: term.brief, refetchInterval: 60_000 });
+  const now = useNow(60_000);
+  const c = data?.counts;
+  if (!data || !c) return null;
+  const soon = data.items.find((i) => i.kind === "catalyst" && i.tone === "warn" && i.ticker);
+  // Report days are bare dates; count whole calendar days from today (ET-ish, local midnight).
+  const soonDays =
+    soon?.at && now
+      ? Math.max(0, Math.round((new Date(`${soon.at.slice(0, 10)}T00:00:00`).getTime() - new Date(new Date(now).toDateString()).getTime()) / 86_400_000))
+      : null;
+  return (
+    <span className="fn-alerts hide-md" aria-label="Alerts">
+      {c.breach > 0 && (
+        <Link href="/risk" className="pill alert" title="Positions through a stop or the −7% cut">
+          {c.breach} breached
+        </Link>
+      )}
+      {c.act > 0 && (
+        <Link href="/bot" className="pill alert" style={{ background: "transparent" }} title="Needs action">
+          {c.act} act
+        </Link>
+      )}
+      {c.watch > 0 && (
+        <Link href="/positions" className="pill warn" title="Within 2% of a guard, or other watch items">
+          {c.watch} watch
+        </Link>
+      )}
+      {soon?.ticker && (
+        <Link href={`/security/${soon.ticker}`} className="pill warn" title={soon.text}>
+          {soon.ticker} earnings {soonDays === 0 ? "today" : soonDays != null ? `${soonDays}d` : "soon"}
+        </Link>
+      )}
+    </span>
   );
 }
 

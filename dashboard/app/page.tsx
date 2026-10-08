@@ -62,8 +62,8 @@ export default function Launchpad() {
       </div>
 
       <div className="lp">
-        <WirePanel className="span-6" style={{ height: 380 }} />
-        <BlotterPanel className="span-6" style={{ height: 380 }} />
+        <WirePanel className="span-5" style={{ height: 380 }} />
+        <BlotterPanel className="span-7" style={{ height: 380 }} />
       </div>
     </div>
   );

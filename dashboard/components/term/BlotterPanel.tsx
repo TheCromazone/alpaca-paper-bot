@@ -27,7 +27,8 @@ function sourceOf(t: TradeRow): Src {
       title: `Alpaca fill${t.order_type ? ` · ${t.order_type}` : ""} — broker-side order, no thesis`,
     };
   }
-  if ((t.action ?? "").startsWith("manual")) return { code: "MAN", fg: "var(--blue)", title: "Manual ticket (TICKET panel / API)" };
+  // Blue is reserved for "held"; LLM uses the bot-layer cyan, manual tickets neutral ink.
+  if ((t.action ?? "").startsWith("manual")) return { code: "MAN", fg: "var(--ink)", title: "Manual ticket (TICKET panel / API)" };
   const kind = (t.score_breakdown as { kind?: string } | null)?.kind;
   if (kind === "bootstrap_inferred_exit")
     return { code: "STOP", fg: "var(--ink-2)", title: "Exit inferred from the 10% trailing stop (reconstructed — no broker record)" };
@@ -120,19 +121,8 @@ const THESIS_INSET = COL_W.reduce((a, b) => a + b, 0) + COL_W.length * 6 + 16;
 const SYS_TAG_W = 78;
 const CLAMP_SLACK = 8; // keep the word-boundary cut safely inside the CSS ellipsis fallback
 
+/** Shares with trailing zeros trimmed: 20.74, 0.49, 9.5626, 2.1, 14. */
 const fmtQtyPlain = (q: number) => q.toLocaleString("en-US", { maximumFractionDigits: 4 });
-
-/** Shares at a fixed 4 dp so the decimal points align; trailing zeros dimmed. */
-function Qty({ q }: { q: number }) {
-  const full = q.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
-  const sig = full.replace(/\.?0+$/, "");
-  return (
-    <>
-      {sig}
-      <span style={{ color: "var(--ink-4)" }}>{full.slice(sig.length)}</span>
-    </>
-  );
-}
 
 /** Weekdays strictly after day `a` up to and including day `b` ("YYYY-MM-DD"). */
 function tradingDaysBetween(a: string, b: string): number {
@@ -214,6 +204,8 @@ export function BlotterPanel({ className = "", style, limit = 100 }: { className
     return { b, sl };
   }, [all]);
   const realized = useMemo(() => realizedBySell(all), [all]);
+  // /trades returns everything when fewer than `limit` rows come back.
+  const allLoaded = all.length < limit;
   const realizedSum = useMemo(() => [...realized.values()].reduce((a, r) => a + r.pnl, 0), [realized]);
 
   const latest = all.reduce<string | null>((m, t) => (!m || t.submitted_at > m ? t.submitted_at : m), null);
@@ -232,8 +224,8 @@ export function BlotterPanel({ className = "", style, limit = 100 }: { className
           <span className="num" style={{ fontSize: 10.5 }}>
             <span title={`Filled notional: bought ${fmtK(tot.b)} · sold ${fmtK(tot.sl)}`}>{all.length} orders</span> <span className="dim">·</span>{" "}
             <span title={`FIFO realized P/L summed over all ${realized.size} matched sells in the ${all.length} loaded orders (matches /performance/summary)`}>
-              <span className="dim">realized</span> <span className={tone(realizedSum)}>{fmtSignedUSD(realizedSum)}</span>{" "}
-              <span className="dim">over {realized.size} sells</span>
+              <span className="dim">{allLoaded ? "all-time realized" : `realized, last ${all.length} orders`}</span>{" "}
+              <span className={tone(realizedSum)}>{fmtSignedUSD(realizedSum)}</span> <span className="dim">· {realized.size} sells</span>
             </span>
           </span>
         ) : undefined
@@ -335,7 +327,7 @@ export function BlotterPanel({ className = "", style, limit = 100 }: { className
                         <Tkr t={t.ticker} />
                       </span>
                       <span className={s.num}>
-                        <Qty q={t.qty} />
+                        {fmtQtyPlain(t.qty)}
                       </span>
                       <span className={s.num}>{fmtPx(t.price)}</span>
                       <span className={s.num}>{`$${t.notional.toLocaleString("en-US", { maximumFractionDigits: 0 })}`}</span>

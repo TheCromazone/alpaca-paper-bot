@@ -1,27 +1,19 @@
 "use client";
 
 /**
- * HEAT — universe heatmap. Equities form a true market-cap treemap grouped
- * by GICS sector (Yahoo profile sector; falls back to the universe sector):
+ * HEAT — universe heatmap. Equities form a treemap grouped by GICS sector;
+ * the layout rules live in ./heatLayout (pure, testable):
  *
- *  · area = market cap. Block areas are solved so each sector's tile area
- *    (excluding its header strip) is proportional to its cap; names inside a
- *    block are squarified on cap.
- *  · names too small for a horizontal "TKR / ±x.x%" label at ≥10px share a
- *    neutral grey "N others" aggregate (cap-weighted change in small neutral
- *    text; hover lists every member). An aggregate is never the largest tile
- *    in its sector — the biggest members are promoted out until it isn't.
- *  · held names are never aggregated: they always get their own labelled,
- *    outlined tile (floored to a legible size when tiny; said on hover).
- *  · sectors too small for a header share an OTHER block, where each small
- *    sector's remainder is an aggregate spelled out by name ("Industrials",
- *    never a symbol-shaped code).
- *  · every sector header is one line: sector name + cap-weighted change.
+ *  · every sector is its own group (one-line header: name + cap-weighted
+ *    change); area ∝ cap^p, p chosen per panel size and stated in the legend.
+ *  · names too small for a ≥10px "TKR / ±x.x%" label share one "N others"
+ *    tile per sector — colored by its cap-weighted move on the same ramp,
+ *    hatched with a dashed inner border so it reads as a group.
+ *  · held names always get their own outlined tile (padded off the outline).
  *
- * ETFs (AUM isn't comparable with market cap and would double-count the
- * index) sit in an equal-weight strip underneath (2 decimals). Color is
- * diverging and nonlinear ((|Δ|/scale)^0.6, ±5% 1D · ±10% 5D · ±20% 1M)
- * with the shared ±0.05% "unchanged" band used by tiles, headers and counts.
+ * Color: one continuous diverging ramp (log-shaped so +0.1% and +0.9%
+ * differ visibly) with the shared ±0.05% "unchanged" band. The ETF strip is
+ * colored by each ETF's move ÷ its own typical daily move.
  */
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -29,7 +21,7 @@ import { useCallback, useMemo, useRef, useState, type CSSProperties } from "reac
 import { term, type HeatCell } from "@/lib/api";
 import { fmtBig, fmtChg, fmtPx } from "@/lib/format";
 import { Empty, Panel, Seg, Skeleton } from "./ui";
-import { OTHER, aggFit, fitLabel, groupOf, headerText, layout, wordsOf, type Member, type Tile } from "./heatLayout";
+import { aggFit, fitLabel, groupOf, headerHasAvg, headerText, layout, wordsOf, type Member, type Tile } from "./heatLayout";
 import s from "./Heatmap.module.css";
 
 type Period = "1D" | "5D" | "1M";
@@ -99,21 +91,43 @@ function pct1(v: number | null | undefined): string {
 
 /** Unchanged (inside the ±0.05% band): a flat grey with no hue. */
 const NEUTRAL_BG = "#22272e";
-/** Aggregate tiles (buckets / sector remainders): darker neutral, outlined. */
-const AGG_BG = "#12161c";
 
-/** Diverging tile color, nonlinear in |Δ|. */
+/** Continuous diverging ramp on a 0..1 intensity (log-shaped upstream). */
+function ramp(sign: number, t: number): { bg: string; fg: string } {
+  const [r, g, b] = sign > 0 ? [16, 164, 88] : [212, 50, 50];
+  const base = [26, 32, 40];
+  const k = 0.2 + 0.8 * Math.max(0, Math.min(1, t));
+  const mix = (c: number, i: number) => Math.round(base[i] + (c - base[i]) * k);
+  return { bg: `rgb(${mix(r, 0)},${mix(g, 1)},${mix(b, 2)})`, fg: k > 0.55 ? "#fff" : "var(--ink)" };
+}
+/** Log-shaped intensity: fine steps near zero, saturating at `sat`. */
+const logT = (x: number, sat: number, knee: number) => Math.log1p(Math.abs(x) / knee) / Math.log1p(sat / knee);
+
+/** Diverging tile color for a % move (knee 0.25% on 1D, scaled by horizon). */
 function tint(v: number | null | undefined, p: Period): { bg: string; fg: string } {
   const d = dir(v);
   if (v == null || !Number.isFinite(v)) return { bg: "var(--bg-2)", fg: "var(--ink-3)" };
   if (d === "flat") return { bg: NEUTRAL_BG, fg: "var(--ink-2)" };
-  const t = Math.pow(Math.min(1, Math.abs(v) / SCALE[p]), 0.6);
-  const [r, g, b] = d === "up" ? [16, 164, 88] : [212, 50, 50];
-  const base = [24, 30, 38];
-  // The first step out of the neutral band is already clearly tinted.
-  const k = 0.3 + 0.7 * t;
-  const mix = (c: number, i: number) => Math.round(base[i] + (c - base[i]) * k);
-  return { bg: `rgb(${mix(r, 0)},${mix(g, 1)},${mix(b, 2)})`, fg: k > 0.52 ? "#fff" : "var(--ink)" };
+  return ramp(v, logT(v, SCALE[p], SCALE[p] / 20));
+}
+
+/** ETF color: the move ÷ its own typical daily move (σ), saturating at 3σ·√t. */
+function tintZ(v: number | null | undefined, sigma: number, p: Period): { bg: string; fg: string } {
+  if (v == null || !Number.isFinite(v)) return { bg: "var(--bg-2)", fg: "var(--ink-3)" };
+  if (dir(v) === "flat") return { bg: NEUTRAL_BG, fg: "var(--ink-2)" };
+  const days = p === "1D" ? 1 : p === "5D" ? 5 : 21;
+  const z = v / (sigma * Math.sqrt(days));
+  return ramp(v, logT(z, 3, 0.25));
+}
+
+/** σ of daily returns from a price series (fallback by asset type). */
+function sigmaOf(spark: (number | null)[] | undefined, bond: boolean): number {
+  const pts = (spark ?? []).filter((x): x is number => x != null && Number.isFinite(x));
+  const r: number[] = [];
+  for (let i = 1; i < pts.length; i++) r.push(pts[i] / pts[i - 1] - 1);
+  if (r.length < 8) return bond ? 0.004 : 0.01;
+  const m = r.reduce((a, b) => a + b, 0) / r.length;
+  return Math.sqrt(r.reduce((a, b) => a + (b - m) ** 2, 0) / (r.length - 1)) || (bond ? 0.004 : 0.01);
 }
 
 /** Cap-weighted change of a set of names. */
@@ -165,8 +179,13 @@ export function Heatmap({ className = "", style }: { className?: string; style?:
   const equities = useMemo(() => (data?.cells ?? []).filter((c) => !ETF_SECTORS.has(c.sector)), [data]);
   const etfs = useMemo(() => (data?.cells ?? []).filter((c) => ETF_SECTORS.has(c.sector)), [data]);
   // Layout depends on caps only, so switching horizon never reshuffles tiles.
-  const blocks = useMemo(() => (box && equities.length ? layout(equities, box.w, box.h) : []), [box, equities]);
-  const grouped = useMemo(() => blocks.reduce((a, b) => a + b.tiles.filter((t) => t.kind === "agg").reduce((x, t) => x + t.members.length, 0), 0), [blocks]);
+  const map = useMemo(() => (box && equities.length ? layout(equities, box.w, box.h) : null), [box, equities]);
+  const blocks = map?.blocks ?? [];
+  const grouped = map?.grouped ?? 0;
+  const expTxt = !map ? "" : Math.abs(map.exp - 1 / 3) < 0.01 ? "∛cap" : map.exp === 0.5 ? "√cap" : `cap^${map.exp}`;
+  // ETF colors use each ETF's own typical move (shares the WEI query).
+  const { data: mon } = useQuery({ queryKey: ["monitor"], queryFn: () => term.monitor(), refetchInterval: 60_000 });
+  const etfSigma = useMemo(() => new Map((mon?.rows ?? []).map((r) => [r.ticker, sigmaOf(r.spark, r.sector === "FixedIncome")])), [mon]);
 
   const stats = useMemo(() => {
     // 1D uses the API's own breadth counts verbatim (same numbers as the tape).
@@ -240,12 +259,9 @@ export function Heatmap({ className = "", style }: { className?: string; style?:
                     role="group"
                     aria-label={`${b.name}, ${b.members.length} names, $${fmtBig(b.cap)} market cap, cap-weighted ${period} ${pct1(avg)}`}
                   >
-                    <div
-                      className={s.bhead}
-                      title={`${b.key === OTHER ? `Other sectors: ${[...new Set(b.members.map((m) => wordsOf(groupOf(m.c))[0]))].join(", ")}` : b.name} · ${b.members.length} names · $${fmtBig(b.cap)} cap · cap-weighted ${period} ${fmtChg(avg)}`}
-                    >
+                    <div className={s.bhead} title={`${b.name} · ${b.members.length} names · $${fmtBig(b.cap)} cap · cap-weighted ${period} ${fmtChg(avg)}`}>
                       <span className={s.bname}>{headerText(b)}</span>
-                      <span className={`${s.bavg} ${dir(avg)}`}>{pct1(avg)}</span>
+                      {headerHasAvg(b) && <span className={`${s.bavg} ${dir(avg)}`}>{pct1(avg)}</span>}
                     </div>
                     {b.tiles.map((t, i) => (
                       <HeatTile key={`${t.kind}-${t.label}-${i}`} t={t} v={t.kind === "name" ? f(t.members[0].c) : capAvg(t.members, f)} period={period} onShow={showTile} onHide={() => setTip(null)} />
@@ -257,14 +273,18 @@ export function Heatmap({ className = "", style }: { className?: string; style?:
           </div>
 
           <div className={s.etfs} role="group" aria-label="ETFs, equal weight">
-            <span className={s.etfLabel} title="ETFs, equal-weight (AUM is not comparable with market cap)">ETF</span>
+            <span className={s.etfLabel} title="ETFs, equal-weight (AUM is not comparable with market cap); each colored by its move ÷ its own typical daily move">
+              ETF
+            </span>
             {[...etfs.filter((c) => c.sector !== "FixedIncome"), null, ...etfs.filter((c) => c.sector === "FixedIncome")].map((c) => {
               if (!c) return <span key="sep" className={s.etfSep} title="Equity ETFs | bond ETFs" aria-hidden="true" />;
               const v = f(c);
-              const h = tint(v, period);
+              const sg = etfSigma.get(c.ticker) ?? (c.sector === "FixedIncome" ? 0.004 : 0.01);
+              const h = tintZ(v, sg, period);
               return (
                 <Link
                   key={c.ticker}
+                  title={`${c.ticker} ${fmtChg(v)} · typical daily move ${(sg * 100).toFixed(2)}% → colored by move ÷ typical move`}
                   href={`/security/${encodeURIComponent(c.ticker)}`}
                   className={`${s.etf} ${c.held ? s.held : ""}`}
                   style={{ background: h.bg, color: h.fg }}
@@ -294,6 +314,9 @@ export function Heatmap({ className = "", style }: { className?: string; style?:
                 </span>
               ))}
               <span>%</span>
+              <span className={s.etfNote} title="ETF strip: colored by each ETF's move ÷ its own typical daily move">
+                ETF: ÷σ
+              </span>
             </span>
             <span className={s.key}>
               <span className={s.keyHeld} />
@@ -301,13 +324,14 @@ export function Heatmap({ className = "", style }: { className?: string; style?:
             </span>
             <span
               className={s.key}
-              title="Tile area is market cap. Names too small for a readable label share a grey 'N others' tile (hover lists them). Held names always get their own tile, at a legible minimum size if needed."
+              title={`Tile area ∝ ${expTxt} (compressed so more names get a legible tile). Hatched tiles group names too small for a label — colored by their cap-weighted move; hover lists them. Held names always get their own tile.`}
             >
+              area ∝ {expTxt}
               <span className={s.keyAgg} />
-              area = mkt cap · {grouped} grouped
+              {grouped} grouped
             </span>
-            <span className={`${s.key} ${s.right}`} title="Sector headers show the cap-weighted change of every name in the sector">
-              sector % cap-wtd
+            <span className={`${s.key} ${s.right}`} title="Sector headers and grouped tiles show the cap-weighted change of their names">
+              % cap-wtd
             </span>
           </div>
         </div>
@@ -325,38 +349,39 @@ function HeatTile({ t, v, period, onShow, onHide }: { t: Tile; v: number | null;
   };
   const box: CSSProperties = { left: r.x, top: r.y, width: r.w, height: r.h };
   if (t.kind === "agg") {
-    // Aggregates are not securities: neutral grey, outlined, small caps label,
-    // change in small neutral text. Never a held outline.
+    // A group, not a security: its cap-weighted move on the same ramp, a
+    // hatch + dashed inner border, uppercase label. Never a held outline.
+    const h = tint(v, period);
+    const fit = aggFit(r.w, r.h, t.label);
     return (
       <div
         className={`${s.cell} ${s.agg}`}
-        style={{ ...box, background: AGG_BG }}
+        style={{ ...box, background: h.bg, color: h.fg }}
         tabIndex={0}
         {...handlers}
         aria-label={`${t.label}, ${t.members.length} names, cap-weighted ${period} ${fmtChg(v)}`}
       >
-        {aggFit(r.w, r.h, t.label) === "stack" ? (
+        {fit === "stack" ? (
           t.label.split(" ").map((w) => (
             <span key={w} className={s.aggLab}>
               {w}
             </span>
           ))
-        ) : aggFit(r.w, r.h, t.label) === "line" ? (
+        ) : fit === "line" ? (
           <span className={s.aggLab}>{t.label}</span>
-        ) : r.h >= 26 ? (
-          <span className={s.aggLab}>{t.members.length}</span>
         ) : null}
-        {r.h >= 13 && r.w >= 32 && <span className={s.aggChg}>{pct1(v)}</span>}
+        {r.h >= 14 && r.w >= 34 && <span className={s.aggChg}>{pct1(v)}</span>}
       </div>
     );
   }
   const c = t.members[0].c;
   const h = tint(v, period);
+  const pad = c.held ? 4 : 0; // keep labels clear of the held outline
   let pctTxt = pct1(v);
-  let fit = fitLabel(r.w, r.h, t.label.length, pctTxt.length);
+  let fit = fitLabel(r.w - pad, r.h - pad, t.label.length, pctTxt.length);
   if (!fit && v != null && Math.abs(v) >= 0.1) {
     pctTxt = `${v > 0 ? "+" : "−"}${Math.round(Math.abs(v) * 100)}%`;
-    fit = fitLabel(r.w, r.h, t.label.length, pctTxt.length);
+    fit = fitLabel(r.w - pad, r.h - pad, t.label.length, pctTxt.length);
   }
   const name = fit && r.h >= 62 && r.w >= 84 ? shortName(c) : "";
   const showName = name && name.length * 5.3 <= r.w - 10;
@@ -391,8 +416,7 @@ function Tip({ tip, period, f }: { tip: TipState; period: Period; f: (c: HeatCel
     const avg = capAvg(t.members, f);
     const list = [...t.members].sort((a, b) => b.cap - a.cap);
     const shown = list.slice(0, GROUP_TIP_MAX);
-    const secs = [...new Set(t.members.map((m) => wordsOf(groupOf(m.c))[0]))];
-    const title = t.sector === OTHER ? `${secs.join(", ")} · ${t.members.length} names` : `${wordsOf(t.sector)[0]} · ${t.members.length} smaller names`;
+    const title = `${wordsOf(t.sector)[0]} · ${t.members.length} ${t.label.endsWith("names") ? "names" : "smaller names"}`;
     return (
       <div className={s.tip} style={pos} role="tooltip">
         <div className={s.tipHead}>
@@ -400,7 +424,7 @@ function Tip({ tip, period, f }: { tip: TipState; period: Period; f: (c: HeatCel
           <span className={`num ${dir(avg)}`} style={{ marginLeft: "auto" }}>{fmtChg(avg)}</span>
         </div>
         <div className={s.tipSub}>
-          cap-wtd {period} · ${fmtBig(t.cap)} · {t.floored ? "tile at min label size" : "area = combined cap"}
+          cap-wtd {period} · ${fmtBig(t.cap)} · {t.capped ? "drawn smaller than its combined weight" : t.floored ? "tile at min label size" : "area = combined weight"}
         </div>
         <div className={s.tipList}>
           {shown.map((m) => {

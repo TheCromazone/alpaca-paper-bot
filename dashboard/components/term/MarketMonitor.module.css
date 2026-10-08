@@ -463,7 +463,7 @@ button.hcell:hover {
   min-width: 0;
 }
 .lag {
-  margin-left: 2px;
+  margin-right: 3px;
   font-family: var(--font-plex-mono), monospace;
   font-size: 7.5px;
   font-weight: 500;
@@ -504,7 +504,7 @@ button.hcell:hover {
 .noSpot {
   text-align: right;
   padding-right: 6px;
-  color: var(--ink-4);
+  color: var(--line-2);
 }
 .spot {
   text-align: right;
@@ -535,4 +535,74 @@ button.hcell:hover {
   font-size: 0.72em;
   margin-right: 1px;
   vertical-align: 1px;
+}
+
+/* round 6 */
+.primary {
+  color: var(--ink);
+  font-size: 10.5px;
+}
+.secondary {
+  color: var(--ink-3);
+  font-size: 10px;
+}
+.curveRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 36px;
+  flex: none;
+  padding: 2px 0 2px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  width: 100%;
+}
+.curveRow:hover {
+  background: var(--bg-2);
+}
+.curveVals {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--ink);
+  padding: 0 2px;
+}
+.curveVals > span {
+  display: inline-flex;
+  gap: 3px;
+  align-items: baseline;
+}
+.curveVals i {
+  font-style: normal;
+  color: var(--ink-3);
+  font-family: var(--font-plex-cond), sans-serif;
+}
+.bmacroSpan {
+  grid-column: span 2;
+}
+.lagNarrow {
+  display: none;
+}
+@container (max-width: 440px) {
+  .bmacroSpan {
+    grid-column: span 3;
+  }
+  .lagCell {
+    display: none;
+  }
+  .lagNarrow {
+    display: inline;
+  }
+  .curveVals {
+    font-size: 9.5px;
+  }
+}
+@container (max-width: 440px) {
+  .wideOnly {
+    display: none;
+  }
 }

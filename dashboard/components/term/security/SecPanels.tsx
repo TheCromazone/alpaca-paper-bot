@@ -50,14 +50,14 @@ function SentNum({ v }: { v: number | null }) {
   return (
     <span
       className={`num ${neutral ? "" : v! > 0 ? "up" : "down"}`}
-      style={{ fontSize: 11, textAlign: "right", color: neutral ? "var(--ink-3)" : undefined }}
+      style={{ fontSize: neutral ? 10 : 11, textAlign: "right", color: neutral ? "var(--ink-4)" : undefined }}
       title={
         v == null
           ? "No sentiment score"
-          : `Headline sentiment (VADER compound): ${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)} on a −1 (negative) … +1 (positive) scale; |score| < 0.05 is neutral.`
+          : `Headline sentiment (VADER compound): ${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)} on a −1 (negative) … +1 (positive) scale; |score| < 0.05 is shown as “neu” (neutral).`
       }
     >
-      {v == null ? "—" : neutral ? "0.00" : `${v > 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}`}
+      {v == null ? "—" : neutral ? "neu" : `${v > 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}`}
     </span>
   );
 }
@@ -336,8 +336,8 @@ function quarterLabel(q: string) {
 export function SecEvents({ data, className = "", style }: P & { data: SecurityResp }) {
   const now = useNow(60_000);
   const { next, history } = data.earnings; // newest first
-  // Surprise = actual ÷ consensus − 1 from the unrounded estimate (matches the API's figure),
-  // and the estimate is shown to 3 dp so the row reconciles by eye.
+  // Surprise = actual ÷ consensus − 1 from the UNROUNDED estimate (matches the API's figure);
+  // ACT and EST both display at 2 dp, the exact estimate is in the tooltip.
   const surp = (h: (typeof history)[number]) =>
     h.eps_actual != null && h.eps_estimate ? h.eps_actual / h.eps_estimate - 1 : h.surprise_pct;
   const surprises = history.map(surp).filter((v): v is number => v != null);
@@ -390,7 +390,7 @@ export function SecEvents({ data, className = "", style }: P & { data: SecurityR
               <span>Period</span>
               <span style={{ textAlign: "right" }}>Act</span>
               <span style={{ textAlign: "right" }}>Est</span>
-              <span>Surp.</span>
+              <span style={{ textAlign: "right" }}>Surprise</span>
             </div>
             <FitList unit="quarters">
               {history.map((h) => {
@@ -400,8 +400,12 @@ export function SecEvents({ data, className = "", style }: P & { data: SecurityR
                   <div key={h.quarter} className={s.evRow} title={`Period ended ${fmtD(h.quarter, "dmy")}`}>
                     <span className="num" style={{ color: "var(--ink-2)" }}>{quarterLabel(h.quarter)}</span>
                     <span className="num" style={{ color: "var(--ink)", textAlign: "right" }}>{fmtNum(h.eps_actual)}</span>
-                    <span className="num" style={{ color: "var(--ink-3)", textAlign: "right" }} title={h.eps_estimate != null ? `Consensus ${h.eps_estimate}` : undefined}>
-                      {fmtNum(h.eps_estimate, h.eps_estimate != null && Math.abs(h.eps_estimate * 100 - Math.round(h.eps_estimate * 100)) > 1e-6 ? 3 : 2)}
+                    <span
+                      className="num"
+                      style={{ color: "var(--ink-3)", textAlign: "right" }}
+                      title={h.eps_estimate != null ? `Consensus ${h.eps_estimate} (unrounded) — the surprise % is computed from this, not the 2-dp display` : undefined}
+                    >
+                      {fmtNum(h.eps_estimate, 2)}
                     </span>
                     <span className={s.evSurp}>
                       <span className={s.evTrack}>

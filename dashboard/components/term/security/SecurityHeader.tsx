@@ -222,9 +222,9 @@ export function SecurityHeader({
           {rsi != null && rsi >= 70 && <span className={`${s.statSub} warn`}>OB</span>}
           {rsi != null && rsi <= 30 && <span className={`${s.statSub} warn`}>OS</span>}
         </Cell>
-        <Cell k="SMA 20"><Sma sma={st.sma_20} last={last} /></Cell>
-        <Cell k="SMA 50"><Sma sma={st.sma_50} last={last} /></Cell>
-        <Cell k="SMA 200"><Sma sma={st.sma_200} last={last} /></Cell>
+        <Cell k="SMA 20" title="Full 20-session simple average of closes (shown only when 20 sessions exist); ▲/▼ = last close above/below it"><Sma sma={st.sma_20} last={last} /></Cell>
+        <Cell k="SMA 50" title="Full 50-session simple average of closes (shown only when 50 sessions exist); ▲/▼ = last close above/below it"><Sma sma={st.sma_50} last={last} /></Cell>
+        <Cell k="SMA 200" title="Full 200-session simple average of closes (shown only when 200 sessions exist — never partial); ▲/▼ = last close above/below it. On the chart the line starts later only because the range begins before the 200th session."><Sma sma={st.sma_200} last={last} /></Cell>
         <Cell k="Rel vol" title={`Last session volume vs its prior 20-day average${q?.volume ? ` (${fmtBig(q.volume)} vs ${fmtBig(q?.avg_volume_20d)})` : ""}. IEX feed — compare within this ticker only.`}>
           {rel != null ? <span className={rel >= 1.5 ? "warn" : undefined}>{rel.toFixed(2)}×</span> : "—"}
         </Cell>

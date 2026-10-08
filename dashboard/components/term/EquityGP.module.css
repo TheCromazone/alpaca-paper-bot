@@ -1,0 +1,9 @@
+/* GP header key: the optional explanation drops first on narrower screens */
+.keyOpt {
+  color: var(--ink-3);
+}
+@media (max-width: 1380px) {
+  .keyOpt {
+    display: none;
+  }
+}

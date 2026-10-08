@@ -8,48 +8,19 @@
 
 /* ── status card ─────────────────────────────────────────────────────── */
 .status {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   border-bottom: 1px solid var(--line);
+  padding: 6px 9px 6px;
   flex: none;
-}
-.banner {
-  display: inline-flex;
-  align-self: flex-start;
-  height: 20px;
-  margin: 1px 0 3px;
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-}
-.line[data-dim="true"],
-.line[data-dim="true"] b {
-  color: var(--ink-3);
-}
-.kv[data-dim="true"] > span:last-child {
-  color: var(--ink-3);
-}
-.statusMain {
-  padding: 6px 9px 7px;
-  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
-.statusSide {
-  padding: 24px 9px 7px 10px;
-  min-width: 0;
-  border-left: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.cardHead {
+.statusHead {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  gap: 10px;
+  height: 20px;
   min-width: 0;
-  height: 18px;
 }
 .cardLabel {
   font-size: 9.5px;
@@ -59,57 +30,40 @@
   color: var(--cyan);
   white-space: nowrap;
 }
-.big {
+.banner {
+  height: 20px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+}
+/* facts: two label/value pairs per row → every value shares a baseline */
+.facts {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr) 50px minmax(0, 1fr);
+  grid-auto-rows: 16px;
+  column-gap: 8px;
+  align-items: baseline;
+}
+.fk {
+  font-size: 10px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.fv {
   font-family: var(--font-plex-mono), monospace;
   font-variant-numeric: tabular-nums;
-  font-size: 15px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-size: 10.5px;
   color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 19px;
-}
-.line {
-  font-family: var(--font-plex-mono), monospace;
-  font-variant-numeric: tabular-nums;
-  font-size: 10.5px;
-  color: var(--ink-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 14px;
-  min-height: 14px;
-}
-.line b {
-  color: var(--ink-2);
-  font-weight: 500;
-}
-.kv {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  height: 16px;
-  font-size: 10.5px;
-  color: var(--ink-3);
-  white-space: nowrap;
   min-width: 0;
 }
-.kv > span:first-child {
-  flex: none;
+.fv b {
+  font-weight: 600;
 }
-.kv > span:last-child {
-  font-family: var(--font-plex-mono), monospace;
-  font-variant-numeric: tabular-nums;
-  font-size: 10.5px;
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.kv b {
-  font-weight: 500;
+.fv[data-dim="true"],
+.fv[data-dim="true"] b {
+  color: var(--ink-3);
 }
 .kvDim {
   color: var(--ink-3);
@@ -123,7 +77,7 @@
 }
 .schedRow {
   display: grid;
-  grid-template-columns: 92px 64px minmax(0, 1fr) 44px 70px;
+  grid-template-columns: 90px 62px minmax(0, 1fr) 100px 64px;
   align-items: baseline;
   gap: 6px;
   height: 17px;
@@ -166,16 +120,89 @@
   color: var(--ink-2);
 }
 .schedTime small {
-  font-size: 9px;
-  color: var(--ink-4);
+  font-size: 10px;
+  color: var(--ink-2);
 }
 .schedRule {
   font-family: var(--font-plex-cond), sans-serif;
   font-size: 10.5px;
   color: var(--ink-2);
 }
-.schedLast {
+/* compact (bot off): last day line + live job feed */
+.lastDay {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  padding: 0 9px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+  white-space: nowrap;
+  min-width: 0;
+}
+.lastDayBody {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10.5px;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.lastDayBody b {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.lastDayLink {
+  margin-left: auto;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10px;
   color: var(--ink-3);
+  flex: none;
+}
+.lastDayLink:hover {
+  color: var(--amber-2);
+}
+.jobs {
+  padding: 2px 0;
+}
+.jobRow {
+  display: grid;
+  grid-template-columns: 12px 156px 54px minmax(0, 1fr);
+  gap: 6px;
+  align-items: baseline;
+  height: 20px;
+  padding: 0 9px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+.jobRow:hover {
+  background: var(--bg-2);
+}
+.jobSt {
+  font-weight: 600;
+  text-align: center;
+}
+.jobName {
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jobAge {
+  color: var(--ink-2);
+  text-align: right;
+}
+.jobMsg {
+  color: var(--ink-2);
+  font-family: var(--font-plex-cond), sans-serif;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.schedLast {
+  color: var(--ink-2);
   text-align: right;
 }
 .schedState {
@@ -188,9 +215,16 @@
   font-size: 8.5px;
 }
 .schedTbl[data-off="true"] .schedName,
-.schedTbl[data-off="true"] .schedTime,
-.schedTbl[data-off="true"] .schedRule {
+.schedTbl[data-off="true"] .schedTime {
+  color: var(--ink-2);
+}
+.schedTbl[data-off="true"] .schedRow {
+  grid-template-columns: 90px 62px minmax(0, 1fr) 100px 40px;
+}
+.offText {
+  font-size: 10px;
   color: var(--ink-3);
+  letter-spacing: 0.04em;
 }
 
 /* ── section heading ────────────────────────────────────────────────── */
@@ -273,7 +307,7 @@
   letter-spacing: 0.02em;
 }
 .actDim {
-  color: var(--ink-3);
+  color: var(--ink-2);
   white-space: nowrap;
 }
 .sep {
@@ -320,16 +354,16 @@ table.runs th {
   padding: 0 8px;
   background: transparent;
   font-family: var(--font-plex-mono), monospace;
-  font-size: 9.5px;
-  letter-spacing: 0.06em;
-  color: var(--ink-4);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
   text-align: left;
 }
 .runs tbody tr.dayRow:hover td {
   background: transparent;
 }
 .dayKey {
-  color: var(--ink-3);
+  color: var(--ink-2);
   font-weight: 500;
 }
 .cellDim {
@@ -341,8 +375,11 @@ table.runs th {
 .runs tbody tr[data-old="true"] .routine {
   color: var(--ink-2);
 }
-.runs tbody tr[data-old="true"] .actCell > div {
-  opacity: 0.6;
+.stCell {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-align: center !important;
 }
 .runs tbody tr.moreRow td {
   height: 22px;

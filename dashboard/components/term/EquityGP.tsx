@@ -20,6 +20,7 @@ import { Empty, Panel, Skeleton } from "./ui";
 import { DataAge } from "./DataAge";
 import { KeyGlyph, TimeSeriesChart, type TSAnnotation, type TSKey, type TSMarker, type TSSeries, type TSShade } from "./TimeSeriesChart";
 import { etDay } from "./useHeld";
+import g from "./EquityGP.module.css";
 
 const RANGES = ["1M", "3M", "6M", "YTD", "1Y", "MAX"] as const;
 type Range = (typeof RANGES)[number];
@@ -31,8 +32,8 @@ const TD = 252;
 const BOT = "var(--cyan)";
 const SPX = "#b9c2cc";
 const REGIME_SHADE: Record<string, { color: string; label: string; opacity: number }> = {
-  neutral: { color: "var(--warn)", label: "Neutral regime", opacity: 0.11 },
-  risk_off: { color: "var(--alert)", label: "Risk-off regime", opacity: 0.13 },
+  neutral: { color: "var(--warn)", label: "Neutral regime", opacity: 0.18 },
+  risk_off: { color: "var(--alert)", label: "Risk-off regime", opacity: 0.18 },
 };
 const REGIME_NAME: Record<string, string> = { risk_on: "Risk on", neutral: "Neutral", risk_off: "Risk off" };
 const DEAD = new Set(["rejected", "canceled", "cancelled", "expired", "failed", "dry_run"]);
@@ -167,7 +168,7 @@ export function EquityGP({ className = "", style }: { className?: string; style?
       let i = idx.get(day);
       if (i == null) i = view.dates.findIndex((d) => d >= day); // weekend / holiday fill → next session
       if (i == null || i < 0) continue;
-      out.push({ i, side: t.side, label: `${t.side === "buy" ? "BUY" : "SELL"} ${t.ticker}`, value: usdShort(t.notional) });
+      out.push({ i, side: t.side, label: `${t.side === "buy" ? "BUY" : "SELL"} ${t.ticker}`, value: usdShort(t.notional), date: `${MON[+view.dates[i].slice(5, 7) - 1]} ${view.dates[i].slice(8, 10)}` });
     }
     return out;
   }, [view, trades.data]);
@@ -200,10 +201,10 @@ export function EquityGP({ className = "", style }: { className?: string; style?
 
   const keys = useMemo<TSKey[]>(() => {
     const k: TSKey[] = [];
-    if (markers.some((m) => m.side === "buy")) k.push({ glyph: "chip", color: "var(--up)", label: "buys", text: "n" });
-    if (markers.some((m) => m.side === "sell")) k.push({ glyph: "chip", color: "var(--down)", label: "sells", text: "n" });
+    k.push({ glyph: "box", color: "var(--up)", label: "bot ahead", opacity: 0.35 });
+    k.push({ glyph: "box", color: "var(--down)", label: "bot behind", opacity: 0.35 });
     return [...k, ...regimeKeys];
-  }, [markers, regimeKeys]);
+  }, [regimeKeys]);
 
   // where the automation went quiet: the later of the last LLM run and the last fill
   const annotations = useMemo<TSAnnotation[]>(() => {
@@ -316,7 +317,7 @@ export function EquityGP({ className = "", style }: { className?: string; style?
             shadeStyle="fill"
             annotations={annotations}
             markerLane
-            leftAxis
+            valueAxis="left"
             tagPlacement="axis"
             sub={sub}
             kind="pct"
@@ -340,7 +341,7 @@ export function EquityGP({ className = "", style }: { className?: string; style?
                 {k.label}
               </span>
             ))}
-            {markers.length > 0 && <span style={{ color: "var(--ink-3)" }}>n = trades that day</span>}
+            {markers.length > 0 && <span className={g.keyOpt}>trade tick height = trades that day</span>}
           </span>
         ) : (
           "rebased to window start"
@@ -353,7 +354,7 @@ export function EquityGP({ className = "", style }: { className?: string; style?
       actions={
         <>
           <RangeSeg value={active} onChange={setRange} disabled={sameAsMax} />
-          <DataAge at={data?.as_of} snapshot={summary.data?.source === "db_fallback"} />
+          <DataAge at={data?.as_of} snapshot={summary.data?.source === "db_fallback"} bookAt={summary.data?.as_of} />
         </>
       }
     >

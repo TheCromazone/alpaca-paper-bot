@@ -89,19 +89,29 @@ const SHORT: Record<string, string> = {
 const nameOf = (r: { key: string; label: string; macro: boolean }) => (r.macro ? (COMPACT[r.key] ?? r.label) : (UNDER[r.key] ?? r.label));
 
 /** ETF → the FRED series carrying its real underlying level. */
-const SPOT: Record<string, { series: string; dp?: number; note: string; tag?: string }> = {
-  SPY: { series: "SP500", note: "S&P 500 index" },
-  QQQ: { series: "NASDAQCOM", note: "Nasdaq Composite — QQQ tracks the Nasdaq-100, which has no free series", tag: "comp" },
-  DIA: { series: "DJIA", note: "Dow Jones Industrial Average" },
-  UUP: { series: "DTWEXBGS", note: "Broad trade-weighted USD index" },
-  FXE: { series: "DEXUSEU", dp: 4, note: "EURUSD" },
-  FXY: { series: "DEXJPUS", dp: 2, note: "USDJPY — moves inversely to FXY" },
-  FXB: { series: "DEXUSUK", dp: 4, note: "GBPUSD" },
-  USO: { series: "DCOILWTICO", dp: 2, note: "WTI crude spot, $/bbl" },
-  UNG: { series: "DHHNGSP", dp: 2, note: "Henry Hub natural gas spot, $/MMBtu" },
-  IBIT: { series: "CBBTCUSD", note: "BTC/USD (Coinbase)" },
-  ETHA: { series: "CBETHUSD", note: "ETH/USD (Coinbase)" },
+/** ETF → its real underlying: same-day Yahoo close first, FRED fallback. */
+const SPOT: Record<string, { series: string[]; dp?: number; note: string; tag?: string }> = {
+  SPY: { series: ["YF:^GSPC", "SP500"], note: "S&P 500 index" },
+  QQQ: { series: ["YF:^NDX"], note: "Nasdaq-100 index" },
+  DIA: { series: ["YF:^DJI", "DJIA"], note: "Dow Jones Industrial Average" },
+  IWM: { series: ["YF:^RUT"], note: "Russell 2000 index" },
+  EWJ: { series: ["YF:^N225"], note: "Nikkei 225 (EWJ tracks MSCI Japan; the Nikkei is the nearest free benchmark)" },
+  EWG: { series: ["YF:^GDAXI"], note: "DAX (EWG tracks MSCI Germany; the DAX is the nearest free benchmark)" },
+  FXI: { series: ["YF:^HSI"], note: "Hang Seng (FXI tracks FTSE China 50; the Hang Seng is the nearest free benchmark)" },
+  UUP: { series: ["YF:DX-Y.NYB", "DTWEXBGS"], note: "US dollar index (DXY)" },
+  FXE: { series: ["YF:EURUSD=X", "DEXUSEU"], dp: 4, note: "EURUSD" },
+  FXY: { series: ["YF:JPY=X", "DEXJPUS"], dp: 2, note: "USDJPY — moves inversely to FXY" },
+  FXB: { series: ["YF:GBPUSD=X", "DEXUSUK"], dp: 4, note: "GBPUSD" },
+  GLD: { series: ["YF:GC=F"], dp: 1, note: "Gold front-month future, $/oz" },
+  SLV: { series: ["YF:SI=F"], dp: 2, note: "Silver front-month future, $/oz" },
+  USO: { series: ["YF:CL=F", "DCOILWTICO"], dp: 2, note: "WTI crude front-month future, $/bbl" },
+  UNG: { series: ["YF:NG=F", "DHHNGSP"], dp: 3, note: "Henry Hub natural gas future, $/MMBtu" },
+  CPER: { series: ["YF:HG=F"], dp: 3, note: "Copper front-month future, $/lb" },
+  IBIT: { series: ["YF:BTC-USD", "CBBTCUSD"], note: "BTC/USD" },
+  ETHA: { series: ["YF:ETH-USD", "CBETHUSD"], note: "ETH/USD" },
 };
+/** FX: the currency rate is the primary value; the ETF's price is secondary. */
+const FX_PRIMARY = new Set(["UUP", "FXE", "FXY", "FXB"]);
 
 /** FRED series → short code + kind. */
 const MACRO_META: Record<string, { code: string; kind: Kind; label?: string }> = {
@@ -291,8 +301,9 @@ function dailySigma(series: (number | null)[], kind: Kind): number {
 function fromQuote(q: QuoteRow, macro: Map<string, MacroRow>): Row {
   const rv = q.rel_volume;
   const sp = SPOT[q.ticker];
-  const m = sp ? macro.get(sp.series) : undefined;
-  const spot: Spot | null = m && m.last != null ? { v: m.last, dp: sp!.dp, asOf: m.as_of, note: sp!.note, series: sp!.series, chg1d: m.chg_1d, tag: sp!.tag } : null;
+  const sid = sp?.series.find((id) => macro.get(id)?.last != null);
+  const m = sid ? macro.get(sid) : undefined;
+  const spot: Spot | null = m && m.last != null ? { v: m.last, dp: sp!.dp, asOf: m.as_of, note: sp!.note, series: sid!, chg1d: m.chg_1d, tag: sp!.tag } : null;
   return {
     key: q.ticker,
     code: q.ticker,
@@ -408,12 +419,14 @@ const BOARD_EXTRA: Group[][] = [
   [{ label: "Sectors", keys: ["XLK", "XLF", "XLV", "XLY", "XLP", "XLI", "XLE", "XLB", "XLU", "XLRE", "XLC"], sortable: true, trim: true }],
   [
     { label: "Front end · funding", keys: ["DGS3MO", "DGS5", "T10Y3M", "SOFR"] },
-    { label: "Oil · metals · ags", keys: ["DCOILBRENTEU", "SLV", "DBA"] },
+    { label: "Gas · metals · ags", keys: ["UNG", "CPER", "SLV", "DBA"] },
   ],
 ];
 const B_ROW = 16;
 const B_GROUP = 16;
 const B_HEAD = 18;
+/** The Treasury-curve row under the Treasuries header. */
+const B_CURVE = 36;
 
 const BOARD: Group[][] = [
   [
@@ -422,9 +435,9 @@ const BOARD: Group[][] = [
     { label: "FX", keys: ["UUP", "FXE", "FXY", "FXB"] },
   ],
   [
-    { label: "Treasuries", keys: ["DGS2", "DGS10", "DGS30", "T10Y2Y"], curve: true },
+    { label: "Treasuries", keys: ["DGS2", "DGS10", "T10Y2Y"], curve: true },
     { label: "Credit · vol", keys: ["BAMLC0A0CM", "BAMLH0A0HYM2", "VIX"] },
-    { label: "Commodities · crypto", keys: ["GLD", "USO", "UNG", "CPER", "IBIT", "ETHA"] },
+    { label: "Commodities · crypto", keys: ["GLD", "USO", "IBIT", "ETHA"] },
   ],
 ];
 
@@ -551,8 +564,18 @@ function Lvl({ text, asOf, close, className = "", tag }: { text: string; asOf: s
       className={`${className} ${n >= 2 ? s.stale : ""}`}
       title={asOf ? `As of ${dayLabel(asOf)}${n ? ` — ${n} business day${n > 1 ? "s" : ""} behind the ${dayLabel(close)} close` : ""}` : undefined}
     >
-      {text}
       {tag && <span className={s.lag}>{tag}</span>}
+      {n > 0 && <span className={s.lag}>T-{n}</span>}
+      {text}
+    </span>
+  );
+}
+
+/** Just the T-n tag, right-aligned in its own cell (macro rows). */
+function LagTag({ asOf, close }: { asOf: string | null | undefined; close?: string }) {
+  const n = lagDays(asOf, close);
+  return (
+    <span className={`${s.spot} ${s.lagCell}`} title={asOf ? `As of ${dayLabel(asOf)}${n ? ` — ${n} business day${n > 1 ? "s" : ""} behind the ${dayLabel(close)} close` : ""}` : undefined}>
       {n > 0 && <span className={s.lag}>T-{n}</span>}
     </span>
   );
@@ -562,7 +585,7 @@ function Lvl({ text, asOf, close, className = "", tag }: { text: string; asOf: s
 function SpotCell({ r, close }: { r: Row; close?: string }) {
   if (r.spot)
     return (
-      <span className={s.spot} title={`${r.spot.note} · ${dayLabel(r.spot.asOf)}`}>
+      <span className={`${s.spot} ${FX_PRIMARY.has(r.key) ? s.primary : ""}`} title={`${r.spot.note} · ${dayLabel(r.spot.asOf)} · ${r.spot.series.replace(/^YF:/, "Yahoo ")}`}>
         <Lvl text={fmtLevel(r.spot.v, r.spot.dp)} asOf={r.spot.asOf} close={close} tag={r.spot.tag} />
       </span>
     );
@@ -598,7 +621,7 @@ function Board({
   });
   const cols = BOARD.map((base, ci) => {
     const out = [...base];
-    let used = B_HEAD + base.reduce((a, g) => a + B_GROUP + g.keys.filter((k) => rows.has(k)).length * B_ROW, 0);
+    let used = B_HEAD + base.reduce((a, g) => a + B_GROUP + (g.curve ? B_CURVE : 0) + g.keys.filter((k) => rows.has(k)).length * B_ROW, 0);
     for (const g of BOARD_EXTRA[ci]) {
       const keys = g.keys.filter((k) => rows.has(k));
       const need = B_GROUP + keys.length * B_ROW;
@@ -624,7 +647,8 @@ function Board({
         <div key={ci} className={s.bcol}>
           <div className={`${s.bgrid} ${s.head}`}>
             <span className={s.hcell} style={{ textAlign: "left", gridColumn: "span 2" }} title="ETF ticker and what it tracks; FRED rows are true levels">
-              {ci === 0 ? "ETF · tracks" : "Rates · ETF"}
+              {ci === 0 ? "ETF" : "Rates"}
+              <span className={s.wideOnly}>{ci === 0 ? " · tracks" : " · ETF"}</span>
             </span>
             <span className={`${s.hcell} ${s.spotHead}`} title={SPOT_TIP}>
               Spot
@@ -646,14 +670,8 @@ function Board({
               <div className={s.bgroup}>
                 <span className={s.groupLabel}>{g.label}</span>
                 <span className={s.groupRule} />
-                {g.curve && (
-                  <span className={s.glyph} title="Treasury yield curve, 3M (left) to 30Y (right): latest (solid) vs one month ago (dashed)">
-                    <span className={s.glyphLab}>3M</span>
-                    <CurveGlyph ys={curve} ago={curve1m} />
-                    <span className={s.glyphLab}>30Y</span>
-                  </span>
-                )}
               </div>
+              {g.curve && <CurveRow ys={curve} ago={curve1m} asOf={curveRows[0]?.asOf} close={close} onClick={onMacro} />}
               {(g.sortable && !g.label.includes("best / worst") ? [...g.keys].sort((a, b) => (rows.get(b)?.chg[period] ?? -Infinity) - (rows.get(a)?.chg[period] ?? -Infinity)) : g.keys).map((k) => {
                 const r = rows.get(k);
                 if (!r) return null;
@@ -661,9 +679,13 @@ function Board({
                 const body = (
                   <>
                     {r.macro ? (
-                      <span className={s.bmacro} style={{ gridColumn: "span 3" }}>
-                        {nameOf(r)}
-                      </span>
+                      <>
+                        <span className={`${s.bmacro} ${s.bmacroSpan}`}>
+                          {nameOf(r)}
+                          {lagDays(r.asOf, close) > 0 && <span className={`${s.lag} ${s.lagNarrow}`}> T-{lagDays(r.asOf, close)}</span>}
+                        </span>
+                        <LagTag asOf={r.asOf} close={close} />
+                      </>
                     ) : (
                       <>
                         <span className={`${s.btkr} ${r.held ? s.held : ""}`}>{r.code}</span>
@@ -673,8 +695,12 @@ function Board({
                         <SpotCell r={r} close={close} />
                       </>
                     )}
-                    <span className={s.num}>
-                      {r.macro ? <Lvl text={fmtLast(r)} asOf={r.asOf} close={close} /> : <Flash value={r.last}>{fmtLast(r)}</Flash>}
+                    <span className={`${s.num} ${FX_PRIMARY.has(r.key) && r.spot ? s.secondary : ""}`}>
+                      {r.macro ? (
+                        <span className={lagDays(r.asOf, close) >= 2 ? s.stale : undefined}>{fmtLast(r)}</span>
+                      ) : (
+                        <Flash value={r.last}>{fmtLast(r)}</Flash>
+                      )}
                     </span>
                     <ChgCell r={r} v={v} h={period} close={close} />
                     {period !== "5D" && <ChgCell r={r} v={r.chg["5D"]} h="5D" close={close} extra={s.wide2} />}
@@ -703,22 +729,44 @@ function Board({
   );
 }
 
-/** Tiny yield curve (3M→30Y): today solid, one month ago dashed. */
-function CurveGlyph({ ys, ago }: { ys: (number | null)[]; ago: (number | null)[] }) {
+/** Treasury curve row: the curve (latest solid, 1M ago dashed) over the
+ *  tenor yields it is drawn from. */
+const TENORS = ["3M", "2Y", "5Y", "10Y", "30Y"];
+/** Tenors labelled under the curve (5Y is drawn but not printed). */
+const SHOWN_TENORS = new Set(["3M", "2Y", "10Y", "30Y"]);
+function CurveRow({ ys, ago, asOf, close, onClick }: { ys: (number | null)[]; ago: (number | null)[]; asOf?: string | null; close?: string; onClick: () => void }) {
   const all = [...ys, ...ago].filter((v): v is number => v != null);
   if (ys.filter((v) => v != null).length < 3) return null;
   const min = Math.min(...all);
   const span = Math.max(...all) - min || 1;
-  const W = 64;
-  const H = 12;
-  const x = (i: number) => (i / (ys.length - 1)) * (W - 2) + 1;
-  const y = (v: number) => H - 1 - ((v - min) / span) * (H - 2);
+  const W = 200;
+  const H = 18;
+  const x = (i: number) => 14 + (i / (ys.length - 1)) * (W - 28);
+  const y = (v: number) => 2 + (1 - (v - min) / span) * (H - 4);
   const path = (vs: (number | null)[]) => vs.map((v, i) => (v == null ? "" : `${i && vs[i - 1] != null ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`)).join("");
+  const lag = lagDays(asOf, close);
   return (
-    <svg width={W} height={H} aria-label="Yield curve 3M to 30Y, today vs 1M ago" style={{ flex: "none" }}>
-      <path d={path(ago)} fill="none" stroke="var(--ink-3)" strokeWidth={0.9} strokeDasharray="2 1.5" />
-      <path d={path(ys)} fill="none" stroke="var(--ink)" strokeWidth={1.1} strokeLinejoin="round" />
-    </svg>
+    <button
+      type="button"
+      className={s.curveRow}
+      onClick={onClick}
+      title={`US Treasury yield curve${lag ? ` (T-${lag}, ${dayLabel(asOf)})` : ""}: latest solid, one month ago dashed — open RATES`}
+    >
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" aria-hidden="true">
+        <path d={path(ago)} fill="none" stroke="var(--ink-3)" strokeWidth={1} strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
+        <path d={path(ys)} fill="none" stroke="var(--ink)" strokeWidth={1.4} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <span className={s.curveVals}>
+        {TENORS.map((t, i) =>
+          SHOWN_TENORS.has(t) ? (
+            <span key={t}>
+              <i>{t}</i>
+              {ys[i] != null ? ys[i]!.toFixed(2) : "—"}
+            </span>
+          ) : null,
+        )}
+      </span>
+    </button>
   );
 }
 
@@ -831,7 +879,7 @@ function TableRow({ r, hs: PERIODS, period, onHover, close }: { r: Row; hs: H[];
           <SpotCell r={r} close={close} />
         </>
       )}
-      <span className={s.num}>
+      <span className={`${s.num} ${FX_PRIMARY.has(r.key) && r.spot ? s.secondary : ""}`}>
         {r.macro ? <Lvl text={fmtLast(r)} asOf={r.asOf} close={close} /> : <Flash value={r.last}>{fmtLast(r)}</Flash>}
       </span>
       {PERIODS.map((p) => {

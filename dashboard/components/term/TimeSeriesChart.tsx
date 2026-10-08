@@ -76,7 +76,7 @@ export type TSBand = { a: string; b: string; up?: string; down?: string; opacity
 export type TSLegendExtra = { label: string; value: string; color?: string };
 
 /** An event pinned to a session on a series (e.g. a trade). */
-export type TSMarker = { i: number; side: "buy" | "sell"; label: string; value?: string };
+export type TSMarker = { i: number; side: "buy" | "sell"; label: string; value?: string; date?: string };
 
 /** A background shading run across sessions i0..i1 (inclusive). */
 export type TSShade = { i0: number; i1: number; color: string; opacity?: number };
@@ -110,6 +110,9 @@ export type TimeSeriesChartProps = {
   markerLane?: boolean;
   /** Repeat the value-axis labels inside the plot's left edge. */
   leftAxis?: boolean;
+  /** Where the value axis lives: right (default, Bloomberg) or left — with
+   *  "left", the right column carries only end-value tags. */
+  valueAxis?: "right" | "left";
   /** Key items for markers / shading, shown top-left in the main pane. */
   keys?: TSKey[];
   /** Where end-value tags go: inside the plot's right gutter (default; keeps
@@ -155,7 +158,7 @@ const decFor = (step: number) => {
 function defaultTick(kind: TimeSeriesChartProps["kind"]) {
   return (v: number, step: number) => {
     if (Math.abs(v) < step * 1e-6) v = 0;
-    if (kind === "pct") return `${sgn(v)}${Math.abs(v * 100).toFixed(decFor(step * 100))}%`;
+    if (kind === "pct") return `${sgn(v)}${Math.abs(v * 100).toFixed(Math.max(1, decFor(step * 100)))}%`;
     if (kind === "usd") {
       const a = Math.abs(v);
       if (a >= 1e6 && step >= 1e4) return `${sgn(v)}${(a / 1e6).toFixed(step >= 1e5 ? 1 : 2)}M`;
@@ -337,6 +340,7 @@ export function TimeSeriesChart({
   annotations = [],
   markerLane = false,
   leftAxis = false,
+  valueAxis = "right",
   keys = [],
   tagPlacement = "inside",
   kind = "num",
@@ -404,9 +408,10 @@ export function TimeSeriesChart({
     ];
     const tagLen = Math.max(0, ...tagTexts.map((t) => t.length));
     const tickLen = Math.max(4, ...yT.ticks.map((t) => tFmt(t, yT.step).length));
-    const axisW = Math.ceil((inside ? tickLen : Math.max(tickLen, tagLen)) * CHAR_W + 13);
+    const leftV = valueAxis === "left";
+    const axisW = leftV ? Math.ceil(Math.max(tagLen, 4) * CHAR_W + 13) : Math.ceil((inside ? tickLen : Math.max(tickLen, tagLen)) * CHAR_W + 13);
     const tagW = Math.ceil(tagLen * CHAR_W + 10);
-    const x0 = 0;
+    const x0 = leftV ? Math.ceil(Math.max(tickLen, 6) * CHAR_W + 12) : 0;
     const x1 = w - axisW; // axis line
     const gutter = inside && tagLen ? tagW + 12 : 7; // room right of the last point
     const xr = x1 - gutter;
@@ -424,8 +429,8 @@ export function TimeSeriesChart({
     // tags: inside → right-aligned to the axis within the gutter; axis → on the axis
     const tagX = inside ? x1 - tagW - 2 : x1 + 1;
     const tagRectW = inside ? tagW : axisW - 1;
-    return { axisW, tagW: tagRectW, tagX, x0, x1, xr, mainTop, mainBot, laneTop, laneBot, laneH, capTop, subTop, subBot, subH, x, y, yInv, yT, step, dateY: sub ? subBot : laneBot };
-  }, [dom, w, h, sub, capH, series, refs, n, tFmt, vFmt, inside, markerLane, markers.length]);
+    return { axisW, tagW: tagRectW, tagX, x0, x1, xr, mainTop, mainBot, laneTop, laneBot, laneH, capTop, subTop, subBot, subH, x, y, yInv, yT, step, leftV, dateY: sub ? subBot : laneBot };
+  }, [dom, w, h, sub, capH, series, refs, n, tFmt, vFmt, inside, markerLane, markers.length, valueAxis]);
 
   // ── sub-pane scale: floor/ceil to a nice tick so the extreme is labelled
   // and the series never sits on the pane edge ──
@@ -546,25 +551,23 @@ export function TimeSeriesChart({
       }
       flush();
     }
-    // trade lane: per-side runs of days; a run absorbs the next day while the
-    // gap is narrower than one badge, so segments never overlap
-    type Seg = { side: "buy" | "sell"; i0: number; i1: number; count: number; sessions: number[]; xa: number; xb: number };
+    // trade lane: one tick per trading day at its exact date, height scaled by
+    // the number of trades; days merge only when ticks would sit <3px apart
+    type Seg = { side: "buy" | "sell"; i0: number; i1: number; count: number; sessions: number[]; cx: number };
     const lane: Seg[] = [];
     if (markerLane) {
-      const MIN_W = 15;
       for (const side of ["buy", "sell"] as const) {
         const days = [...grouped.values()].filter((g) => g.side === side).sort((a, b) => a.i - b.i);
         let cur: Seg | null = null;
         for (const g of days) {
-          const cx = x(g.i);
-          if (cur && cx - MIN_W / 2 < cur.xb + 2) {
+          if (cur && x(g.i) - x(cur.i1) < 3) {
             cur.i1 = g.i;
             cur.count += g.count;
             cur.sessions.push(g.i);
-            cur.xb = Math.max(cur.xb, cx + Math.max(geo.step / 2, 1));
+            cur.cx = (x(cur.i0) + x(cur.i1)) / 2;
           } else {
             if (cur) lane.push(cur);
-            cur = { side, i0: g.i, i1: g.i, count: g.count, sessions: [g.i], xa: cx - MIN_W / 2, xb: cx + MIN_W / 2 };
+            cur = { side, i0: g.i, i1: g.i, count: g.count, sessions: [g.i], cx: x(g.i) };
           }
         }
         if (cur) lane.push(cur);
@@ -799,6 +802,7 @@ export function TimeSeriesChart({
                 </>
               )}
               <line x1={geo.x0} x2={geo.x1 + 4} y1={geo.dateY + 0.5} y2={geo.dateY + 0.5} stroke="var(--line-2)" />
+              {geo.leftV && <line x1={geo.x0 - 0.5} x2={geo.x0 - 0.5} y1={geo.mainTop} y2={geo.dateY} stroke="var(--line-2)" />}
             </g>
 
             {/* y labels: right axis (on-axis tags hide only the labels they would cover) */}
@@ -806,8 +810,12 @@ export function TimeSeriesChart({
               {geo.yT.ticks.map((t) => {
                 const yy = geo.y(t);
                 if (yy < geo.mainTop + 4 || yy > geo.mainBot - 3) return null;
-                if (!inside && tags.some((tg) => Math.abs(tg.y - yy) < 12)) return null;
-                return (
+                if (!geo.leftV && !inside && tags.some((tg) => Math.abs(tg.y - yy) < 12)) return null;
+                return geo.leftV ? (
+                  <text key={t} x={geo.x0 - 6} y={yy} textAnchor="end" dominantBaseline="central">
+                    {tFmt(t, geo.yT.step)}
+                  </text>
+                ) : (
                   <text key={t} x={geo.x1 + 6} y={yy} dominantBaseline="central">
                     {tFmt(t, geo.yT.step)}
                   </text>
@@ -833,13 +841,20 @@ export function TimeSeriesChart({
             <g fontSize={10}>
               {(() => {
                 const out: ReactNode[] = [];
-                const startW = monDay(ds[0]).length * CHAR_W;
+                if (geo.leftV)
+                  out.push(
+                    <text key="yr" x={geo.x0 - 6} y={geo.dateY + 12} textAnchor="end" fill="var(--ink-2)" fontWeight={500}>
+                      {ds[0].y}
+                    </text>,
+                  );
+                const startText = geo.leftV ? MON[ds[0].m - 1] : monDay(ds[0]);
+                const startW = startText.length * CHAR_W;
                 let lastRight = -Infinity;
                 const firstTick = xTicks[0];
                 if (!firstTick || geo.x(firstTick.i) - (firstTick.label.length * CHAR_W) / 2 > geo.x(0) + 2 + startW + 6) {
                   out.push(
                     <text key="start" x={geo.x(0) + 2} y={geo.dateY + 12} fill="var(--ink-2)" fontWeight={500}>
-                      {monDay(ds[0])}
+                      {startText}
                     </text>,
                   );
                   lastRight = geo.x(0) + 2 + startW;
@@ -909,33 +924,30 @@ export function TimeSeriesChart({
                   strokeDasharray="2 3"
                   shapeRendering="crispEdges"
                 />
-                <text x={geo.x1 + 6} y={geo.laneTop + geo.laneH / 2} dominantBaseline="central" fontSize={9} fill="var(--ink-3)" style={{ fontFamily: SANS, fontWeight: 600, letterSpacing: "0.06em" }}>
-                  TRADES
+                <title>Trades per day — tick height = number of trades; buys above the line, sells below</title>
+                <text x={geo.x1 + 6} y={geo.laneTop + geo.laneH * 0.27} dominantBaseline="central" fontSize={9.5} fill="var(--up)" style={{ fontFamily: SANS, fontWeight: 600 }}>
+                  buys
+                </text>
+                <text x={geo.x1 + 6} y={geo.laneTop + geo.laneH * 0.75} dominantBaseline="central" fontSize={9.5} fill="var(--down)" style={{ fontFamily: SANS, fontWeight: 600 }}>
+                  sells
                 </text>
                 {paths.lane.map((g, k) => {
                   const active = hover != null && hover.i >= g.i0 && hover.i <= g.i1;
                   const mid = geo.laneTop + geo.laneH / 2;
-                  const hh = geo.laneH / 2 - 3;
-                  const yy = g.side === "buy" ? mid - 1 - hh : mid + 1;
+                  const hh = Math.min(geo.laneH / 2 - 2, 3 + 2 * g.count);
                   const c = g.side === "buy" ? "var(--up)" : "var(--down)";
+                  const bw = active ? 4 : 3;
                   return (
-                    <g key={`ln${k}`}>
-                      <rect
-                        x={g.xa}
-                        y={yy}
-                        width={g.xb - g.xa}
-                        height={hh}
-                        rx={1.5}
-                        fill={c}
-                        fillOpacity={active ? 1 : 0.85}
-                        stroke={active ? "var(--ink)" : "none"}
-                        strokeWidth={1}
-                        shapeRendering="crispEdges"
-                      />
-                      <text x={(g.xa + g.xb) / 2} y={yy + hh / 2 + 0.5} textAnchor="middle" dominantBaseline="central" fontSize={9} fontWeight={700} fill="#000">
-                        {g.count}
-                      </text>
-                    </g>
+                    <rect
+                      key={`ln${k}`}
+                      x={g.cx - bw / 2}
+                      y={g.side === "buy" ? mid - 1 - hh : mid + 1}
+                      width={bw}
+                      height={hh}
+                      fill={c}
+                      fillOpacity={active ? 1 : 0.9}
+                      shapeRendering="crispEdges"
+                    />
                   );
                 })}
               </g>
@@ -1078,7 +1090,7 @@ export function TimeSeriesChart({
                     const yy = subGeo.y(t);
                     if (yy < geo.subTop + 4 || yy > geo.subBot - 6) return null;
                     return (
-                      <text key={t} x={geo.x1 + 6} y={yy} dominantBaseline="central">
+                      <text key={t} x={geo.leftV ? geo.x0 - 6 : geo.x1 + 6} textAnchor={geo.leftV ? "end" : "start"} y={yy} dominantBaseline="central">
                         {defaultTick(sub.axis ?? "pct")(t, subGeo.step)}
                       </text>
                     );
@@ -1315,6 +1327,7 @@ function Legend({
   events: TSMarker[];
 }) {
   const shown = events.slice(0, 4);
+  const multiDay = new Set(events.map((e) => e.i)).size > 1;
   return (
     <div
       style={{
@@ -1364,6 +1377,7 @@ function Legend({
                 <path d={tri(6, 5, e.side === "buy", 3.6)} fill={e.side === "buy" ? "var(--up)" : "var(--down)"} />
               </svg>
               <span className="num" style={{ fontSize: 10.5, color: "var(--ink)", whiteSpace: "nowrap" }}>
+                {multiDay && e.date ? <span style={{ color: "var(--ink-3)" }}>{e.date} </span> : null}
                 {e.label}
               </span>
               <span className="num" style={{ fontSize: 11, color: "var(--ink-2)", textAlign: "right" }}>

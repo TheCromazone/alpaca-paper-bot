@@ -50,9 +50,10 @@ function weekdaysBetween(from: string, to: string) {
   return n;
 }
 
+// risk-on / neutral read as a neutral outlined chip; only risk-off (sizes halve) is an alert
 const REGIME: Record<string, { text: string; color: string; bg: string; border: string }> = {
-  risk_on: { text: "RISK ON", color: "var(--blue)", bg: "var(--blue-bg)", border: "rgba(59, 140, 255, 0.45)" },
-  neutral: { text: "NEUTRAL", color: "var(--warn)", bg: "var(--warn-bg)", border: "rgba(255, 210, 63, 0.45)" },
+  risk_on: { text: "RISK ON", color: "var(--ink)", bg: "transparent", border: "var(--ink-3)" },
+  neutral: { text: "NEUTRAL", color: "var(--ink)", bg: "transparent", border: "var(--ink-3)" },
   risk_off: { text: "RISK OFF", color: "var(--alert)", bg: "var(--alert-bg)", border: "rgba(255, 92, 176, 0.5)" },
 };
 
@@ -125,6 +126,20 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
       peak: eq.length ? { v: eq[peakI], d: curve[peakI].d, daysAgo: last ? dayNum(last.d) - dayNum(curve[peakI].d) : 0 } : null,
     };
   }, [curve]);
+
+  // daily-return histogram on a robust range: bounds at the 95th-percentile
+  // move (+15%), outliers pile into the end bars, so the shape fills the tile
+  const hist = useMemo(() => {
+    const r = d.rets;
+    if (r.length < 5) return null;
+    const abs = r.map(Math.abs).sort((a, b) => a - b);
+    const m = Math.max(0.002, abs[Math.floor(abs.length * 0.95)] * 1.15);
+    const B = 8;
+    const bins = new Array(B * 2).fill(0);
+    const idx = (v: number) => Math.max(0, Math.min(B * 2 - 1, Math.floor((v / m) * B) + B));
+    for (const v of r) bins[idx(v)]++;
+    return { m, bins, B, last: idx(r[r.length - 1]) };
+  }, [d.rets]);
 
   // today's P&L: live equity vs the prior session close; SPY's move the same session
   const day = useMemo(() => {
@@ -222,9 +237,42 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
 
       <Tile
         primary
+        groupEnd
+        dim={stale}
+        href="/positions"
+        label="P&L today"
+        title={day?.spy != null ? `S&P 500 (SPY) ${fmtChg(day.spy)} the same session` : "SPY's move for this session is not in yet"}
+        loading={summary.isLoading || risk.isLoading}
+        value={
+          <Flash value={day?.pnl}>
+            <span style={{ color: toneVar(day?.pnl) }}>{day ? fmtSignedUSD(day.pnl, 2) : "—"}</span>
+          </Flash>
+        }
+        sub={
+          <>
+            <span className={s.v} style={{ color: toneVar(day?.pct) }}>
+              {day ? fmtChg(day.pct) : "—"}
+            </span>
+            <span>
+              <span className={s.v} style={{ color: toneVar(day?.bp) }}>
+                {day?.bp == null ? "—" : `${day.bp > 0 ? "+" : day.bp < 0 ? MINUS : ""}${Math.abs(day.bp).toFixed(1)}`}
+              </span>{" "}
+              bp vs SPY
+            </span>
+          </>
+        }
+        band={
+          <Band left={<>daily P&L, last 20 sessions</>} right={<>today ▸</>}>
+            <MicroBars values={d.pnl.slice(-20)} />
+          </Band>
+        }
+      />
+
+      <Tile
         dim={stale}
         href="/positions"
         label="Unrealized"
+        title="Unrealized P&L by position, best to worst"
         loading={summary.isLoading}
         value={
           <Flash value={unrl}>
@@ -246,7 +294,7 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
             left={
               ranked.length ? (
                 <>
-                  best {ranked[0].ticker} <span className={s.cv}>{fmtChg(ranked[0].unrealized_pct, 1)}</span>
+                  {ranked[0].ticker} <span className={s.cv}>{fmtChg(ranked[0].unrealized_pct, 1)}</span>
                 </>
               ) : (
                 "by position"
@@ -255,7 +303,7 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
             right={
               ranked.length > 1 ? (
                 <>
-                  worst {ranked[ranked.length - 1].ticker} <span className={s.cv}>{fmtChg(ranked[ranked.length - 1].unrealized_pct, 1)}</span>
+                  {ranked[ranked.length - 1].ticker} <span className={s.cv}>{fmtChg(ranked[ranked.length - 1].unrealized_pct, 1)}</span>
                 </>
               ) : null
             }
@@ -266,8 +314,6 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
       />
 
       <Tile
-        primary
-        groupEnd
         dim={stale}
         href="/risk"
         label="Drawdown"
@@ -282,22 +328,12 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
           <Band
             left={
               d.peak ? (
-                d.peak.daysAgo === 0 ? (
-                  <>at the high</>
-                ) : (
-                  <>
-                    <span className={s.cv}>{d.peak.daysAgo}</span> days below peak
-                  </>
-                )
-              ) : null
-            }
-            right={
-              d.peak ? (
                 <>
                   peak <span className={s.cv}>{monDay(d.peak.d)}</span>
                 </>
               ) : null
             }
+            right={d.peak ? d.peak.daysAgo === 0 ? <>at the high</> : <>{d.peak.daysAgo}d ago</> : null}
           >
             <MicroUnderwater values={curve.map((p) => p.dd)} max={R?.max_drawdown ?? null} />
           </Band>
@@ -305,37 +341,6 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
       />
 
       {/* ── secondary ───────────────────────────────────────────── */}
-      <Tile
-        dim={stale}
-        href="/positions"
-        label="P&L today"
-        title={day?.spy != null ? `S&P 500 (SPY) ${fmtChg(day.spy)} the same session` : "SPY's move for this session is not in yet"}
-        loading={summary.isLoading || risk.isLoading}
-        value={
-          <Flash value={day?.pnl}>
-            <span style={{ color: toneVar(day?.pnl) }}>{day ? fmtSignedUSD(day.pnl, 0) : "—"}</span>
-          </Flash>
-        }
-        sub={
-          <>
-            <span className={s.v} style={{ color: toneVar(day?.pct) }}>
-              {day ? fmtChg(day.pct) : "—"}
-            </span>
-            <span>
-              <span className={s.v} style={{ color: toneVar(day?.bp) }}>
-                {day?.bp == null ? "—" : `${day.bp > 0 ? "+" : day.bp < 0 ? MINUS : ""}${Math.abs(day.bp).toFixed(0)}`}
-              </span>{" "}
-              bp vs SPY
-            </span>
-          </>
-        }
-        band={
-          <Band left={<>daily P&L, 20 sessions</>}>
-            <MicroBars values={d.pnl.slice(-20)} />
-          </Band>
-        }
-      />
-
       <Tile
         href="/risk"
         label="Return ITD"
@@ -376,24 +381,22 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
       <Tile
         href="/risk"
         label="Sharpe"
-        title="Annualized, since inception. Chart: how daily returns are distributed around zero; the white tick is the latest session."
+        title="Annualized, since inception. Chart: how daily returns are distributed between the bounds shown (outliers pile into the end bars); the white tick is the latest session."
         loading={risk.isLoading}
         value={
           <Flash value={R?.sharpe}>
             <span>{finite(R?.sharpe) ? fmtNum(R?.sharpe, 2) : "—"}</span>
           </Flash>
         }
-        sub={<KV k="Sortino" v={finite(R?.sortino) ? fmtNum(R?.sortino, 2) : "—"} />}
+        sub={
+          <>
+            <KV k="Sortino" v={finite(R?.sortino) ? fmtNum(R?.sortino, 2) : "—"} />
+            <KV k="vol" v={pct(R?.ann_vol)} />
+          </>
+        }
         band={
-          <Band
-            left={<>daily returns</>}
-            right={
-              <>
-                vol <span className={s.cv}>{pct(R?.ann_vol)}</span>
-              </>
-            }
-          >
-            <MicroHist values={d.rets} />
+          <Band left={<>{hist ? `${MINUS}${(hist.m * 100).toFixed(1)}%` : ""}</>} center={<>daily returns</>} right={<>{hist ? `+${(hist.m * 100).toFixed(1)}%` : ""}</>}>
+            {hist && <MicroHist hist={hist} />}
           </Band>
         }
       />
@@ -411,14 +414,14 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
         sub={<KV k="Correlation" v={finite(R?.corr) ? fmtNum(R?.corr, 2) : "—"} />}
         band={
           <Band
-            left={
+            left={<>rolling 20-day</>}
+            right={
               <>
-                20-day <span className={s.cv}>{finite(lastBeta) ? fmtNum(lastBeta, 2) : "—"}</span>
+                now <span className={s.cv}>{finite(lastBeta) ? fmtNum(lastBeta, 2) : "—"}</span>
               </>
             }
-            right={<>line = 1.0</>}
           >
-            <MicroLine lines={[{ data: d.beta, color: "var(--ink-2)" }]} refLine={1} />
+            <MicroLine lines={[{ data: d.beta, color: "var(--ink-2)" }]} refLine={1} refLabel="β 1.0" />
           </Band>
         }
       />
@@ -463,7 +466,7 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
         dim={stale}
         href="/positions"
         label="Capacity"
-        title="Cash share of equity · position slots used of the 25-name cap · buying power, including margin"
+        title="Cash share of equity · buying power includes margin · position slots used of the 25-name cap"
         loading={summary.isLoading && risk.isLoading}
         value={
           <Flash value={cashPct}>
@@ -473,17 +476,17 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
             </span>
           </Flash>
         }
-        sub={
-          <span className={s.kv}>
-            <span className={s.v}>
-              {nPos ?? "—"}/{maxPos}
-            </span>
-            <span>slots used</span>
-          </span>
-        }
+        sub={<KV k="Buying power" v={usdK(S?.buying_power)} />}
         band={
-          <Band left={<>buying power</>} right={<>+ margin</>}>
-            <div className={s.fig}>{usdK(S?.buying_power)}</div>
+          <Band
+            left={<>position slots</>}
+            right={
+              <>
+                <span className={s.cv}>{nPos ?? "—"}</span> of {maxPos}
+              </>
+            }
+          >
+            {nPos != null ? <MicroSlots n={nPos} max={maxPos} /> : null}
           </Band>
         }
       />
@@ -496,8 +499,8 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
         value={rg ? <span className={s.regimeChip} style={{ color: rg.color, background: rg.bg, borderColor: rg.border }}>{rg.text}</span> : <span>—</span>}
         sub={<KV k="VIX" v={finite(G?.vix) ? fmtNum(G?.vix, 2) : "—"} />}
         band={
-          <Band left={<>VIX, 30 days</>} right={<>line = 20</>}>
-            {vix?.spark?.length ? <MicroLine lines={[{ data: vix.spark, color: "var(--ink-2)" }]} refLine={20} refAlways /> : null}
+          <Band left={<>VIX, last 30 days</>}>
+            {vix?.spark?.length ? <MicroLine lines={[{ data: vix.spark, color: "var(--ink-2)" }]} refLine={20} refAlways refLabel="VIX 20 stress" /> : null}
           </Band>
         }
       />
@@ -555,13 +558,14 @@ function Tile({
   );
 }
 
-/** Caption row (what the chart shows · its reference/extreme) over the chart. */
-function Band({ left, right, children }: { left?: ReactNode; right?: ReactNode; children?: ReactNode }) {
+/** Caption row (what the chart shows · its bounds / extremes) over the chart. */
+function Band({ left, center, right, children }: { left?: ReactNode; center?: ReactNode; right?: ReactNode; children?: ReactNode }) {
   return (
     <div className={s.band}>
       <div className={s.cap}>
         <span>{left}</span>
-        {right != null && <span>{right}</span>}
+        {center != null && <span className={s.capMid}>{center}</span>}
+        {right != null && <span className={s.capR}>{right}</span>}
       </div>
       {children != null && <div className={s.chart}>{children}</div>}
     </div>
@@ -595,11 +599,14 @@ function MicroLine({
   lines,
   refLine,
   refAlways,
+  refLabel,
 }: {
   lines: { data: (number | null | undefined)[]; color: string; width?: number; fill?: boolean }[];
   refLine?: number | null;
   /** Always stretch the domain to include the reference (e.g. VIX 20). */
   refAlways?: boolean;
+  /** Inline label at the right end of the reference line. */
+  refLabel?: string;
 }) {
   const gid = useId().replace(/[^a-zA-Z0-9]/g, "");
   const all = lines.flatMap((l) => l.data.filter(finite));
@@ -661,6 +668,11 @@ function MicroLine({
         })}
       </svg>
       {lastI >= 0 && <EndDot left={x(lastI)} top={y(primary.data[lastI] as number)} color={primary.color} />}
+      {refLabel && hasRef && refLine >= lo && refLine <= hi && (
+        <span className={s.refLabel} style={{ top: Math.max(-2, Math.min(MH - 9, y(refLine) - 5)) }}>
+          {refLabel}
+        </span>
+      )}
     </>
   );
 }
@@ -695,19 +707,13 @@ function MicroBars({ values }: { values: number[] }) {
   );
 }
 
-/** Distribution of daily returns, binned symmetrically around a dashed zero;
- *  the latest session is the white tick. */
-function MicroHist({ values }: { values: number[] }) {
-  if (values.length < 5) return null;
-  const B = 10;
-  const m = Math.max(...values.map(Math.abs)) || 1;
-  const w = m / B;
-  const bins = new Array(B * 2).fill(0);
-  for (const v of values) bins[Math.max(0, Math.min(B * 2 - 1, Math.floor(v / w) + B))]++;
-  const top = Math.max(...bins);
-  const slot = 100 / (B * 2);
-  const last = values[values.length - 1];
-  const lx = ((last / w + B) / (B * 2)) * 100;
+/** Distribution of daily returns across the labelled bounds; the white tick
+ *  is the latest session, the dashed line zero. */
+function MicroHist({ hist }: { hist: { bins: number[]; B: number; last: number } }) {
+  const { bins, B, last } = hist;
+  const top = Math.max(...bins) || 1;
+  const slot = 100 / bins.length;
+  const lx = (last + 0.5) * slot;
   return (
     <svg width="100%" height={MH} viewBox={`0 0 100 ${MH}`} preserveAspectRatio="none" style={{ display: "block" }} aria-hidden="true">
       <line x1={0} x2={100} y1={MH - 0.5} y2={MH - 0.5} stroke="var(--line-2)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
@@ -715,8 +721,8 @@ function MicroHist({ values }: { values: number[] }) {
         c ? (
           <rect
             key={i}
-            x={i * slot + slot * 0.15}
-            width={slot * 0.7}
+            x={i * slot + slot * 0.12}
+            width={slot * 0.76}
             y={MH - 1 - (c / top) * (MH - 2)}
             height={(c / top) * (MH - 2)}
             fill={i >= B ? "var(--up)" : "var(--down)"}
@@ -761,5 +767,16 @@ function MicroMeter({ parts }: { parts: { f: number; color: string }[] }) {
         <span key={i} style={{ flex: `${Math.max(0, p.f)} 0 0`, background: p.color, opacity: 0.85 }} />
       ))}
     </span>
+  );
+}
+
+/** One cell per position slot, filled for each held name. */
+function MicroSlots({ n, max }: { n: number; max: number }) {
+  return (
+    <div style={{ position: "absolute", left: 0, right: 0, top: 3, height: 6, display: "grid", gridTemplateColumns: `repeat(${max}, 1fr)`, gap: 1 }}>
+      {Array.from({ length: max }).map((_, i) => (
+        <span key={i} style={{ background: i < n ? "var(--ink-2)" : "var(--bg-3)" }} />
+      ))}
+    </div>
   );
 }

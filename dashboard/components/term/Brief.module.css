@@ -74,8 +74,7 @@
   overflow: hidden;
   font-weight: 600;
   color: var(--ink);
-  border-left: 2px solid var(--cyan);
-  padding-left: 8px;
+  padding-left: 0;
   font-variant-numeric: tabular-nums;
   text-wrap: pretty;
 }
@@ -235,7 +234,9 @@ a.t:hover {
 .sev3 {
   background: var(--alert);
 }
+/* act: a ring (round), so it can't be mistaken for the breach square */
 .sev2 {
+  border-radius: 50%;
   box-shadow: inset 0 0 0 1.5px var(--alert);
 }
 .sev1 {
@@ -265,8 +266,8 @@ a.t:hover {
 /* guard table */
 .gt {
   display: grid;
-  grid-template-columns: 8px 34px 64px 44px 48px minmax(0, 1fr);
-  column-gap: 5px;
+  grid-template-columns: 8px 38px 54px 88px minmax(0, 1fr);
+  column-gap: 6px;
   align-items: center;
   padding: 0 10px;
   font-family: var(--font-plex-mono), monospace;
@@ -274,7 +275,8 @@ a.t:hover {
   letter-spacing: -0.01em;
 }
 .gthead {
-  height: 24px;
+  height: 18px;
+  font-size: 10px !important;
   line-height: 1;
   white-space: nowrap;
   font-family: var(--font-plex-cond), sans-serif;
@@ -286,7 +288,10 @@ a.t:hover {
   border-bottom: 1px solid var(--line);
 }
 .grow {
-  min-height: 28px;
+  min-height: 34px;
+  row-gap: 1px;
+  padding-top: 2px;
+  padding-bottom: 2px;
   font-size: 10.5px;
   color: var(--ink);
   border-bottom: 1px solid var(--line);
@@ -446,14 +451,6 @@ a.t:hover {
 
 /* Narrow panels (1100–1440px viewports): drop the cut price column, the
    INFO count and the hidden-kind summary rather than overflow. */
-@container (max-width: 330px) {
-  .gt {
-    grid-template-columns: 8px 34px 62px 44px minmax(0, 1fr);
-  }
-  .gt .gstop {
-    display: none;
-  }
-}
 
 /* ALL digest: one line (max two) per kind, with a +N jump */
 .digest {
@@ -673,4 +670,108 @@ a.t:hover {
 }
 .dmoreGap {
   width: 30px;
+}
+
+/* ── round 6 ──────────────────────────────────────────────────────────── */
+.gthead span {
+  font-size: 10px;
+}
+.grow > .detail {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-family: var(--font-plex-cond), sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--ink-3);
+}
+.detail b {
+  font-family: var(--font-plex-mono), monospace;
+  font-weight: 500;
+  color: var(--ink);
+  padding: 0 3px;
+}
+.why {
+  color: var(--ink-3);
+}
+.pnlPct {
+  font-size: 10px;
+  opacity: 0.85;
+}
+/* state-tinted cells: ink number, tinted background */
+.tAlert {
+  background: var(--alert-bg);
+  box-shadow: inset 0 0 0 1px rgba(255, 92, 176, 0.35);
+  color: var(--ink) !important;
+}
+.tWarn {
+  background: var(--warn-bg);
+  box-shadow: inset 0 0 0 1px rgba(255, 210, 63, 0.35);
+  color: var(--ink) !important;
+}
+/* ALL view: compact one-line breach rows */
+.bt {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 54px 44px 30px;
+  column-gap: 6px;
+  align-items: center;
+  padding: 0 10px;
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+}
+.bthead {
+  height: 18px;
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.btag {
+  font-family: var(--font-plex-mono), monospace;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.brow {
+  height: 19px;
+  font-size: 10.5px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+}
+.brow:hover {
+  background: var(--bg-2);
+}
+.bname {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.bname .mk,
+.brow .mk {
+  margin-top: 0;
+}
+.cell {
+  padding: 1px 3px;
+  line-height: 14px;
+}
+.bt .dmore {
+  justify-self: end;
+}
+.pillShort {
+  display: none;
+}
+@container (max-width: 330px) {
+  .bt {
+    grid-template-columns: 50px minmax(0, 1fr) 50px 40px 30px;
+    column-gap: 5px;
+  }
+  .pillLong {
+    display: none;
+  }
+  .pillShort {
+    display: inline;
+  }
 }

@@ -328,7 +328,7 @@
 .lgItem[aria-pressed="false"] svg {
   filter: grayscale(1);
 }
-.lgItem .num {
+.lgItem :global(.num:not(.up):not(.down)) {
   color: var(--ink);
 }
 .lgSw {
@@ -401,6 +401,11 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   fill: var(--ink-3);
+}
+.annText {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
 }
 .smaFlag {
   font-family: var(--font-plex-cond), sans-serif;
@@ -559,7 +564,7 @@
 .fitFoot:hover {
   color: var(--amber-2);
 }
-.fitFoot .num {
+.fitFoot :global(.num) {
   color: var(--ink-2);
 }
 
@@ -583,6 +588,24 @@
 }
 .kvCell:nth-last-child(-n + 3) {
   border-bottom: 0;
+}
+.kv4 {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 0.9fr);
+}
+.kv4 .kvCell:nth-child(3n) {
+  border-right: 1px solid var(--line);
+}
+.kv4 .kvCell:nth-child(4n) {
+  border-right: 0;
+}
+.kv4 .kvCell:nth-last-child(-n + 3) {
+  border-bottom: 1px solid var(--line);
+}
+.kv4 .kvCell:nth-last-child(-n + 4) {
+  border-bottom: 0;
+}
+.kv4 .kvV {
+  font-size: 14px;
 }
 .kvV {
   font-family: var(--font-plex-mono), monospace;
@@ -828,7 +851,7 @@
 .evHead,
 .evRow {
   display: grid;
-  grid-template-columns: 32px 32px 38px minmax(0, 1fr);
+  grid-template-columns: 32px 32px 32px minmax(0, 1fr);
   gap: 6px;
   align-items: center;
   padding: 0 10px;
@@ -853,6 +876,9 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+}
+.evSurp > :global(.num) {
+  margin-left: auto;
 }
 .evTrack {
   position: relative;

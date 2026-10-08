@@ -113,7 +113,7 @@ export function ManualTradePanel({ className = "", style }: { className?: string
   const blackout = earnDays != null && earnDays <= 2;
   const quote1d = mon?.chg_1d ?? quote?.chg_1d ?? null;
   const fromHi = mon?.last != null && mon.hi_52w ? mon.last / mon.hi_52w - 1 : null;
-  const heldList = useMemo(() => [...(positions ?? [])].sort((a, b) => b.market_value - a.market_value).slice(0, 10), [positions]);
+  const heldList = useMemo(() => [...(positions ?? [])].sort((a, b) => b.market_value - a.market_value).slice(0, 8), [positions]);
 
   // Reference price for estimates only — the API sizes off its own live quote.
   const refPx = existing?.market_price ?? mon?.last ?? quote?.last ?? null;
@@ -216,16 +216,17 @@ export function ManualTradePanel({ className = "", style }: { className?: string
         <header className="panel-head">
           <span className="panel-code">TKT</span>
           <h2 className="panel-title">Manual order</h2>
-          <span className="panel-sub">to Alpaca paper</span>
-          <div className="panel-actions">
-            <span className="pill" title="Manual orders are market orders, time-in-force DAY (no limit price)">
-              MKT · DAY
-            </span>
-          </div>
+          <span className="panel-sub" title="The manual endpoint places market orders only, time-in-force DAY — no limit price, no GTC">
+            market orders only · DAY
+          </span>
         </header>
 
         <div className={`panel-body ${s.body}`}>
-          {/* side toggle */}
+          {/* side toggle — neutral until engaged, with an explicit prompt */}
+          <div className={s.sideHead}>
+            <span className={s.lbl}>Side</span>
+            {!sideLit && <span className={s.choose}>choose side ▾</span>}
+          </div>
           <div className={s.sides} role="group" aria-label="Side">
             <button type="button" className={s.side} data-k="buy" aria-pressed={sideLit && side === "buy"} onClick={() => pickSide("buy")} data-testid="side-buy">
               BUY
@@ -373,17 +374,19 @@ export function ManualTradePanel({ className = "", style }: { className?: string
                   <>
                     <div className={s.ctxHead} style={{ marginTop: 2 }}>
                       <span>Positions · click to load</span>
-                      <span className={s.ctxMeta}>by value</span>
+                      <span className={s.ctxMeta}>
+                        {positions && positions.length > heldList.length ? `top ${heldList.length} of ${positions.length}` : ""} by value ↓
+                      </span>
                     </div>
-                    <div className={s.pick}>
-                      {[0, 1].map((c) => (
+                    {/* column-major: read down the left column, then the right */}
+                    <div className={s.pick} style={{ gridTemplateRows: `repeat(${Math.ceil(heldList.length / 2) + 1}, auto)` }}>
+                      {[heldList.slice(0, Math.ceil(heldList.length / 2)), heldList.slice(Math.ceil(heldList.length / 2))].flatMap((col, c) => [
                         <div key={`h${c}`} className={`${s.pickRow} ${s.pickHead}`} aria-hidden="true">
                           <span>Tkr</span>
                           <span>Wt</span>
                           <span>P&amp;L</span>
-                        </div>
-                      ))}
-                      {heldList.map((p) => (
+                        </div>,
+                        ...col.map((p) => (
                         <button
                           key={p.ticker}
                           type="button"
@@ -395,7 +398,8 @@ export function ManualTradePanel({ className = "", style }: { className?: string
                           <span className={s.dim}>{equity > 0 ? `${((p.market_value / equity) * 100).toFixed(1)}%` : ""}</span>
                           <span className={tone(p.unrealized_pct)}>{fmtChg(p.unrealized_pct, 1)}</span>
                         </button>
-                      ))}
+                        )),
+                      ])}
                     </div>
                   </>
                 )}
@@ -543,7 +547,9 @@ export function ManualTradePanel({ className = "", style }: { className?: string
                 <kbd>↵</kbd>
               </>
             ) : (
-              "enter a symbol to preview"
+              <>
+                Preview order <span className={s.previewHint}>· enter a symbol</span>
+              </>
             )}
           </button>
         </div>

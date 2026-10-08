@@ -183,12 +183,15 @@ function fillsBasis(trades: SecurityResp["trades"]): { qty: number; avg: number;
 export function PositionPanel({
   pos,
   last,
+  prev,
   trades,
   className = "",
   style,
 }: {
   pos: Pos;
   last: number | null;
+  /** Prior session close, for day P&L. */
+  prev: number | null;
   trades: SecurityResp["trades"];
   className?: string;
   style?: CSSProperties;
@@ -208,11 +211,16 @@ export function PositionPanel({
   const covers = fb != null && Math.abs(fb.qty - pos.qty) < 0.005;
   const dAvg = covers ? pos.avg_cost - fb!.avg : null;
   const fromPeak = pos.peak_price ? px / pos.peak_price - 1 : null;
+  const dayPnl = prev != null && last != null ? pos.qty * (last - prev) : null;
+  const dayPct = prev ? (last ?? px) / prev - 1 : null;
+  // R-multiple: open P&L per share ÷ the initial risk the bot accepted (avg cost → −7% cut).
+  const riskPs = pos.avg_cost - pos.midday_cut_price;
+  const rMult = riskPs > 0 ? (px - pos.avg_cost) / riskPs : null;
+  const signColor = (v: number | null | undefined) => `var(--${tone(v) === "flat" ? "ink" : tone(v)})`;
   return (
     <Panel
       code="POS"
       title="Position"
-      sub={pos.opened_at ? `opened ${fmtD(etDate(pos.opened_at), "dmy")}${days != null ? ` · ${days}d held` : ""}` : undefined}
       className={className}
       style={style}
       flush
@@ -231,11 +239,12 @@ export function PositionPanel({
           </span>
         </div>
       )}
-      <div className={s.kv}>
+      {/* Each number appears once in this panel: levels live in the guard rows, avg cost here. */}
+      <div className={`${s.kv} ${s.kv4}`}>
         <div className={s.kvCell}>
           <span className="label">Quantity</span>
           <span className={s.kvV}>{fmtNum(pos.qty, pos.qty % 1 ? 2 : 0)}<span className="dim" style={{ fontSize: 10.5 }}>sh</span></span>
-          <span className={s.kvSub} title="Quantity × broker average cost">basis ${fmtNum(basis, 2)}</span>
+          <span className={s.kvSub} title="Quantity × broker average cost">basis ${fmtNum(basis, 0)}</span>
         </div>
         <div
           className={s.kvCell}
@@ -247,14 +256,15 @@ export function PositionPanel({
                 : `Broker (Alpaca) average cost. The bot's logged fills cover ${fmtNum(fb.qty, 2)} of ${fmtNum(pos.qty, 2)} sh (avg ${fmtPx(fb.avg)}) — the rest predates or bypassed the log.`
           }
         >
-          <span className="label">Broker avg cost</span>
+          <span className="label">Broker avg</span>
           <span className={s.kvV} style={{ color: "var(--blue)" }}>{fmtPx(pos.avg_cost)}</span>
           <span className={s.kvSub}>
             {fb == null ? (
               "no bot fills logged"
             ) : covers ? (
               <>
-                fills {fmtPx(fb.avg)} <span style={{ color: Math.abs(dAvg ?? 0) >= 0.005 ? "var(--warn)" : undefined }}>Δ{fmtSignedUSD(dAvg, 2).replace("$", "")}</span>
+                fills {fmtPx(fb.avg)}
+                {Math.abs(dAvg ?? 0) >= 0.005 && <span style={{ color: "var(--warn)" }}> {fmtSignedUSD(dAvg, 2).replace("$", "")}</span>}
               </>
             ) : (
               `fills cover ${fmtNum(fb.qty, 2)}/${fmtNum(pos.qty, 2)} sh`
@@ -263,35 +273,54 @@ export function PositionPanel({
         </div>
         <div className={s.kvCell}>
           <span className="label">Mkt value</span>
-          <span className={s.kvV}>${fmtNum(pos.market_value, 2)}</span>
-          <span className={s.kvSub}>peak {fmtPx(pos.peak_price)} · <span className={tone(fromPeak)}>{fmtChg(fromPeak, 1)}</span></span>
-        </div>
-        <div className={s.kvCell}>
-          <span className="label">Unrealized P&amp;L</span>
-          <span className={s.kvV} style={{ color: `var(--${tone(pos.unrealized_pnl) === "flat" ? "ink" : tone(pos.unrealized_pnl)})` }}>{fmtSignedUSD(pos.unrealized_pnl, 2)}</span>
-          <span className={`${s.kvSub} ${tone(pos.unrealized_pct)}`}>{fmtChg(pos.unrealized_pct)}</span>
-        </div>
-        <div className={s.kvCell}>
-          <span className="label">Weight</span>
-          <span className={s.kvV}>{pos.weight != null ? `${(pos.weight * 100).toFixed(2)}%` : "—"}</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6, height: 14 }} title="Bar to 10% of equity; yellow tick = 5% entry cap">
-            <Bar value={pos.weight ?? 0} max={0.1} cap={0.05} width="100%" height={5} color={(pos.weight ?? 0) > 0.05 ? "var(--warn)" : "var(--blue)"} />
+          <span className={s.kvV}>${fmtNum(pos.market_value, 0)}</span>
+          <span className={s.kvSub} style={{ display: "flex", alignItems: "center", gap: 5 }} title="Share of equity; bar to 10%, yellow tick = 5% entry cap">
+            {pos.weight != null ? `${(pos.weight * 100).toFixed(2)}%` : "—"}
+            <Bar value={pos.weight ?? 0} max={0.1} cap={0.05} width={34} height={4} color={(pos.weight ?? 0) > 0.05 ? "var(--warn)" : "var(--blue)"} />
           </span>
         </div>
         <div className={s.kvCell}>
-          <span className="label">Trail</span>
-          <span className={s.kvV}>{(pos.trail_pct * 100).toFixed(0)}%<span className="dim" style={{ fontSize: 10.5 }}>off peak</span></span>
-          <span className={s.kvSub}>cut −7% from cost</span>
+          <span className="label">Held</span>
+          <span className={s.kvV}>{days != null ? `${days}d` : "—"}</span>
+          <span className={s.kvSub} title={pos.opened_at ? `Opened ${fmtD(etDate(pos.opened_at), "long")}` : undefined}>
+            {pos.opened_at ? `since ${fmtD(etDate(pos.opened_at), "md")}` : "—"}
+          </span>
+        </div>
+        <div className={s.kvCell}>
+          <span className="label" title="Unrealized P&L vs broker average cost">Open P&amp;L</span>
+          <span className={s.kvV} style={{ color: signColor(pos.unrealized_pnl) }}>{fmtSignedUSD(pos.unrealized_pnl, 2)}</span>
+          <span className={`${s.kvSub} ${tone(pos.unrealized_pct)}`}>{fmtChg(pos.unrealized_pct)}</span>
+        </div>
+        <div className={s.kvCell} title="Quantity × (last close − prior close)">
+          <span className="label">Day P&amp;L</span>
+          <span className={s.kvV} style={{ color: signColor(dayPnl) }}>{fmtSignedUSD(dayPnl, 2)}</span>
+          <span className={`${s.kvSub} ${tone(dayPct)}`}>{fmtChg(dayPct)}</span>
+        </div>
+        <div
+          className={s.kvCell}
+          title={`R-multiple = (last − avg cost) ÷ (avg cost − −7% cut). 1R = the $${fmtNum(riskPs, 2)}/sh the bot risked at entry ($${fmtNum(riskPs * pos.qty, 0)} on this position).`}
+        >
+          <span className="label">R multiple</span>
+          <span className={s.kvV} style={{ color: signColor(rMult) }}>
+            {rMult == null ? "—" : `${rMult > 0 ? "+" : rMult < 0 ? "−" : ""}${Math.abs(rMult).toFixed(2)}R`}
+          </span>
+          <span className={s.kvSub}>1R = ${fmtNum(riskPs * pos.qty, 0)}</span>
+        </div>
+        <div className={s.kvCell} title="Last close vs the highest close since entry — the 10% trail ratchets off this peak">
+          <span className="label">From peak</span>
+          <span className={s.kvV} style={{ color: signColor(fromPeak) }}>{fmtChg(fromPeak, 1)}</span>
+          <span className={s.kvSub}>peak {fmtPx(pos.peak_price)}</span>
         </div>
       </div>
-      <div style={{ padding: "6px 0 2px" }}>
+      <div style={{ padding: "4px 0 0" }}>
+        {/* Positions only — the values sit in the rows above/below. */}
         <Ladder
           marks={[
-            { k: "CUT", v: pos.midday_cut_price, color: px < pos.midday_cut_price ? "var(--alert)" : "#c3cbd5" },
-            { k: "STOP", v: pos.stop_price, color: px < pos.stop_price ? "var(--alert)" : "var(--warn)" },
-            { k: "AVG", v: pos.avg_cost, color: "var(--blue)" },
-            { k: "PEAK", v: pos.peak_price, color: "var(--ink-3)" },
-            { k: "LAST", v: px, color: "var(--ink)", strong: true },
+            { k: "CUT", v: pos.midday_cut_price, color: px < pos.midday_cut_price ? "var(--alert)" : "#c3cbd5", value: false },
+            { k: "STOP", v: pos.stop_price, color: px < pos.stop_price ? "var(--alert)" : "var(--warn)", value: false },
+            { k: "AVG", v: pos.avg_cost, color: "var(--blue)", value: false },
+            { k: "PEAK", v: pos.peak_price, color: "var(--ink-3)", value: false },
+            { k: "LAST", v: px, color: "var(--ink)", strong: true, value: false },
           ]}
           shade={[
             { from: Math.min(pos.midday_cut_price, pos.stop_price) * 0.9, to: pos.stop_price, color: "rgba(255,210,63,0.07)" },
@@ -302,7 +331,7 @@ export function PositionPanel({
       <Guard
         name="Trail stop"
         price={pos.stop_price}
-        note={`${(pos.trail_pct * 100).toFixed(0)}% below peak ${fmtPx(pos.peak_price)}${pos.broker_stop ? " · broker GTC order" : " · synthetic"}`}
+        note={`${(pos.trail_pct * 100).toFixed(0)}% below the peak close${pos.broker_stop ? " · broker GTC order" : " · synthetic (bot-enforced)"}`}
         dist={pos.stop_distance}
         enforced={enforced}
         offReason={offReason}
@@ -311,7 +340,7 @@ export function PositionPanel({
       <Guard
         name="Midday cut"
         price={pos.midday_cut_price}
-        note={`−7% from avg ${fmtPx(pos.avg_cost)} · sold by the 13:00 ET routine`}
+        note="−7% from avg cost · sold by the 13:00 ET midday routine"
         dist={pos.midday_cut_distance}
         enforced={active}
         offReason={offReason}

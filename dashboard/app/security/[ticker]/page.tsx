@@ -166,7 +166,19 @@ export default function SecurityPage() {
             series={data.series}
             spy={data.spy_series}
             trades={data.trades}
-            levels={pos ? { avg: pos.avg_cost, stop: pos.stop_price, cut: pos.midday_cut_price, peak: pos.peak_price, from: openedOn } : null}
+            levels={
+              pos
+                ? {
+                    avg: pos.avg_cost,
+                    stop: pos.stop_price,
+                    cut: pos.midday_cut_price,
+                    peak: pos.peak_price,
+                    from: openedOn,
+                    // A broker GTC order is live regardless of the bot; a synthetic level needs the bot running.
+                    enforced: pos.broker_stop || (bot?.active ?? true),
+                  }
+                : null
+            }
             api={{
               ret: { "1M": data.quote?.chg_1m, "3M": data.quote?.chg_3m, YTD: data.quote?.chg_ytd, "1Y": data.quote?.chg_1y },
               mdd1y: data.stats.max_dd_1y,
@@ -177,7 +189,7 @@ export default function SecurityPage() {
       </div>
       <div className={s.side} style={{ display: "flex", flexDirection: "column" }}>
         <Slot id="pos" focus={focus} flex="0 0 auto">
-          {pos ? <PositionPanel pos={pos} last={last} trades={data.trades} /> : <LevelsPanel data={data} />}
+          {pos ? <PositionPanel pos={pos} last={last} prev={data.quote?.prev ?? null} trades={data.trades} /> : <LevelsPanel data={data} />}
         </Slot>
         <Slot id="bot" focus={focus} flex={newsInSide ? "0 0 auto" : "1 1 0"}>
           <BotReasoning data={data} last={last} state={tState} collapsed={hasThesis && !botOpen} onToggle={() => setBotPick(!botOpen)} />

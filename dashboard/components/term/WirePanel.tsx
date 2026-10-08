@@ -10,7 +10,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, typ
 import { useQuery } from "@tanstack/react-query";
 import { term, type WireEvent } from "@/lib/api";
 import { Empty, Panel, Seg, Skeleton } from "./ui";
-import { BANDS, DayRule, ScrollArea, Tkr, dayOf, etHM, fmtK, isDateOnly, mmdd, useHeld } from "./feedKit";
+import { BANDS, DayRule, ScrollArea, Tkr, dayOf, etHM, fmtK, isDateOnly, useHeld } from "./feedKit";
 import { DataAge } from "./DataAge";
 import s from "./feeds.module.css";
 
@@ -18,12 +18,13 @@ type Kind = "ORD" | "LLM" | "JOB" | "PTR" | "13F" | "NEWS";
 type Filter = "ALL" | Kind;
 
 const TAGS: Record<Kind, { fg: string; bg: string; bd: string; title: string }> = {
-  ORD: { fg: "#7fb2ff", bg: "rgba(59,140,255,.12)", bd: "rgba(59,140,255,.32)", title: "Order" },
+  // Blue is reserved for "held"; orders use neutral ink, the bot layer cyan.
+  ORD: { fg: "var(--ink)", bg: "var(--bg-3)", bd: "var(--ink-4)", title: "Order" },
   LLM: { fg: "var(--cyan)", bg: "rgba(86,212,255,.09)", bd: "rgba(86,212,255,.3)", title: "LLM routine" },
   JOB: { fg: "var(--warn)", bg: "rgba(255,210,63,.08)", bd: "rgba(255,210,63,.3)", title: "Scheduled job (failed / skipped)" },
   PTR: { fg: "#c3b1ff", bg: "rgba(160,132,255,.10)", bd: "rgba(160,132,255,.3)", title: "Congressional PTR" },
   "13F": { fg: "#eaa6dc", bg: "rgba(226,140,206,.09)", bd: "rgba(226,140,206,.28)", title: "13F position change" },
-  NEWS: { fg: "var(--ink-2)", bg: "var(--bg-3)", bd: "var(--line-2)", title: "Ticker-tagged headline with a non-neutral sentiment score" },
+  NEWS: { fg: "var(--ink-3)", bg: "transparent", bd: "var(--line-2)", title: "Ticker-tagged headline with a non-neutral sentiment score" },
 };
 
 function kindOf(t: WireEvent["type"]): Kind {
@@ -43,7 +44,8 @@ function kindOf(t: WireEvent["type"]): Kind {
   }
 }
 
-const COLS = "38px 38px 26px 52px minmax(0,1fr) 12px";
+// time · type · side · ticker · event · sentiment · expand
+const COLS = "38px 38px 12px 52px minmax(0,1fr) 34px 12px";
 const evKey = (e: WireEvent) => `${e.type}|${e.at}|${e.ticker ?? ""}|${e.text}`;
 
 /** One-line preview of a markdown-ish summary: headings dropped, bullets joined. */
@@ -87,7 +89,25 @@ function MiniMd({ text }: { text: string }) {
 
 type Item = { e: WireEvent; group?: WireEvent[] };
 
-const DETAIL_PAD = 8 + 38 + 8 + 38 + 8 + 26 + 8;
+const DETAIL_PAD = 8 + 38 + 8 + 38 + 8 + 12 + 8;
+
+const MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "2026-09-17" → "Sep 17" (bare date, no zone math). */
+const monDay = (d: string) => `${MON3[Number(d.slice(5, 7)) - 1]} ${d.slice(8, 10)}`;
+/** "Sep 08–17" / "Aug 31–Sep 14" / "Sep 17". */
+function dateRange(ds: string[]): string {
+  const xs = [...ds].sort();
+  if (!xs.length) return "";
+  const a = xs[0];
+  const b = xs[xs.length - 1];
+  if (a === b) return monDay(a);
+  return a.slice(0, 7) === b.slice(0, 7) ? `${monDay(a)}–${b.slice(8, 10)}` : `${monDay(a)}–${monDay(b)}`;
+}
+/** 13F detail "13F 2026-06-30 vs 2026-03-31" → "Q2'26". */
+function quarterOf(detail: string | null): string | null {
+  const m = /(\d{4})-(\d{2})-\d{2}/.exec(detail ?? "");
+  return m ? `Q${Math.ceil(Number(m[2]) / 3)}'${m[1].slice(2)}` : null;
+}
 
 /** Time-of-day cell text: filings carry a date only (midnight UTC) → no clock time. */
 const clock = (at: string) => (isDateOnly(at) ? "" : etHM(at));
@@ -110,13 +130,10 @@ function parseFiling(e: WireEvent): Filing | null {
 const filingAmt = (p: Filing, kind: Kind) =>
   p.amt ? (kind === "PTR" ? BANDS[p.amt] ?? fmtK(p.amt) : fmtK(p.side === "BUY" ? p.amt : -p.amt, true)) : "amount n/d";
 
-/** " · traded 09/03–09/28" across a burst's transaction dates (PTR only). */
+/** " · traded Sep 03–28" across a burst's transaction dates (PTR only). */
 function tradedRange(parts: Filing[]): string {
-  const ds = parts.map((p) => p.traded).filter((d): d is string => !!d).sort();
-  if (!ds.length) return "";
-  const a = mmdd(ds[0]);
-  const b = mmdd(ds[ds.length - 1]);
-  return ` · traded ${a === b ? a : `${a}–${b}`}`;
+  const ds = parts.map((p) => p.traded).filter((d): d is string => !!d);
+  return ds.length ? ` · traded ${dateRange(ds)}` : "";
 }
 
 /** One line for a filer's burst: "Kevin Hern 4 filings SELL DIS PG LOW BA". */
@@ -163,6 +180,9 @@ function BurstText({ items, held, kind }: { items: WireEvent[]; held: Set<string
         <>
           <span className="num" style={{ marginLeft: 10, fontSize: 10.5, color: parts[0].amt ? "var(--ink-2)" : "var(--ink-4)" }}>
             {filingAmt(parts[0], kind)}
+          </span>
+          <span className="num dim" style={{ marginLeft: 10, fontSize: 10.5 }}>
+            {parts[0].traded ? `traded ${monDay(parts[0].traded)}` : kind === "13F" && quarterOf(items[0].detail) ? `for ${quarterOf(items[0].detail)}` : ""}
           </span>
         </>
       )}
@@ -313,15 +333,12 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
       code="WIRE"
       title="Events"
       sub={
-        data && !compact ? (
+        data && compact ? (
+          <span title={countLabel(rows.length, items.length)}>{rows.length} events</span>
+        ) : data ? (
           <span>
             {countLabel(rows.length, items.length)} · <span style={{ color: "var(--blue)" }} title="Blue ticker = the book holds it">blue = held</span>
-            {filter === "NEWS" && counts.NEWS ? (
-              <span title="News rows: VADER sentiment score of the headline, −1…+1 (a text score, not a price move)">
-                {" "}
-                · <span className="up">+</span>/<span className="down">−</span>.xx = VADER −1…+1
-              </span>
-            ) : null}
+
           </span>
         ) : undefined
       }
@@ -367,7 +384,21 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
                     : `No ${TAGS[filter as Kind].title.toLowerCase()} events in the last ${all.length}.`}
             </Empty>
           ) : (
-            items.map((it, i) => {
+            <>
+            <div className={s.head} style={{ gridTemplateColumns: COLS }}>
+              <span>Time</span>
+              <span>Type</span>
+              <span />
+              <span>Tkr</span>
+              <span>
+                Event <span style={{ color: "var(--blue)", textTransform: "none", letterSpacing: 0, marginLeft: 6 }} title="Blue ticker = the book holds it">blue = held</span>
+              </span>
+              <span className={s.r} title="News: headline sentiment, VADER −1…+1 (a text score, not a price move)">
+                Sent
+              </span>
+              <span />
+            </div>
+            {items.map((it, i) => {
               const e = it.e;
               const grp = it.group;
               const k = kindOf(e.type);
@@ -382,14 +413,12 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
               // ▲▼ only for trade direction (orders, filings); a failed routine/job is a status.
               const isStatusKind = k === "LLM" || k === "JOB";
               const tone = isStatusKind && rawTone === "down" ? "alert" : rawTone;
-              // Headlines carry a *sentiment* score, not a price move: print the signed
-              // VADER value, muted, instead of an arrow.
               const sc = k === "NEWS" ? e.vader_score : undefined;
+              const sentText = sc != null ? `${sc >= 0 ? "+" : "−"}${Math.abs(sc).toFixed(2).replace(/^0/, "")}` : "";
+              // ▲▼ = trade side (orders, filings); "!" = a failed/skipped routine or job.
               const dirGlyph =
                 k === "NEWS"
-                  ? sc != null
-                    ? `${sc >= 0 ? "+" : "−"}${Math.abs(sc).toFixed(2).replace(/^0/, "")}`
-                    : ""
+                  ? ""
                   : tone === "up"
                     ? "▲"
                     : tone === "down"
@@ -402,15 +431,11 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
               const dirColor =
                 tone === "up" ? "var(--up)" : tone === "down" ? "var(--down)" : tone === "alert" ? "var(--alert)" : tone === "warn" ? "var(--warn)" : "var(--ink-3)";
               const isFiling = k === "PTR" || k === "13F";
-              // Filings carry dates, not clock times: show the trade date (latest in a burst)
-              // or, for 13F, the filing date — tooltip says which.
-              const tradedDates = (grp ?? [e]).map((x) => x.traded_on).filter((d): d is string => !!d).sort();
-              const lastTraded = tradedDates[tradedDates.length - 1] ?? null;
-              const timeText = isFiling ? (lastTraded ? mmdd(lastTraded) : day ? mmdd(day) : "—") : e.at ? clock(e.at) || "—" : "—";
+              // The time column holds clock times only. Filings are date-only: the
+              // cell says "filed"; the trade date lives in the row text.
+              const tradedDates = (grp ?? [e]).map((x) => x.traded_on).filter((d): d is string => !!d);
               const timeTitle = isFiling
-                ? lastTraded
-                  ? `${tradedDates.length > 1 ? `traded ${tradedDates[0]} – ${lastTraded}` : `traded ${lastTraded}`} · filed ${day}`
-                  : `filed ${day}${k === "13F" ? " (13F: quarterly holdings, no trade date)" : ""}`
+                ? `Filing — no time of day · filed ${day}${tradedDates.length ? ` · traded ${dateRange(tradedDates)}` : k === "13F" ? " · 13F reports quarter-end holdings" : ""}`
                 : e.at
                   ? when(e.at)
                   : undefined;
@@ -447,28 +472,22 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
                         : undefined
                     }
                   >
-                    <span className={s.time} title={timeTitle}>
-                      {timeText}
-                    </span>
+                    {isFiling || !e.at || !clock(e.at) ? (
+                      <span className={s.time} title={timeTitle} style={{ color: "var(--ink-4)", fontFamily: "var(--font-plex-cond), sans-serif", fontVariant: "all-small-caps", letterSpacing: "0.06em", fontSize: 11 }}>
+                        {isFiling ? "filed" : "—"}
+                      </span>
+                    ) : (
+                      <span className={s.time} title={timeTitle}>
+                        {clock(e.at)}
+                      </span>
+                    )}
                     <span className={s.tag} style={{ color: tag.fg, background: tag.bg, borderColor: tag.bd }} title={tag.title}>
                       {k}
                     </span>
                     <span
                       className={s.mono}
-                      style={
-                        k === "NEWS"
-                          ? { color: sc == null ? "var(--ink-4)" : sc > 0 ? "var(--up)" : sc < 0 ? "var(--down)" : "var(--ink-3)", opacity: 0.85, fontSize: 10, textAlign: "right" }
-                          : { color: dirColor, fontSize: 8.5, textAlign: "center" }
-                      }
-                      title={
-                        k === "NEWS"
-                          ? `VADER sentiment −1…+1${sc != null ? `: ${dirGlyph}` : ""} — headline text score, not a price move`
-                          : tone === "alert"
-                            ? "Failed"
-                            : tone === "warn"
-                              ? "Skipped"
-                              : undefined
-                      }
+                      style={{ color: dirColor, fontSize: 8.5, textAlign: "center" }}
+                      title={tone === "alert" ? "Failed" : tone === "warn" ? "Skipped" : dirGlyph ? "Trade side" : undefined}
                     >
                       {dirGlyph}
                     </span>
@@ -521,6 +540,13 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
                         )}
                       </>
                     )}
+                    <span
+                      className={s.mono}
+                      style={{ fontSize: 10, color: "var(--ink-3)", textAlign: "right" }}
+                      title={sentText ? `Headline sentiment ${sentText} (VADER −1…+1) — a text score, not a price move` : undefined}
+                    >
+                      {sentText}
+                    </span>
                     <span className={`${s.chev}${isOpen ? ` ${s.chevOpen}` : ""}`} aria-hidden="true">
                       {expandable ? "›" : ""}
                     </span>
@@ -562,7 +588,8 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
                   )}
                 </Fragment>
               );
-            })
+            })}
+            </>
           )}
         </ScrollArea>
       </div>

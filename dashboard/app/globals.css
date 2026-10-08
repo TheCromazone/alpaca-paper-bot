@@ -424,6 +424,16 @@ a {
 .fn-spacer {
   flex: 1;
 }
+.fn-alerts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+.fn-alerts .pill {
+  text-decoration: none;
+}
 
 .statusbar {
   position: fixed;

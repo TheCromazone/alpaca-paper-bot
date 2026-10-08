@@ -10,7 +10,7 @@
  */
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type RefObject } from "react";
 import type { SecurityResp } from "@/lib/api";
-import { fmtChg, fmtNum, fmtPx, tone } from "@/lib/format";
+import { fmtBig, fmtChg, fmtNum, fmtPx, tone } from "@/lib/format";
 import { Empty, Panel, Seg } from "../ui";
 import { addMonths, clamp, dayNum, etDate, fmtD, niceTicks, stepDigits, weekday, ymd, MONTHS } from "./util";
 import s from "./security.module.css";
@@ -28,7 +28,15 @@ const MODES = [
 ];
 const CANDLE_DEFAULT: Range[] = ["1M", "3M", "6M"];
 /** Position levels; `from` = the day the position opened (YYYY-MM-DD, ET) — lines start there. */
-export type ChartLevels = { avg: number; stop: number; cut: number; peak: number; from: string | null } | null;
+export type ChartLevels = {
+  avg: number;
+  stop: number;
+  cut: number;
+  peak: number;
+  from: string | null;
+  /** false → nothing acts on the stop/cut (synthetic + bot off): drawn dashed, dimmed, "inactive". */
+  enforced: boolean;
+} | null;
 /** The API's own window stats, so every "1Y"/"Max DD" on the page is one number. */
 export type ChartApiStats = { ret: Partial<Record<Range, number | null>>; mdd1y: number | null; rel3m: number | null };
 type Key = "sma50" | "sma200" | "spy" | "avg" | "stop" | "cut";
@@ -72,11 +80,12 @@ const SHORT: Record<Key, string> = {
 };
 
 // Geometry constants (px).
-const AXW = 62; // right axis
-const PT = 14; // top pad
+const AXW = 62; // right gutter: price tags only (last, levels, crosshair) — never tick labels
+const LAX = 40; // left gutter: every pane's tick labels — so tags can never cover a tick
+const ANN = 15; // reserved annotation band above/below the price data (HI/LO, SMA starts)
+const PT = 3; // top pad
 const XAX = 20; // bottom axis band
 const GAP = 9; // between panes
-const PL = 4;
 
 /** Mean of the previous `n` non-null values (excludes the current bar) — matches the API's rel_volume. */
 function priorMean(v: (number | null)[], n: number): (number | null)[] {
@@ -273,13 +282,15 @@ export function SecurityChart({
     const { c, chg, sma50, sma200, hh, ll, rel, hasVol, o, upDay, marks } = full;
     const volH = hasVol ? clamp(Math.round(h * 0.12), 44, 80) : 0;
     const histH = clamp(Math.round(h * 0.16), 66, 104);
-    const pTop = PT;
-    const pBot = h - XAX - histH - GAP - (hasVol ? volH + GAP : 0);
-    const vTop = pBot + GAP;
+    const annTop = PT; // top annotation band [annTop, pTop)
+    const pTop = PT + ANN;
+    const pFrame = h - XAX - histH - GAP - (hasVol ? volH + GAP : 0); // price pane's bottom edge
+    const pBot = pFrame - ANN; // data area ends here; [pBot, pFrame) is the bottom annotation band
+    const vTop = pFrame + GAP;
     const vBot = vTop + volH;
-    const hTop = (hasVol ? vBot : pBot) + GAP;
+    const hTop = (hasVol ? vBot : pFrame) + GAP;
     const hBot = h - XAX;
-    const L = PL;
+    const L = LAX;
     const R = w - AXW;
     const step = (R - L) / m;
     const x = (i: number) => L + (i - start + 0.5) * step;
@@ -330,11 +341,8 @@ export function SecurityChart({
       rMaxAbs = Math.max(rMaxAbs, Math.abs(rs[i] as number));
     }
     const hasRs = rs.some((v) => v != null);
-    // Labels at ±lim and 0 only; lim = the smallest "nice" value ≥ the data's reach.
-    const reach = Math.max(rMaxAbs, 0.01) * 1.06;
-    const NICE = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
-    const mag = Math.pow(10, Math.floor(Math.log10(reach)));
-    const hLim = (NICE.find((k) => k * mag >= reach - 1e-12) ?? 10) * mag;
+    // Labels at ±lim and 0 only; lim = max|v| × 1.15 rounded up to a whole point (1pt floor).
+    const hLim = Math.max(0.01, Math.ceil(rMaxAbs * 1.15 * 100) / 100);
     const hStep = hLim;
     const hZero = (hTop + 12 + hBot) / 2;
     const yh = (v: number) => hZero - (v / hLim) * ((hBot - hTop - 12) / 2 - 2);
@@ -400,11 +408,28 @@ export function SecurityChart({
       }
     }
 
-    // relative-volume scale: 1× = the session's prior 20-day average
-    let rMax = 1;
-    for (let i = start; i < n; i++) rMax = Math.max(rMax, rel[i] ?? 0);
-    const rTop = Math.max(2, Math.ceil(rMax));
-    const yv = (val: number) => vBot - (Math.min(val, rTop) / rTop) * (volH - 12);
+    // volume scale (shares): top ≈ 97th percentile ×1.15 so one spike can't flatten the rest;
+    // bars above it are clipped with a cap mark.
+    const vs = full.v.slice(start).filter((x): x is number => x != null).sort((a, b) => a - b);
+    let vAvgMax = 0;
+    for (let i = start; i < n; i++) vAvgMax = Math.max(vAvgMax, full.vAvg[i] ?? 0);
+    const vP97 = vs.length ? vs[Math.min(vs.length - 1, Math.floor(vs.length * 0.97))] : 1;
+    const vCap = Math.max(vP97 * 1.15, vAvgMax * 1.3, 1);
+    const yv = (val: number) => vBot - (Math.min(val, vCap) / vCap) * (volH - 13);
+    let vAvgPath = "";
+    {
+      let pen = false;
+      for (let i = start; i < n; i++) {
+        const a = full.vAvg[i];
+        if (a == null) {
+          pen = false;
+          continue;
+        }
+        vAvgPath += `${pen ? "L" : "M"}${px(x(i))},${px(yv(a))}`;
+        pen = true;
+      }
+    }
+    void rel;
 
     // position levels start where the position does
     let lvlStart = start;
@@ -446,7 +471,7 @@ export function SecurityChart({
     for (const l of [...lvl].sort((a, b) => b.v - a.v)) {
       const ly = y(l.v);
       if (ly < pTop || ly > pBot) continue;
-      const w = LABEL[l.k].length * 5.9 + 9;
+      const w = (LABEL[l.k].length + (levels && !levels.enforced && (l.k === "stop" || l.k === "cut") ? 11 : 0)) * 5.9 + 9;
       let best: { x: number; base: number; cost: number } | null = null;
       for (let right = R - 8; right - w >= Math.max(L + 4, lvlX0 + 4); right -= 8) {
         const left = right - w;
@@ -462,7 +487,9 @@ export function SecurityChart({
         }
         if (best && best.cost < 1) break;
       }
-      if (best) {
+      // No spot clear of the trace → no chip: the legend swatch + colour-matched axis tag
+      // identify the level, and nothing is drawn over the data.
+      if (best && best.cost < 10) {
         chipAt[l.k] = { x: best.x, base: best.base, w };
         avoid.push([best.x - 2, best.base - 11.5, best.x + w + 2, best.base + 5.5]);
       }
@@ -494,7 +521,7 @@ export function SecurityChart({
       const k = arr.findIndex((v, i) => i >= start && v != null);
       return k < 0 ? null : k;
     };
-    return { pTop, pBot, vTop, vBot, hTop, hBot, L, R, step, x, y, yh, yv, rTop, lvlX0, chipAt, bw, wickUp, wickDn, bodyUp, bodyDn, hZero, hLim, hStep, rs, hasRs, rsLine, rsArea, yt, yDigits, line, area, lvl, yMin, yMax, xt: kept,
+    return { annTop, pTop, pBot, pFrame, vTop, vBot, hTop, hBot, L, R, step, x, y, yh, yv, vCap, vAvgPath, lvlX0, chipAt, bw, wickUp, wickDn, bodyUp, bodyDn, hZero, hLim, hStep, rs, hasRs, rsLine, rsArea, yt, yDigits, line, area, lvl, yMin, yMax, xt: kept,
       sma50Start: smaStart(sma50),
       sma200Start: smaStart(sma200),
       sma50: show("sma50") ? seg((i) => sma50[i]) : "",
@@ -516,7 +543,11 @@ export function SecurityChart({
   const last = full.c[n - 1];
   // A stop/cut is "breached" when the last close is through it — the only time a level takes the alert colour.
   const breached = (k: Key) => !!levels && (k === "stop" || k === "cut") && last < levels[k];
-  const lvlColor = (k: Key) => (breached(k) ? "var(--alert)" : C[k]);
+  /** Stop/cut with nothing acting on them (synthetic + bot off) — drawn as inactive, not as live orders. */
+  const inactive = (k: Key) => !!levels && !levels.enforced && (k === "stop" || k === "cut");
+  const lvlColor = (k: Key) => (breached(k) ? "var(--alert)" : inactive(k) ? "var(--ink-3)" : C[k]);
+  /** SPY's own return since the range start (what its rebased line shows). */
+  const spyRet = (i: number): number | null => (win.spyBase && full.spyA[i] ? (full.spyA[i] as number) / win.spyBase - 1 : null);
   // Same windows as the API (close on/before the same calendar date) — show the API's
   // own numbers so the header grid and this panel can never disagree by rounding.
   const apiRet = win.truncated ? null : api?.ret[range];
@@ -582,51 +613,52 @@ export function SecurityChart({
       if (ch) for (let k = 0; k * 14 < ch.w; k++) obstacles.push([ch.x + k * 14, ch.base - 4, 4]);
     }
   }
+  const lastSpy = show("spy") ? spyReb(n - 1) : null;
+  const lastSpyRet = spyRet(n - 1);
   const tags = g
     ? placeTags(g, [
         { key: "last", v: last, bg: "var(--ink)", fg: "#000", text: fmtPx(last) },
         ...g.lvl.map((l) => ({
           key: l.k,
           v: l.v,
-          bg: breached(l.k) ? "var(--alert)" : C[l.k],
+          bg: breached(l.k) ? "var(--alert)" : inactive(l.k) ? "var(--ink-3)" : C[l.k],
           fg: l.k === "avg" ? "#fff" : "#000",
           text: fmtPx(l.v),
+          outline: inactive(l.k),
         })),
+        ...(lastSpy != null && lastSpyRet != null
+          ? [{ key: "spy", v: lastSpy, bg: "var(--ink-3)", fg: "var(--ink-2)", text: `SPY${fmtChg(lastSpyRet, 1)}`, outline: true, small: true }]
+          : []),
       ])
     : [];
 
-  // Y axis: one tick every ~40px. A label a tag covers may drop, but never two
-  // neighbours — the second one stays and the tag body is nudged off it instead
-  // (its pointer still aims at the exact level).
+  // Y axis: tick labels live in their own left gutter, tags in the right one — so a
+  // tag can never cover a tick. One tick per ~34px, all labelled.
   const yAxis = (() => {
-    if (!g) return { ticks: [] as number[], labels: [] as number[], digits: 2 };
-    const COLL = 12;
-    const t = niceTicks(g.yMin, g.yMax, Math.max(4, Math.floor((g.pBot - g.pTop) / 40)));
-    const ticks = t.ticks.filter((v) => g.y(v) >= g.pTop - 2 && g.y(v) <= g.pBot + 2);
-    const dropped = new Set<number>();
-    ticks.forEach((v, idx) => {
-      const ty = g.y(v);
-      const hit = tags.filter((tg) => Math.abs(tg.y - ty) < COLL);
-      if (!hit.length) return;
-      if (idx === 0 || !dropped.has(ticks[idx - 1])) {
-        dropped.add(v);
-        return;
-      }
-      for (const tg of hit) tg.y = tg.y >= ty ? ty + COLL : ty - COLL;
-    });
-    relaxTags(g, tags);
-    // After relaxing, drop anything still covered unless that would orphan two in a row.
-    const labels = ticks.filter((v, idx) => {
-      if (dropped.has(v)) return false;
-      const covered = tags.some((tg) => Math.abs(tg.y - g.y(v)) < COLL - 3);
-      if (!covered) return true;
-      const prevDropped = idx > 0 && dropped.has(ticks[idx - 1]);
-      if (prevDropped) return true;
-      dropped.add(v);
-      return false;
-    });
-    return { ticks, labels, digits: stepDigits(t.step) };
+    if (!g) return { ticks: [] as number[], digits: 2 };
+    const t = niceTicks(g.yMin, g.yMax, Math.max(4, Math.floor((g.pBot - g.pTop) / 34)));
+    return { ticks: t.ticks.filter((v) => g.y(v) >= g.pTop - 1 && g.y(v) <= g.pBot + 1), digits: stepDigits(t.step) };
   })();
+
+  // Annotation band items (HI/LO, where SMAs begin), packed so labels never overlap.
+  const annots: Annot[] = [];
+  if (g) {
+    const push = (a: Omit<Annot, "left">) => {
+      const w = a.text.length * 6 + 4;
+      const band = annots.filter((b) => b.band === a.band);
+      const cands = [a.x - w / 2, a.x - w + 8, a.x - 8, a.x - w - 6, a.x + 6].map((l) => clamp(l, g.L + 2, g.R - 4 - w));
+      const left = cands.find((l) => band.every((b) => l + w + 6 <= b.left || l >= b.left + b.text.length * 6 + 10));
+      if (left != null) annots.push({ ...a, left });
+    };
+    push({ key: "hi", band: "top", x: g.x(hiI), py: g.y(hiV), text: `HI ${fmtPx(hiV)} ${fmtD(series[hiI].d, "dm")}`, color: "var(--ink-2)" });
+    if (loI !== hiI) push({ key: "lo", band: "bot", x: g.x(loI), py: g.y(loV), text: `LO ${fmtPx(loV)} ${fmtD(series[loI].d, "dm")}`, color: "var(--ink-2)" });
+    (["sma50", "sma200"] as const).forEach((k) => {
+      const st = k === "sma50" ? g.sma50Start : g.sma200Start;
+      const arr = k === "sma50" ? full.sma50 : full.sma200;
+      if (st == null || !show(k) || arr[st] == null) return;
+      push({ key: `s${k}`, band: "top", x: g.x(st), py: g.y(arr[st] as number), text: `${k === "sma50" ? "SMA50" : "SMA200"} starts`, color: C[k] });
+    });
+  }
 
   return (
     <Panel
@@ -678,17 +710,26 @@ export function SecurityChart({
                 className={s.lgItem}
                 aria-pressed={on}
                 onClick={() => toggle(k)}
-                title={`${on ? "Hide" : "Show"} ${LABEL[k]}${k === "spy" ? " (rebased to this ticker's price at the start of the range)" : ""}`}
+                title={`${on ? "Hide" : "Show"} ${LABEL[k]}${
+                  k === "spy"
+                    ? " — SPY's path rebased to this ticker's first close in the range; the % is SPY's own return since then"
+                    : (k === "sma50" && g?.sma50Start != null) || (k === "sma200" && g?.sma200Start != null)
+                      ? " — the line begins where enough history exists (marked “starts” above the chart)"
+                      : inactive(k)
+                        ? " — nothing is enforcing this level (synthetic stop, bot off)"
+                        : ""
+                }`}
               >
                 <svg width="16" height="6" aria-hidden="true">
                   <line x1="0" x2="16" y1="3" y2="3" stroke={C[k]} strokeWidth={k === "spy" || k === "cut" ? 1.6 : 1.4} strokeDasharray={DASH[k]} />
                 </svg>
                 <span>
-                  {SHORT[k]}
-                  {g && ((k === "sma50" && g.sma50Start != null) || (k === "sma200" && g.sma200Start != null)) ? " (partial)" : ""}
+                  {k === "spy" ? "SPY rebased" : SHORT[k]}
+                  {inactive(k) ? " (inactive)" : ""}
                 </span>
-                {/* Off → label only: a value with no line on the chart would read as data. */}
-                {on && <span className="num">{fmtPx(val[k])}</span>}
+                {/* Values only where the chart has no axis tag for the line, and only when it's drawn. */}
+                {on && (k === "sma50" || k === "sma200") && <span className="num">{fmtPx(val[k])}</span>}
+                {on && k === "spy" && spyRet(at) != null && <span className={`num ${tone(spyRet(at))}`}>{fmtChg(spyRet(at), 1)}</span>}
               </button>
             );
           })}
@@ -738,12 +779,13 @@ export function SecurityChart({
               ))}
               {/* pane frames + axis spine */}
               <line x1={crisp(g.R)} x2={crisp(g.R)} y1={g.pTop - 6} y2={g.hBot} stroke="var(--line-2)" />
-              <line x1={g.L} x2={g.R} y1={crisp(g.pBot)} y2={crisp(g.pBot)} stroke="var(--line-2)" />
+              <line x1={crisp(g.L)} x2={crisp(g.L)} y1={g.pTop - 6} y2={g.hBot} stroke="var(--line-2)" />
+              <line x1={g.L} x2={g.R} y1={crisp(g.pFrame)} y2={crisp(g.pFrame)} stroke="var(--line-2)" />
               <line x1={g.L} x2={g.R} y1={crisp(g.hBot)} y2={crisp(g.hBot)} stroke="var(--line-2)" />
 
               {/* y-axis labels */}
-              {yAxis.labels.map((t) => (
-                <text key={`yl${t}`} x={g.R + 6} y={g.y(t) + 3.5} className={s.axisText}>
+              {yAxis.ticks.map((t) => (
+                <text key={`yl${t}`} x={g.L - 5} y={g.y(t) + 3.5} textAnchor="end" className={s.axisText}>
                   {fmtNum(t, yAxis.digits)}
                 </text>
               ))}
@@ -754,22 +796,12 @@ export function SecurityChart({
                 {g.spy && <path d={g.spy} fill="none" stroke={C.spy} strokeWidth={1} />}
                 {g.sma200 && <path d={g.sma200} fill="none" stroke={C.sma200} strokeWidth={1.1} strokeDasharray={DASH.sma200} />}
                 {g.sma50 && <path d={g.sma50} fill="none" stroke={C.sma50} strokeWidth={1.1} />}
-                {/* where a moving average begins inside the window (fewer than N sessions before it) */}
-                {(["sma50", "sma200"] as const).map((k) => {
-                  const st = k === "sma50" ? g.sma50Start : g.sma200Start;
-                  const arr = k === "sma50" ? full.sma50 : full.sma200;
-                  if (st == null || !show(k) || arr[st] == null) return null;
-                  const sx = g.x(st);
-                  const sy = g.y(arr[st] as number);
-                  return (
-                    <g key={`ps${k}`} pointerEvents="none">
-                      <circle cx={sx} cy={sy} r={2} fill="var(--bg-1)" stroke={C[k]} />
-                      <text x={sx - 4} y={sy + 3} textAnchor="end" className={s.smaFlag} fill={C[k]}>
-                        {k === "sma50" ? "50D" : "200D"} starts
-                      </text>
-                    </g>
-                  );
-                })}
+                {/* where a moving average begins inside the window — label lives in the annotation band */}
+                {annots
+                  .filter((a) => a.key.startsWith("s"))
+                  .map((a) => (
+                    <circle key={`pm${a.key}`} cx={a.x} cy={a.py} r={2.2} fill="var(--bg-1)" stroke={a.color} pointerEvents="none" />
+                  ))}
                 {/* last-price guide */}
                 <line x1={g.L} x2={g.R} y1={crisp(g.y(last))} y2={crisp(g.y(last))} stroke="var(--ink-4)" strokeDasharray="1 3" />
                 {/* reference levels (in range) */}
@@ -778,8 +810,17 @@ export function SecurityChart({
                   const yy = crisp(g.y(l.v));
                   return (
                     <g key={l.k}>
-                      <line x1={g.lvlX0} x2={g.R} y1={yy} y2={yy} stroke={lvlColor(l.k)} strokeWidth={1} strokeDasharray={DASH[l.k]} opacity={0.9} />
-                      <line x1={crisp(g.lvlX0)} x2={crisp(g.lvlX0)} y1={yy - 3} y2={yy + 3} stroke={lvlColor(l.k)} />
+                      <line
+                        x1={g.lvlX0}
+                        x2={g.R}
+                        y1={yy}
+                        y2={yy}
+                        stroke={lvlColor(l.k)}
+                        strokeWidth={1}
+                        strokeDasharray={inactive(l.k) ? "2 5" : DASH[l.k]}
+                        opacity={inactive(l.k) ? 0.5 : 0.9}
+                      />
+                      <line x1={crisp(g.lvlX0)} x2={crisp(g.lvlX0)} y1={yy - 3} y2={yy + 3} stroke={lvlColor(l.k)} opacity={inactive(l.k) ? 0.5 : 1} />
                     </g>
                   );
                 })}
@@ -797,15 +838,22 @@ export function SecurityChart({
                 {g.lvl.map((l) =>
                   l.v < g.yMin || l.v > g.yMax ? null : (
                     g.chipAt[l.k] ? (
-                      <LevelChip key={`lc${l.k}`} x={g.chipAt[l.k]!.x} baseline={g.chipAt[l.k]!.base} color={lvlColor(l.k)} text={LABEL[l.k].toUpperCase()} />
+                      <LevelChip
+                        key={`lc${l.k}`}
+                        x={g.chipAt[l.k]!.x}
+                        baseline={g.chipAt[l.k]!.base}
+                        color={lvlColor(l.k)}
+                        dim={inactive(l.k)}
+                        text={`${LABEL[l.k].toUpperCase()}${inactive(l.k) ? " · INACTIVE" : ""}`}
+                      />
                     ) : null
                   ),
                 )}
               </g>
 
               {/* hi / lo callouts */}
-              <HiLo g={g} i={hiI} v={hiV} kind="hi" d={series[hiI].d} />
-              {loI !== hiI && <HiLo g={g} i={loI} v={loV} kind="lo" d={series[loI].d} />}
+              {/* annotation bands: HI above the data, LO below, SMA starts above — never on the data */}
+              <Annotations g={g} items={annots} />
 
               {/* trade markers */}
               {[...full.marks.entries()].map(([i, ts]) => {
@@ -823,46 +871,34 @@ export function SecurityChart({
                 );
               })}
 
-              {/* relative-volume pane */}
+              {/* volume pane: shares, up/down coloured, prior-20-day average line */}
               {full.hasVol && (
                 <g>
                   <line x1={g.L} x2={g.R} y1={crisp(g.vBot)} y2={crisp(g.vBot)} stroke="var(--line-2)" />
-                  {Array.from({ length: g.rTop }, (_, k) => k + 1).map((m) => (
-                    <g key={`rv${m}`}>
-                      <line
-                        x1={g.L}
-                        x2={g.R}
-                        y1={crisp(g.yv(m))}
-                        y2={crisp(g.yv(m))}
-                        stroke={m === 1 ? "var(--ink-3)" : "var(--line)"}
-                        strokeDasharray={m === 1 ? "3 3" : "2 3"}
-                      />
-                      {(m === 1 || m === g.rTop) && (
-                        <text x={g.R + 6} y={g.yv(m) + 3.5} className={s.axisText}>
-                          {m}×
-                        </text>
-                      )}
+                  {[g.vCap, g.vCap / 2].map((t) => (
+                    <g key={`vt${t}`}>
+                      <line x1={g.L} x2={g.R} y1={crisp(g.yv(t))} y2={crisp(g.yv(t))} stroke="var(--line)" strokeDasharray="2 3" />
+                      <text x={g.L - 5} y={g.yv(t) + 3.5} textAnchor="end" className={s.axisText}>
+                        {fmtBig(t)}
+                      </text>
                     </g>
                   ))}
                   {Array.from({ length: n - start }, (_, k) => {
                     const i = start + k;
-                    const rv = full.rel[i];
-                    if (rv == null) return null;
+                    const vv = full.v[i];
+                    if (vv == null) return null;
                     const bw = Math.max(1, Math.min(g.step * 0.72, 9));
-                    const top = g.yv(rv);
+                    const top = g.yv(vv);
+                    const clipped = vv > g.vCap;
                     return (
-                      <rect
-                        key={`vb${i}`}
-                        x={g.x(i) - bw / 2}
-                        y={top}
-                        width={bw}
-                        height={Math.max(0.75, g.vBot - top)}
-                        fill={full.upDay[i] ? "var(--up)" : "var(--down)"}
-                        opacity={hover == null ? 0.55 : hover === i ? 1 : 0.3}
-                      />
+                      <g key={`vb${i}`} opacity={hover == null ? 0.6 : hover === i ? 1 : 0.32}>
+                        <rect x={g.x(i) - bw / 2} y={top} width={bw} height={Math.max(0.75, g.vBot - top)} fill={full.upDay[i] ? "var(--up)" : "var(--down)"} />
+                        {clipped && <rect x={g.x(i) - bw / 2 - 1} y={top - 2} width={bw + 2} height={1.5} fill="var(--ink-2)" />}
+                      </g>
                     );
                   })}
-                  <VolLabel g={g} rel={full.rel[at]} hover={hover != null} />
+                  {g.vAvgPath && <path d={g.vAvgPath} fill="none" stroke="var(--ink-2)" strokeWidth={1} />}
+                  <VolLabel g={g} v={full.v[at]} avg={full.vAvg[at]} hover={hover != null} />
                 </g>
               )}
 
@@ -890,12 +926,12 @@ export function SecurityChart({
               {[g.hLim, -g.hLim].map((t) => (
                 <g key={`hy${t}`}>
                   <line x1={g.L} x2={g.R} y1={crisp(g.yh(t))} y2={crisp(g.yh(t))} stroke="var(--line)" />
-                  <text x={g.R + 6} y={g.yh(t) + 3.5} className={s.axisText}>
-                    {fmtPts(t, g.hLim < 0.02 ? 1 : 0)}
+                  <text x={g.L - 5} y={g.yh(t) + 3.5} textAnchor="end" className={s.axisText}>
+                    {fmtPts(t, 0)}
                   </text>
                 </g>
               ))}
-              <text x={g.R + 6} y={g.hZero + 3.5} className={s.axisText}>0</text>
+              <text x={g.L - 5} y={g.hZero + 3.5} textAnchor="end" className={s.axisText}>0</text>
               {g.rsArea && (
                 <>
                   <path d={g.rsArea} fill="var(--up)" opacity={0.14} clipPath={`url(#rs-up-${uid})`} />
@@ -922,7 +958,7 @@ export function SecurityChart({
 
               {/* crosshair */}
               {hover != null && (
-                <Crosshair g={g} i={hover} v={full.c[hover]} chg={g.rs[hover]} vol={full.hasVol ? full.rel[hover] : null} d={series[hover].d} />
+                <Crosshair g={g} i={hover} v={full.c[hover]} chg={g.rs[hover]} vol={full.hasVol ? full.v[hover] : null} d={series[hover].d} />
               )}
             </svg>
           )}
@@ -930,7 +966,7 @@ export function SecurityChart({
             <LegendBox
               g={g}
               hover={hover}
-              rows={buildBoxRows({ hover, win, full, series, ticker, val, show, levels, candle, rsAt: g.rs[hover] })}
+              rows={buildBoxRows({ hover, win, full, series, ticker, val, show, levels, candle, rsAt: g.rs[hover], spyRetAt: spyRet(hover) })}
               title={fmtD(series[hover].d, "long").toUpperCase()}
               obstacles={obstacles}
             />
@@ -944,12 +980,13 @@ export function SecurityChart({
 // ── pieces ──────────────────────────────────────────────────────────────
 
 type G = {
+  annTop: number;
   pTop: number;
   pBot: number;
+  pFrame: number;
   vTop: number;
   vBot: number;
   yv: (v: number) => number;
-  rTop: number;
   hTop: number;
   hBot: number;
   L: number;
@@ -990,12 +1027,12 @@ function Tri({ x, y, up, color, active, hollow, n }: { x: number; y: number; up:
 }
 
 /** In-plot level label as a solid chip, so it reads cleanly over the price trace. */
-function LevelChip({ x, baseline, color, text }: { x: number; baseline: number; color: string; text: string }) {
+function LevelChip({ x, baseline, color, text, dim = false }: { x: number; baseline: number; color: string; text: string; dim?: boolean }) {
   const w = text.length * 5.9 + 9;
   const x0 = x;
   return (
-    <g pointerEvents="none">
-      <rect x={x0} y={baseline - 9.5} width={w} height={13} fill="var(--bg-1)" fillOpacity={0.94} stroke={color} strokeOpacity={0.55} />
+    <g pointerEvents="none" opacity={dim ? 0.75 : 1}>
+      <rect x={x0} y={baseline - 9.5} width={w} height={13} fill="var(--bg-1)" fillOpacity={0.94} stroke={color} strokeOpacity={0.55} strokeDasharray={dim ? "2 2" : undefined} />
       <text x={x0 + w / 2} y={baseline} textAnchor="middle" className={s.lvlText} fill={color}>
         {text}
       </text>
@@ -1003,23 +1040,8 @@ function LevelChip({ x, baseline, color, text }: { x: number; baseline: number; 
   );
 }
 
-function HiLo({ g, i, v, kind, d }: { g: G; i: number; v: number; kind: "hi" | "lo"; d: string }) {
-  const cx = g.x(i);
-  const cy = g.y(v);
-  const anchor = cx > g.R - 70 ? "end" : cx < g.L + 70 ? "start" : "middle";
-  const ty = kind === "hi" ? cy - 7 : cy + 14;
-  return (
-    <g>
-      <circle cx={cx} cy={cy} r={2.2} fill="var(--bg-1)" stroke="var(--ink-2)" strokeWidth={1} />
-      <text x={cx} y={ty} textAnchor={anchor} className={s.hiloText}>
-        <tspan className={s.hiloK}>{kind === "hi" ? "HI" : "LO"}</tspan> {fmtPx(v)}
-        <tspan className={s.hiloK}> {fmtD(d, "dm")}</tspan>
-      </text>
-    </g>
-  );
-}
 
-type Tag = { key: string; v: number; bg: string; fg: string; text: string };
+type Tag = { key: string; v: number; bg: string; fg: string; text: string; outline?: boolean; small?: boolean };
 /** `anchor` = the level's true y (where the pointer aims); `y` = the tag body's centre. */
 type Placed = Tag & { y: number; anchor: number; off: "up" | "down" | null };
 const TAG_H = 15;
@@ -1050,6 +1072,31 @@ function placeTags(g: G, tags: Tag[]): Placed[] {
   );
 }
 
+type Annot = { key: string; band: "top" | "bot"; x: number; py: number; text: string; color: string; left: number };
+
+/** Labels in the reserved bands above/below the price data, each with a faint leader to its point. */
+function Annotations({ g, items }: { g: G; items: Annot[] }) {
+  return (
+    <g pointerEvents="none">
+      {items.map((a) => {
+        const top = a.band === "top";
+        const base = top ? g.annTop + 11 : g.pBot + 12;
+        const y1 = top ? g.pTop - 1 : a.py + 4;
+        const y2 = top ? a.py - 4 : g.pBot + 2;
+        return (
+          <g key={a.key}>
+            {y2 - y1 > 2 && <line x1={crisp(a.x)} x2={crisp(a.x)} y1={y1} y2={y2} stroke={a.color} strokeDasharray="1 2" opacity={0.45} />}
+            {!a.key.startsWith("s") && <circle cx={a.x} cy={a.py} r={2.2} fill="var(--bg-1)" stroke="var(--ink-2)" />}
+            <text x={a.left} y={base} className={s.annText} fill={a.color}>
+              {a.text}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 /** Notch when the body sits on its level; a slim leader wedge when it was nudged away. */
 function tagPointer(R: number, anchor: number, y: number, H: number): string {
   if (Math.abs(anchor - y) <= H / 2) return `${R - 4},${anchor} ${R + 1},${y - H / 2} ${R + 1},${y + H / 2}`;
@@ -1064,10 +1111,14 @@ function AxisTags({ g, placed }: { g: G; placed: Placed[] }) {
     <g>
       {placed.map((t) => (
         <g key={t.key}>
-          {/* pointer aims at the exact level even when the body was nudged off a tick label */}
-          <polygon points={tagPointer(g.R, t.anchor, t.y, H)} fill={t.bg} />
-          <rect x={g.R + 1} y={t.y - H / 2} width={AXW - 2} height={H} fill={t.bg} />
-          <text x={g.R + 5} y={t.y + 3.6} className={s.tagText} fill={t.fg}>
+          {/* pointer aims at the exact level even when the body was nudged by a neighbour */}
+          <polygon points={tagPointer(g.R, t.anchor, t.y, H)} fill={t.bg} opacity={t.outline ? 0.6 : 1} />
+          {t.outline ? (
+            <rect x={g.R + 1.5} y={t.y - H / 2 + 0.5} width={AXW - 3} height={H - 1} fill="var(--bg-1)" stroke={t.bg} strokeDasharray={t.small ? undefined : "2 2"} />
+          ) : (
+            <rect x={g.R + 1} y={t.y - H / 2} width={AXW - 2} height={H} fill={t.bg} />
+          )}
+          <text x={g.R + 5} y={t.y + 3.6} className={s.tagText} fill={t.outline ? (t.small ? t.fg : t.bg) : t.fg} style={t.small ? { fontSize: 9.5, fontWeight: 500 } : undefined}>
             {t.off === "up" ? "▲" : t.off === "down" ? "▼" : ""}
             {t.text}
           </text>
@@ -1077,21 +1128,24 @@ function AxisTags({ g, placed }: { g: G; placed: Placed[] }) {
   );
 }
 
-/** Relative-volume caption. Shares are never printed: the production feed (IEX) is partial. */
-function VolLabel({ g, rel, hover }: { g: G; rel: number | null; hover: boolean }) {
+/** Volume caption: the session's shares and its multiple of the prior 20-day average. */
+function VolLabel({ g, v, avg, hover }: { g: G; v: number | null; avg: number | null; hover: boolean }) {
+  const rel = v != null && avg ? v / avg : null;
   return (
     <>
       <text x={g.L + 4} y={g.vTop + 8} className={s.paneLabel}>
-        REL VOLUME
-        <tspan className={s.paneVal} dx={6} style={rel != null && rel >= 1.5 ? { fill: "var(--ink)" } : undefined}>
-          {rel != null ? `${rel.toFixed(2)}×` : "—"}
+        VOLUME
+        <tspan className={s.paneVal} dx={6} style={{ fill: "var(--ink)" }}>
+          {v != null ? fmtBig(v) : "—"}
         </tspan>
-        <tspan className={s.paneVal} dx={4}>
-          {hover ? "" : "last · "}vs prior 20-day avg
-        </tspan>
+        {rel != null && (
+          <tspan className={s.paneVal} dx={5} style={rel >= 1.5 ? { fill: "var(--ink)" } : undefined}>
+            {rel.toFixed(2)}× 20d avg{hover ? "" : " (last)"}
+          </tspan>
+        )}
       </text>
       <text x={g.R - 4} y={g.vTop + 8} textAnchor="end" className={s.paneNote}>
-        IEX feed · ratio only
+        shares · line = prior 20d avg
       </text>
     </>
   );
@@ -1116,7 +1170,7 @@ function Crosshair({ g, i, v, chg, vol, d }: { g: G; i: number; v: number; chg: 
         <>
           <rect x={g.R + 1} y={clamp(g.yv(vol), g.vTop + 7.5, g.vBot - 7.5) - 7.5} width={AXW - 2} height={15} fill="var(--amber)" />
           <text x={g.R + 5} y={clamp(g.yv(vol), g.vTop + 7.5, g.vBot - 7.5) + 3.6} className={s.tagText} fill="#000">
-            {vol.toFixed(2)}×
+            {fmtBig(vol)}
           </text>
         </>
       )}
@@ -1149,16 +1203,19 @@ function buildBoxRows({
   levels,
   candle,
   rsAt,
+  spyRetAt,
 }: {
   hover: number;
   rsAt: number | null;
+  spyRetAt: number | null;
   win: { start: number };
   full: {
     c: number[];
     o: (number | null)[];
     hh: (number | null)[];
     ll: (number | null)[];
-    rel: (number | null)[];
+    v: (number | null)[];
+    vAvg: (number | null)[];
     chg: (number | null)[];
     marks: Map<number, Trade[]>;
   };
@@ -1180,11 +1237,13 @@ function buildBoxRows({
     rows.push({ sw: { color: C.px }, k: `${ticker} Close`, v: fmtPx(c[hover]) });
   }
   rows.push({ k: "Change", v: prev != null ? `${c[hover] - prev >= 0 ? "+" : "−"}${fmtNum(Math.abs(c[hover] - prev))}  ${fmtChg(chg)}` : "—", cls: tone(chg) });
-  const rv = full.rel[hover];
-  if (rv != null) rows.push({ k: "Rel volume", v: `${rv.toFixed(2)}× 20d` });
-  (["sma50", "sma200", "spy"] as const).forEach((k) => {
+  const vv = full.v[hover];
+  const va = full.vAvg[hover];
+  if (vv != null) rows.push({ k: "Volume", v: `${fmtBig(vv)}${va ? ` · ${(vv / va).toFixed(2)}× 20d` : ""}` });
+  (["sma50", "sma200"] as const).forEach((k) => {
     if (show(k) && val[k] != null) rows.push({ sw: { color: C[k], dash: DASH[k] }, k: LABEL[k], v: fmtPx(val[k]) });
   });
+  if (show("spy") && spyRetAt != null) rows.push({ sw: { color: C.spy }, k: "SPY (rebased)", v: fmtChg(spyRetAt, 1), cls: tone(spyRetAt) });
   rows.push({ k: `From ${fmtD(series[win.start].d, "dmy")}`, v: fmtChg(c[hover] / c[win.start] - 1), cls: tone(c[hover] / c[win.start] - 1) });
   if (rsAt != null) rows.push({ sw: { color: C.spy }, k: "vs SPY (since range start)", v: fmtPts(rsAt), cls: tone(rsAt) });
   if (levels) rows.push({ sw: { color: C.avg, dash: DASH.avg }, k: "vs avg cost", v: fmtChg(c[hover] / levels.avg - 1), cls: tone(c[hover] / levels.avg - 1) });
