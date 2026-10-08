@@ -32,25 +32,25 @@ export function weekday(s: string): number {
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
 
-/** Date-only string formats. */
-export function fmtD(s: string | null | undefined, style: "dmy" | "md" | "long" | "my" | "dm" = "dmy"): string {
+let curYear: number | null = null;
+/** This year in New York (computed on first use; these components only render client-side with data). */
+function thisYear(): number {
+  if (curYear == null) curYear = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric" }).format(new Date()));
+  return curYear;
+}
+
+/**
+ * The screen's ONE date format: "Oct 07", with " '25" appended for any other
+ * year. `long` prefixes the weekday ("Thu Sep 03"). Legacy style names map here.
+ */
+export function fmtD(s: string | null | undefined, style: "dmy" | "md" | "long" | "my" | "dm" = "md"): string {
   if (!s) return "—";
   const [y, m, d] = ymd(s);
-  const dd = String(d).padStart(2, "0");
-  const mon = MONTHS[m - 1];
-  const yy = String(y).slice(2);
-  switch (style) {
-    case "md":
-      return `${mon} ${dd}`;
-    case "dm":
-      return `${dd} ${mon}`;
-    case "my":
-      return `${mon} ’${yy}`;
-    case "long":
-      return `${WEEKDAYS[weekday(s)]} ${dd} ${mon} ${y}`;
-    default:
-      return `${dd} ${mon} ${yy}`;
-  }
+  const yy = y === thisYear() ? "" : ` ’${String(y).slice(2)}`;
+  const base = `${MONTHS[m - 1]} ${String(d).padStart(2, "0")}`;
+  if (style === "my") return `${MONTHS[m - 1]} ’${String(y).slice(2)}`;
+  if (style === "long") return `${WEEKDAYS[weekday(s)]} ${base}${yy}`;
+  return `${base}${yy}`;
 }
 
 const ET_DATE = new Intl.DateTimeFormat("en-CA", {

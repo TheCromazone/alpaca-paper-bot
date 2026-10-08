@@ -60,7 +60,29 @@ function derive(d: RiskResp) {
   return { rets, best, worst, trough, up, inv, effN, top5Inv };
 }
 
+/** /terminal/risk fields added server-side (not yet in lib/api types). */
+type GuardX = RiskGuard & {
+  guard_kind?: "stop" | "cut";
+  guard_price?: number | null;
+  guard_distance?: number | null;
+  usd_beyond?: number | null;
+  stop_enforced_by?: "broker" | "synthetic" | "none";
+};
+type Protection = { last_sync_at?: string | null; scheduler_alive?: boolean; dry_run?: boolean; synthetic_stops?: boolean };
+const protectionOf = (d: RiskResp) => (d as RiskResp & { protection?: Protection }).protection ?? null;
+
 const minDist = (g: RiskGuard) => Math.min(g.stop_distance ?? 9, g.cut_distance ?? 9);
+/** The binding guard: the higher of stop and cut (closest to / furthest through price). */
+const binding = (g: GuardX) => {
+  const d = g.guard_distance ?? minDist(g);
+  const kind = g.guard_kind ?? ((g.stop_distance ?? 9) <= (g.cut_distance ?? 9) ? "stop" : "cut");
+  return { d: d === 9 ? null : d, kind };
+};
+
+/** Config sector keys → display names ("FixedIncome" → "Fixed income"). */
+const SECTOR_NAMES: Record<string, string> = { FixedIncome: "Fixed income", RealEstate: "Real estate", ConsumerStaples: "Consumer staples", ConsumerDiscretionary: "Consumer disc." };
+export const sectorName = (k: string) =>
+  SECTOR_NAMES[k] ?? k.replace(/([a-z])([A-Z])/g, (_, a: string, b: string) => `${a} ${b.toLowerCase()}`);
 
 /** One color rule everywhere: red = beyond the level (price below it),
  *  amber = within 2% above it, neutral otherwise. Badges use the same. */
@@ -93,45 +115,55 @@ const axX = (v: number, w: number) => ((Math.max(-AX, Math.min(AX, v)) + AX) / (
 const TONE_C = { breach: "var(--alert)", near: "var(--warn)", ok: "var(--ink-3)", na: "var(--ink-4)" } as const;
 const TICKS = [-0.2, -0.1, 0.1, 0.2];
 
-function CushionBars({ g, width = 116, height = 18 }: { g: RiskGuard; width?: number; height?: number }) {
+function CushionBars({ g, width = 150, height = 18 }: { g: GuardX; width?: number; height?: number }) {
+  const { d, kind } = binding(g);
   const x0 = axX(0, width);
-  const bar = (d: number | null, y: number, h: number, key: string) => {
-    if (d == null || !Number.isFinite(d)) return null;
-    const x1 = axX(d, width);
-    const c = TONE_C[distTone(d)];
-    const over = Math.abs(d) > AX;
-    const label = `${d > 0 ? "+" : "−"}${Math.round(Math.abs(d) * 100)}%`;
+  const f = (v: number | null | undefined) => (v == null ? "—" : `${v >= 0 ? "+" : "−"}${Math.abs(v * 100).toFixed(2)}%`);
+  const title = `${g.ticker} ${fmtPx(g.price)} · binding guard: ${kind} ${fmtPx(kind === "stop" ? g.stop_price : g.cut_price)} (${f(d)}) · to stop ${f(g.stop_distance)} · to cut ${f(g.cut_distance)}`;
+  if (d == null || !Number.isFinite(d)) {
     return (
-      <g key={key}>
-        <rect x={Math.min(x0, x1)} y={y} width={Math.max(1.5, Math.abs(x1 - x0) - (over ? 5 : 0))} height={h} fill={c} transform={over && d < 0 ? "translate(5,0)" : undefined} />
-        {over && (
-          <>
-            <path d={d > 0 ? `M${width - 6},${y - 1.5}L${width},${y + h / 2}L${width - 6},${y + h + 1.5}Z` : `M6,${y - 1.5}L0,${y + h / 2}L6,${y + h + 1.5}Z`} fill={c} />
-            <rect x={d > 0 ? width - 31 : 7} y={y + h / 2 - 5} width={24} height={10} fill="#000" />
-            <text x={d > 0 ? width - 8 : 9} y={y + h / 2 + 3.2} textAnchor={d > 0 ? "end" : "start"} fill={c} fontSize={8.5} fontFamily="var(--font-plex-mono)" fontWeight={600}>
-              {label}
-            </text>
-          </>
-        )}
-      </g>
+      <svg width={width} height={height} aria-hidden="true">
+        <line x1={x0} x2={x0} y1={0} y2={height} stroke="var(--ink-2)" />
+      </svg>
     );
-  };
-  const f = (d: number | null) => (d == null ? "—" : `${d >= 0 ? "+" : "−"}${Math.abs(d * 100).toFixed(2)}%`);
+  }
+  const c = TONE_C[distTone(d)];
+  const x1 = axX(d, width);
+  const over = Math.abs(d) > AX;
+  const bh = 10;
+  const by = (height - bh) / 2;
+  const label = `${kind === "stop" ? "S" : "C"} ${d >= 0 ? "+" : "−"}${Math.abs(d * 100).toFixed(1)}`;
+  const lw = label.length * 5.3 + 2;
+  // Value sits at the bar's outer end; if that would leave the plot, it goes
+  // inside the bar (dark text) or, for a hairline bar, on the other side of 0.
+  let lx: number, anchor: "start" | "end", fill: string;
+  if (d >= 0) {
+    if (x1 + 3 + lw <= width) [lx, anchor, fill] = [x1 + 3, "start", c];
+    else if (x1 - x0 >= lw + 6) [lx, anchor, fill] = [x1 - (over ? 9 : 3), "end", "#000"];
+    else [lx, anchor, fill] = [x0 - 3, "end", c];
+  } else {
+    if (x1 - 3 - lw >= 0) [lx, anchor, fill] = [x1 - 3, "end", c];
+    else if (x0 - x1 >= lw + 6) [lx, anchor, fill] = [x1 + (over ? 9 : 3), "start", "#000"];
+    else [lx, anchor, fill] = [x0 + 3, "start", c];
+  }
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: "block", marginLeft: "auto", overflow: "visible" }} role="img">
-      <title>{`${g.ticker} ${fmtPx(g.price)} · to stop ${fmtPx(g.stop_price)}: ${f(g.stop_distance)} · to cut ${fmtPx(g.cut_price)}: ${f(g.cut_distance)}`}</title>
+      <title>{title}</title>
       {TICKS.map((v) => (
         <line key={v} x1={axX(v, width)} x2={axX(v, width)} y1={1} y2={height - 1} stroke="var(--line-2)" strokeWidth={1} strokeDasharray="1 2" />
       ))}
-      {bar(g.stop_distance, 3, 5, "s")}
-      {bar(g.cut_distance, 10, 5, "c")}
+      <rect x={Math.min(x0, x1) + (over && d < 0 ? 6 : 0)} y={by} width={Math.max(2, Math.abs(x1 - x0) - (over ? 6 : 0))} height={bh} fill={c} />
+      {over && <path d={d > 0 ? `M${width - 7},${by - 2}L${width},${by + bh / 2}L${width - 7},${by + bh + 2}Z` : `M7,${by - 2}L0,${by + bh / 2}L7,${by + bh + 2}Z`} fill={c} />}
       <line x1={x0} x2={x0} y1={0} y2={height} stroke="var(--ink-2)" strokeWidth={1} />
+      <text x={lx} y={by + bh - 1.5} textAnchor={anchor} fill={fill} fontSize={8.8} fontWeight={600} fontFamily="var(--font-plex-mono)">
+        {label}
+      </text>
     </svg>
   );
 }
 
 /** Header ticks for the common cushion axis (percent). */
-function CushionAxis({ width = 116 }: { width?: number }) {
+function CushionAxis({ width = 150 }: { width?: number }) {
   return (
     <svg width={width} height={11} viewBox={`0 0 ${width} 11`} style={{ display: "block", marginLeft: "auto", overflow: "visible" }} aria-label="Cushion axis −25% to +25%">
       {[-0.2, -0.1, 0, 0.1, 0.2].map((v) => (
@@ -153,16 +185,15 @@ function CushionAxis({ width = 116 }: { width?: number }) {
 
 function RailKey() {
   return (
-    <span className={s.railKey} title="Each row: % distance from price down to the guard, on one common ±25% axis. Left of 0 = price below the guard (breached).">
+    <span className={s.railKey} title="One bar per row for the binding guard (the higher of the 10% trailing stop and the −7% cut), on a common ±25% axis. Left of 0 = price below the guard (breached).">
       <span className={s.key}>
-        <svg width={16} height={12} aria-hidden="true">
-          <rect x={8} y={1} width={8} height={4} fill="var(--ink-3)" />
-          <rect x={8} y={7} width={5} height={4} fill="var(--ink-3)" />
-          <line x1={8} x2={8} y1={0} y2={12} stroke="var(--ink-2)" />
+        <svg width={18} height={12} aria-hidden="true">
+          <rect x={9} y={1} width={9} height={10} fill="var(--ink-3)" />
+          <line x1={9} x2={9} y1={0} y2={12} stroke="var(--ink-2)" />
         </svg>
-        upper = stop · lower = cut
+        binding guard · S stop · C cut
       </span>
-      <span className={s.key}>cushion % · left of 0 = breached</span>
+      <span className={s.key}>left of 0 = breached</span>
     </span>
   );
 }
@@ -179,18 +210,6 @@ function Ern({ g }: { g: RiskGuard }) {
       style={{ color: blackout ? undefined : "var(--ink-2)" }}
     >
       {days}d
-    </span>
-  );
-}
-
-function StopFlag({ broker }: { broker: boolean }) {
-  return (
-    <span
-      className={s.flag}
-      data-on={broker || undefined}
-      title={broker ? "Broker trailing-stop order is live at Alpaca" : "Synthetic — no broker stop order (fractional/DAY limits); enforced by the midday routine"}
-    >
-      {broker ? "BRK" : "SYN"}
     </span>
   );
 }
@@ -296,8 +315,8 @@ function SectorLoad({ d, page }: { d: RiskResp; page: boolean }) {
       {d.sector_load.map((x) => {
         const c = x.over ? "var(--alert)" : x.weight >= x.cap * 0.8 ? "var(--warn)" : "rgba(59,140,255,0.8)";
         return (
-          <div key={x.sector} className={s.sector} title={`${x.sector}: ${pct(x.weight)} of equity · cap ${pct(x.cap, 0)}`}>
-            <span className={s.sectorName}>{x.sector}</span>
+          <div key={x.sector} className={s.sector} title={`${sectorName(x.sector)}: ${pct(x.weight)} of equity · cap ${pct(x.cap, 0)}`}>
+            <span className={s.sectorName}>{sectorName(x.sector)}</span>
             <Bar value={x.weight} max={max} cap={x.cap} color={c} width="100%" height={page ? 7 : 5} />
             <span className={s.sectorVal} style={{ color: x.over ? "var(--alert)" : undefined }}>
               {pct(x.weight, 1)}
@@ -323,7 +342,7 @@ function Weights({ d }: { d: RiskResp }) {
           <Link href={`/security/${encodeURIComponent(w.ticker)}`} className="tkr held">
             {w.ticker}
           </Link>
-          <span style={{ color: "var(--ink-3)", fontFamily: "var(--font-plex-cond)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.sector}</span>
+          <span style={{ color: "var(--ink-3)", fontFamily: "var(--font-plex-cond)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sectorName(w.sector)}</span>
           <Bar value={w.weight} max={max} cap={POSITION_CAP} color={w.weight > POSITION_CAP ? "var(--warn)" : "rgba(59,140,255,0.8)"} width="100%" height={6} />
           <span>{pct(w.weight, 2)}</span>
           <span style={{ color: "var(--ink-2)" }}>${fmtNum(w.market_value, 0)}</span>
@@ -335,87 +354,99 @@ function Weights({ d }: { d: RiskResp }) {
 
 // ── guard table ──────────────────────────────────────────────────────────
 
-/** True when every guard has the same stop type — the column is then dead. */
-export const uniformStops = (d: RiskResp) => d.guards.length > 0 && d.guards.every((g) => g.broker_stop === d.guards[0].broker_stop);
-
+/** How breached stops get executed right now (broker order / sync job / nobody). */
 function StopNote({ d }: { d: RiskResp }) {
   if (!d.guards.length) return null;
+  const p = protectionOf(d);
   const n = d.guards.filter((g) => g.broker_stop).length;
-  const all = n === d.guards.length;
+  const armed = !!p?.synthetic_stops;
+  const why = [p?.scheduler_alive === false ? "scheduler down" : null, p?.dry_run ? "dry run" : null].filter(Boolean).join(" · ");
+  if (n === d.guards.length) return <span className="pill" title="Every position has a live broker trailing-stop order">Broker stops</span>;
   return (
     <span
-      className={`pill ${n === 0 ? "warn" : ""}`}
+      className={`pill ${armed ? "" : "alert"}`}
       title={
-        n === 0
-          ? "No broker trailing-stop orders are live (Alpaca rejects GTC trailing stops on fractional qty). Stops are synthetic: the midday routine's −7% cut is the only enforced exit."
-          : `${n} of ${d.guards.length} positions have a live broker trailing-stop order`
+        armed
+          ? "Breached trailing stops without a broker order are sold by the 5-min sync_account job."
+          : `No broker stop orders${n ? ` on ${d.guards.length - n} positions` : ""}, and the 5-min sync_account job that sells breached synthetic stops is not running${why ? ` (${why})` : ""}. Nothing will sell a breach automatically; the −7% cut needs the midday routine.`
       }
     >
-      {n === 0 ? "All stops synthetic" : all ? "All broker stops" : `${n}/${d.guards.length} broker stops`}
+      {armed ? "Synthetic stops armed" : "Stops not armed"}
     </span>
   );
 }
 
+const ENF_TEXT = { broker: "broker", synthetic: "sync job", none: "none" } as const;
+
 function GuardTable({ d, page }: { d: RiskResp; page: boolean }) {
   const guards = useMemo(() => [...d.guards].sort((a, b) => minDist(a) - minDist(b)), [d.guards]);
   const wt = useMemo(() => new Map(d.weights.map((w) => [w.ticker, w.weight])), [d.weights]);
-  const showStp = !uniformStops(d);
+  const railW = page ? 200 : 160;
   if (!guards.length) return <Empty>No open positions — nothing to guard.</Empty>;
   return (
     <table className={`tbl ${s.guards}`}>
       <thead>
         <tr>
           <th>Tkr</th>
-          <th>Last</th>
+          {page && <th>Last</th>}
           {page && <th>Avg cost</th>}
           <th>P&amp;L</th>
-          <th title="Cushion to each guard on one common ±25% axis (upper bar = stop, lower bar = cut)" style={{ paddingTop: 2, paddingBottom: 1 }}>
-            <CushionAxis width={page ? 180 : 116} />
+          <th title="Binding guard (S = 10% trailing stop, C = −7% cut) on one common ±25% axis" style={{ paddingTop: 2, paddingBottom: 1 }}>
+            <CushionAxis width={railW} />
           </th>
           {page && <th>Stop px</th>}
           <th title="Distance from price down to the trailing stop">→ Stop</th>
           {page && <th>Cut px</th>}
           <th title="Distance from price down to the midday −7% from-cost cut">→ Cut</th>
           {page && <th>Trail</th>}
-          {showStp && <th title="BRK = broker trailing-stop order live · SYN = synthetic">Stp</th>}
+          <th title="Who executes the trailing stop on a breach: broker = live Alpaca order · sync job = 5-min synthetic-stop sweep · none = nothing will (manual action needed)">
+            Exit by
+          </th>
           <th title="Days to next earnings report (≤2 = blackout)">Ern</th>
           <th title="Weight of equity">Wt</th>
         </tr>
       </thead>
       <tbody>
-        {guards.map((g) => {
-          const tones = [distTone(g.stop_distance), distTone(g.cut_distance)];
+        {(guards as GuardX[]).map((g) => {
+          // Row state follows the BINDING guard — the same rule as the badges.
+          const bt = distTone(binding(g).d);
+          const enf = g.stop_enforced_by ?? (g.broker_stop ? "broker" : "none");
           return (
-            <tr
-              key={g.ticker}
-              data-row=""
-              data-cut-ok=""
-              data-breach={tones.includes("breach") || undefined}
-              data-near={(!tones.includes("breach") && tones.includes("near")) || undefined}
-            >
+            <tr key={g.ticker} data-row="" data-cut-ok="" data-breach={bt === "breach" || undefined} data-near={bt === "near" || undefined}>
               <td>
                 <Link href={`/security/${encodeURIComponent(g.ticker)}`} className="tkr">
                   {g.ticker}
                 </Link>
               </td>
-              <td style={{ color: "var(--ink-2)" }}>{fmtPx(g.price)}</td>
+              {page && <td style={{ color: "var(--ink-2)" }}>{fmtPx(g.price)}</td>}
               {page && <td style={{ color: "var(--ink-3)" }}>{fmtPx(g.avg_cost)}</td>}
               <td>
                 <Chg value={g.pnl_pct} />
               </td>
               <td style={{ paddingTop: 0, paddingBottom: 0 }}>
-                <CushionBars g={g} width={page ? 180 : 116} />
+                <CushionBars g={g} width={railW} />
               </td>
               {page && <td style={{ color: "var(--ink-3)" }}>{fmtPx(g.stop_price)}</td>}
               <DistCell d={g.stop_distance} title={`Trailing stop ${fmtPx(g.stop_price)} (${pct(g.trail_pct, 0)} trail)`} />
               {page && <td style={{ color: "var(--ink-3)" }}>{fmtPx(g.cut_price)}</td>}
               <DistCell d={g.cut_distance} title={`Midday cut ${fmtPx(g.cut_price)} (cost −${MIDDAY_CUT * 100}%)`} />
               {page && <td style={{ color: "var(--ink-3)" }}>{pct(g.trail_pct, 0)}</td>}
-              {showStp && (
-                <td>
-                  <StopFlag broker={g.broker_stop} />
-                </td>
-              )}
+              <td
+                className={s.enf}
+                data-enf={enf}
+                data-hot={(enf === "none" && bt === "breach") || undefined}
+                title={
+                  enf === "none"
+                    ? bt === "breach"
+                      ? `Breached and nothing will sell it automatically${g.usd_beyond ? ` — $${fmtNum(g.usd_beyond, 0)} beyond the guard` : ""}`
+                      : "No broker order and the sync job is not armed"
+                    : enf === "broker"
+                      ? "Live Alpaca trailing-stop order"
+                      : "Sold by the 5-min sync_account sweep on a breach"
+                }
+              >
+                {ENF_TEXT[enf]}
+              </td>
               <td>
                 <Ern g={g} />
                 {page && g.earnings_at && <span style={{ color: "var(--ink-4)", marginLeft: 5 }}>{fmtD(g.earnings_at)}</span>}
@@ -444,11 +475,11 @@ export function RiskPanel({
   const { data, isLoading, isError } = useRisk();
   const x = useMemo(() => (data ? derive(data) : null), [data]);
   const defs = data && x ? statDefs(data, x) : null;
-  // Badges count ROWS by the same rule as the cells: a row is "breached" if
-  // any of its distance cells is red, "within 2%" if any cell is amber.
-  const cells = (g: RiskGuard) => [distTone(g.stop_distance), distTone(g.cut_distance)];
-  const breaches = data ? data.guards.filter((g) => cells(g).includes("breach")).length : 0;
-  const near = data ? data.guards.filter((g) => cells(g).includes("near")).length : 0;
+  // Badges count ROWS by their binding guard: breached = through it; within
+  // 2% = NOT breached and the binding guard is less than 2% away.
+  const bTones = data ? (data.guards as GuardX[]).map((g) => distTone(binding(g).d)) : [];
+  const breaches = bTones.filter((x) => x === "breach").length;
+  const near = bTones.filter((x) => x === "near").length;
   const blackout = data ? data.guards.filter((g) => g.earnings_in_days != null && Math.ceil(g.earnings_in_days) <= BLACKOUT_DAYS).length : 0;
 
   return (
@@ -468,12 +499,12 @@ export function RiskPanel({
         data ? (
           <>
             {breaches > 0 && (
-              <span className="pill alert" title="Positions with at least one breached cell: price below its trailing stop or midday cut">
+              <span className="pill alert" title="Positions trading below their binding guard (the higher of the trailing stop and the −7% cut)">
                 {breaches} breached
               </span>
             )}
             {near > 0 && (
-              <span className="pill warn" title="Positions with at least one amber cell: price within 2% above a stop or cut">
+              <span className="pill warn" title="Positions NOT breached whose binding guard (the higher of stop and cut) is less than 2% below price">
                 {near} within 2%
               </span>
             )}
@@ -495,7 +526,7 @@ export function RiskPanel({
                 <span className={s.secTitle}>Position guards · most at risk first</span>
                 <span className={s.secMeta}>
                   <RailKey />
-                  {uniformStops(data) && <StopNote d={data} />}
+                  <StopNote d={data} />
                 </span>
               </div>
               <ScrollHost>
@@ -549,7 +580,7 @@ export function RiskPanel({
             </span>
             <span className={s.secMeta}>
               <RailKey />
-              {uniformStops(data) && <StopNote d={data} />}
+              <StopNote d={data} />
             </span>
           </div>
           <ScrollHost>

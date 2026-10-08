@@ -54,7 +54,7 @@ function weekdaysBetween(from: string, to: string) {
 const REGIME: Record<string, { text: string; color: string; bg: string; border: string }> = {
   risk_on: { text: "RISK ON", color: "var(--ink)", bg: "transparent", border: "var(--ink-3)" },
   neutral: { text: "NEUTRAL", color: "var(--ink)", bg: "transparent", border: "var(--ink-3)" },
-  risk_off: { text: "RISK OFF", color: "var(--alert)", bg: "var(--alert-bg)", border: "rgba(255, 92, 176, 0.5)" },
+  risk_off: { text: "RISK OFF", color: "var(--alert)", bg: "var(--alert-bg)", border: "rgba(199, 125, 255, 0.5)" },
 };
 
 export function KpiStrip({ className = "", style }: { className?: string; style?: CSSProperties }) {
@@ -64,6 +64,7 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
   const perf = useQuery({ queryKey: ["performance"], queryFn: api.performance, refetchInterval: 60_000 });
   const regime = useQuery({ queryKey: ["regime"], queryFn: api.regime, refetchInterval: 300_000, retry: false });
   const bot = useQuery({ queryKey: ["bot-status"], queryFn: api.botStatus, refetchInterval: 30_000 });
+  const brief = useQuery({ queryKey: ["brief"], queryFn: term.brief, refetchInterval: 60_000 });
   const positions = usePositions();
   const monitor = useHeldMonitor(positions.data);
 
@@ -151,8 +152,9 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
     const pnl = S.equity - base.equity;
     const pctV = pnl / base.equity;
     const spy = intraday ? null : d.spyRets[d.spyRets.length - 1] ?? null;
-    return { pnl, pct: pctV, spy, bp: spy == null ? null : (pctV - spy) * 10_000 };
-  }, [S, curve, d.spyRets]);
+    const rel = brief.data?.rel_spy_1d;
+    return { pnl, pct: pctV, spy, bp: rel != null ? rel * 10_000 : spy == null ? null : (pctV - spy) * 10_000 };
+  }, [S, curve, d.spyRets, brief.data]);
 
   const pos = useMemo(() => positions.data ?? [], [positions.data]);
   const ranked = useMemo(() => [...pos].sort((a, b) => b.unrealized_pct - a.unrealized_pct), [pos]);
@@ -183,14 +185,15 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
       {/* ── primary ─────────────────────────────────────────────── */}
       <Tile
         primary
+        book={snapshot}
         dim={stale}
         href="/positions"
         label="Equity"
         tag={
           <>
             {snapshot && S?.as_of && (
-              <span className={`pill warn ${s.chip}`} title="Book figures in this strip come from the last local snapshot (Alpaca unreachable)">
-                <span className={s.long}>as of </span>
+              <span className={`pill warn ${s.chip}`} title="The five book tiles marked with the amber top rule come from the last local snapshot (Alpaca unreachable)">
+                <span className={s.long}>book · </span>
                 {now ? fmtAge(S.as_of, now) : "—"}
               </span>
             )}
@@ -238,6 +241,7 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
       <Tile
         primary
         groupEnd
+        book={snapshot}
         dim={stale}
         href="/positions"
         label="P&L today"
@@ -255,7 +259,7 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
             </span>
             <span>
               <span className={s.v} style={{ color: toneVar(day?.bp) }}>
-                {day?.bp == null ? "—" : `${day.bp > 0 ? "+" : day.bp < 0 ? MINUS : ""}${Math.abs(day.bp).toFixed(1)}`}
+                {day?.bp == null ? "—" : `${Math.round(day.bp) > 0 ? "+" : Math.round(day.bp) < 0 ? MINUS : ""}${Math.abs(Math.round(day.bp))}`}
               </span>{" "}
               bp vs SPY
             </span>
@@ -269,6 +273,7 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
       />
 
       <Tile
+        book={snapshot}
         dim={stale}
         href="/positions"
         label="Unrealized"
@@ -314,6 +319,7 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
       />
 
       <Tile
+        book={snapshot}
         dim={stale}
         href="/risk"
         label="Drawdown"
@@ -342,6 +348,44 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
 
       {/* ── secondary ───────────────────────────────────────────── */}
       <Tile
+        book={snapshot}
+        bookEnd
+        dim={stale}
+        href="/positions"
+        label="Capacity"
+        title="Cash share of equity · cash free · next position size at the 5% cap · position slots used of the 25-name cap"
+        loading={summary.isLoading && risk.isLoading}
+        value={
+          <Flash value={cashPct}>
+            <span>
+              {pct(cashPct)}
+              <span className={s.unit}>cash</span>
+            </span>
+          </Flash>
+        }
+        sub={
+          <>
+            <span className={s.v}>{usdK(S?.cash)}</span>
+            <span className={s.opt2}>
+              <KV k="next" v={finite(S?.equity) ? `$${((S!.equity * 0.05) / 1e3).toFixed(1)}K` : "—"} />
+            </span>
+          </>
+        }
+        band={
+          <Band
+            left={<>position slots</>}
+            right={
+              <>
+                <span className={s.cv}>{nPos ?? "—"}</span> of {maxPos}
+              </>
+            }
+          >
+            {nPos != null ? <MicroSlots n={nPos} max={maxPos} /> : null}
+          </Band>
+        }
+      />
+
+      <Tile
         href="/risk"
         label="Return ITD"
         title={`Since ${inception ? monDay(inception) : "inception"}: bot vs S&P 500 (SPY)`}
@@ -351,7 +395,7 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
             <span style={{ color: toneVar(botItd) }}>{finite(botItd) ? fmtChg(botItd / 100) : "—"}</span>
           </Flash>
         }
-        sub={<KV k="Alpha" v={finite(alpha) ? `${signed(alpha)} pp` : "—"} color={toneVar(alpha)} />}
+        sub={<KV k="vs SPY" v={finite(alpha) ? `${signed(alpha)}pp` : "—"} color={toneVar(alpha)} />}
         band={
           <Band
             left={
@@ -381,6 +425,7 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
       <Tile
         href="/risk"
         label="Sharpe"
+        tag={<span className={s.winTag}>{curve.length > 1 ? `${curve.length - 1}d · annualized` : "annualized"}</span>}
         title="Annualized, since inception. Chart: how daily returns are distributed between the bounds shown (outliers pile into the end bars); the white tick is the latest session."
         loading={risk.isLoading}
         value={
@@ -463,35 +508,6 @@ export function KpiStrip({ className = "", style }: { className?: string; style?
       />
 
       <Tile
-        dim={stale}
-        href="/positions"
-        label="Capacity"
-        title="Cash share of equity · buying power includes margin · position slots used of the 25-name cap"
-        loading={summary.isLoading && risk.isLoading}
-        value={
-          <Flash value={cashPct}>
-            <span>
-              {pct(cashPct)}
-              <span className={s.unit}>cash</span>
-            </span>
-          </Flash>
-        }
-        sub={<KV k="Buying power" v={usdK(S?.buying_power)} />}
-        band={
-          <Band
-            left={<>position slots</>}
-            right={
-              <>
-                <span className={s.cv}>{nPos ?? "—"}</span> of {maxPos}
-              </>
-            }
-          >
-            {nPos != null ? <MicroSlots n={nPos} max={maxPos} /> : null}
-          </Band>
-        }
-      />
-
-      <Tile
         href="/risk"
         label="Regime"
         title={G ? `As of ${monDay(etDay(G.as_of ?? ""))} · VIX 5-day change ${signed(G.vix_5d_change)} · breadth ${finite(G.breadth_pct) ? `${G.breadth_pct.toFixed(0)}%` : "—"}` : undefined}
@@ -520,6 +536,8 @@ function Tile({
   href,
   primary,
   groupEnd,
+  book,
+  bookEnd,
   dim,
   loading,
 }: {
@@ -532,6 +550,9 @@ function Tile({
   href?: string;
   primary?: boolean;
   groupEnd?: boolean;
+  /** Book-derived tile served from the snapshot: shares the amber top rule. */
+  book?: boolean;
+  bookEnd?: boolean;
   dim?: boolean;
   loading?: boolean;
 }) {
@@ -546,7 +567,7 @@ function Tile({
       {loading ? null : band}
     </>
   );
-  const cls = `${s.tile}${primary ? ` ${s.primary}` : ""}${groupEnd ? ` ${s.groupEnd}` : ""}${dim ? ` ${s.dim}` : ""}`;
+  const cls = `${s.tile}${primary ? ` ${s.primary}` : ""}${groupEnd ? ` ${s.groupEnd}` : ""}${book ? ` ${s.book}` : ""}${bookEnd ? ` ${s.bookEnd}` : ""}${dim ? ` ${s.dim}` : ""}`;
   return href ? (
     <Link href={href} className={cls} prefetch={false} title={title}>
       {inner}

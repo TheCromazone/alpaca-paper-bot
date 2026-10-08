@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, term, ManualTradeResult, PortfolioSummary, PositionRow } from "@/lib/api";
 import { fmtChg, fmtNum, fmtPx, fmtUSD, tone } from "@/lib/format";
 import { RangeBar, marketSession, useNow } from "./term/ui";
+import { sectorName } from "./term/RiskPanel";
 import s from "./ManualTradePanel.module.css";
 
 /**
@@ -113,7 +114,7 @@ export function ManualTradePanel({ className = "", style }: { className?: string
   const blackout = earnDays != null && earnDays <= 2;
   const quote1d = mon?.chg_1d ?? quote?.chg_1d ?? null;
   const fromHi = mon?.last != null && mon.hi_52w ? mon.last / mon.hi_52w - 1 : null;
-  const heldList = useMemo(() => [...(positions ?? [])].sort((a, b) => b.market_value - a.market_value).slice(0, 8), [positions]);
+  const heldList = useMemo(() => [...(positions ?? [])].sort((a, b) => b.market_value - a.market_value), [positions]);
 
   // Reference price for estimates only — the API sizes off its own live quote.
   const refPx = existing?.market_price ?? mon?.last ?? quote?.last ?? null;
@@ -216,7 +217,7 @@ export function ManualTradePanel({ className = "", style }: { className?: string
         <header className="panel-head">
           <span className="panel-code">TKT</span>
           <h2 className="panel-title">Manual order</h2>
-          <span className="panel-sub" title="The manual endpoint places market orders only, time-in-force DAY — no limit price, no GTC">
+          <span className="panel-sub" style={{ color: "var(--ink-2)", fontSize: 10.5 }} title="The manual endpoint places market orders only, time-in-force DAY — no limit price, no GTC">
             market orders only · DAY
           </span>
         </header>
@@ -337,7 +338,7 @@ export function ManualTradePanel({ className = "", style }: { className?: string
               <>
                 <div className={s.ctxHead}>
                   <span>Account</span>
-                  <span className={s.ctxMeta}>{summary ? `${summary.position_count}/25 positions` : ""}</span>
+                  <span className={s.ctxMeta}>{summary?.source === "db_fallback" ? "last snapshot" : "live"}</span>
                 </div>
                 <div className={s.grid2}>
                   <div className={s.kv}>
@@ -369,37 +370,40 @@ export function ManualTradePanel({ className = "", style }: { className?: string
                     <span>5% cap</span>
                     <span>{equity ? fmtUSD(fivePctCap, { compact: true }) : "—"}</span>
                   </div>
+                  <div className={s.kv} title="Market value of open positions">
+                    <span>Invested</span>
+                    <span>
+                      {summary ? fmtUSD(summary.invested, { compact: true }) : "—"}
+                      {summary && summary.equity > 0 && <span className={s.dim}> {((summary.invested / summary.equity) * 100).toFixed(0)}%</span>}
+                    </span>
+                  </div>
+                  <div className={s.kv} title="Open positions vs the bot's 25-position cap">
+                    <span>Positions</span>
+                    <span>
+                      {summary ? summary.position_count : "—"}
+                      <span className={s.dim}> / 25</span>
+                    </span>
+                  </div>
                 </div>
                 {heldList.length > 0 && (
                   <>
-                    <div className={s.ctxHead} style={{ marginTop: 2 }}>
+                    <div className={s.ctxHead} style={{ marginTop: 4 }}>
                       <span>Positions · click to load</span>
-                      <span className={s.ctxMeta}>
-                        {positions && positions.length > heldList.length ? `top ${heldList.length} of ${positions.length}` : ""} by value ↓
-                      </span>
+                      <span className={s.ctxMeta}>weight · by value ↓</span>
                     </div>
-                    {/* column-major: read down the left column, then the right */}
-                    <div className={s.pick} style={{ gridTemplateRows: `repeat(${Math.ceil(heldList.length / 2) + 1}, auto)` }}>
-                      {[heldList.slice(0, Math.ceil(heldList.length / 2)), heldList.slice(Math.ceil(heldList.length / 2))].flatMap((col, c) => [
-                        <div key={`h${c}`} className={`${s.pickRow} ${s.pickHead}`} aria-hidden="true">
-                          <span>Tkr</span>
-                          <span>Wt</span>
-                          <span>P&amp;L</span>
-                        </div>,
-                        ...col.map((p) => (
+                    <div className={s.chipsHeld}>
+                      {heldList.map((p) => (
                         <button
                           key={p.ticker}
                           type="button"
-                          className={s.pickRow}
+                          className={s.heldChip}
                           onClick={() => setSymbol(p.ticker)}
                           title={`Load ${p.ticker} · ${fmtNum(p.qty, 2)} sh @ ${fmtPx(p.avg_cost)} · last ${fmtPx(p.market_price)}`}
                         >
-                          <span className={s.pickTkr}>{p.ticker}</span>
-                          <span className={s.dim}>{equity > 0 ? `${((p.market_value / equity) * 100).toFixed(1)}%` : ""}</span>
-                          <span className={tone(p.unrealized_pct)}>{fmtChg(p.unrealized_pct, 1)}</span>
+                          <b>{p.ticker}</b>
+                          <span>{equity > 0 ? `${((p.market_value / equity) * 100).toFixed(1)}%` : ""}</span>
                         </button>
-                        )),
-                      ])}
+                      ))}
                     </div>
                   </>
                 )}
@@ -411,7 +415,7 @@ export function ManualTradePanel({ className = "", style }: { className?: string
                     {symU}
                     {mon?.name && <span className={s.ctxName}> {mon.name}</span>}
                   </span>
-                  {sector && <span className={s.ctxMeta}>{sector}</span>}
+                  {sector && <span className={s.ctxMeta}>{sectorName(sector)}</span>}
                 </div>
                 <div className={s.grid2}>
                   <div className={s.kv}>
@@ -475,7 +479,7 @@ export function ManualTradePanel({ className = "", style }: { className?: string
                     </span>
                   </div>
                   <div className={s.kv} title={`Sector${sector ? ` ${sector}` : ""} weight before → after vs the 25% sector cap (est.)`}>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{sector ?? "Sector"}</span>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{sector ? sectorName(sector) : "Sector"}</span>
                     <span>
                       {sectorNow != null && sectorAfter != null ? (
                         <>

@@ -204,6 +204,13 @@ export type BotStatus = {
   routines_enabled?: boolean;
   stale?: boolean;
   active?: boolean;
+  /** Stop protection: breached trailing stops without a broker order are sold
+   *  by the 5-min sync job — independent of routines, but only while the
+   *  scheduler is alive and DRY_RUN is off. */
+  scheduler_alive?: boolean;
+  synthetic_stops?: boolean;
+  dry_run?: boolean;
+  last_sync_at?: string | null;
   last_tick_at: string | null;
   last_tick_status: string | null;
   last_tick_kind: string | null;
@@ -600,12 +607,27 @@ export type RiskGuard = {
   cut_distance: number | null;
   trail_pct: number;
   broker_stop: boolean;
+  /** The binding guard (higher of stop and cut) — one calculation for every panel. */
+  guard_kind?: "stop" | "cut" | null;
+  guard_price?: number | null;
+  guard_distance?: number | null;
+  /** Dollars already through the binding guard: (guard − last) × qty. */
+  usd_beyond?: number | null;
+  stop_enforced_by?: "broker" | "synthetic" | "none";
   earnings_at: string | null;
   earnings_in_days: number | null;
 };
 
+export type StopProtection = {
+  last_sync_at: string | null;
+  scheduler_alive: boolean;
+  dry_run: boolean;
+  synthetic_stops: boolean;
+};
+
 export type RiskResp = {
   as_of: string;
+  protection?: StopProtection;
   equity: number | null;
   cash: number | null;
   cash_pct: number | null;
@@ -653,8 +675,14 @@ export type BriefItem = {
     weight?: number | null;
     market_value?: number | null;
     pnl_usd?: number | null;
-    /** $ already through the tightest breached guard (value × depth); 0 if none. */
+    /** $ already through the binding guard: (guard − last) × qty; 0 if none. */
     usd_beyond?: number | null;
+    guard_kind?: "stop" | "cut" | null;
+    guard_price?: number | null;
+    guard_distance?: number | null;
+    stop_enforced_by?: "broker" | "synthetic" | "none";
+    /** MANUAL SELL only: why nothing will sell it. */
+    reason?: string | null;
   } | null;
   /** When the underlying fact was observed: ISO timestamp, or a bare date
    * ("2026-10-08") for report days. Null when unknown. */

@@ -82,7 +82,7 @@ export type TSMarker = { i: number; side: "buy" | "sell"; label: string; value?:
 export type TSShade = { i0: number; i1: number; color: string; opacity?: number };
 
 /** A labelled vertical marker at a session (e.g. "bot idle since Jul 20"). */
-export type TSAnnotation = { i: number; label: string; color?: string };
+export type TSAnnotation = { i: number; label: string; color?: string; /** label line (0 = top) so neighbours never collide */ row?: number };
 
 /** Key items shown in the main pane (markers / shading legend). */
 export type TSKey = { glyph: "buy" | "sell" | "box" | "line" | "chip"; color: string; label: string; opacity?: number; text?: string };
@@ -758,7 +758,7 @@ export function TimeSeriesChart({
                   <line x1={xx} x2={xx} y1={geo.mainTop} y2={geo.dateY} stroke={a.color ?? "var(--ink-3)"} strokeDasharray="2 3" shapeRendering="crispEdges" />
                   <text
                     x={right ? xx - 5 : xx + 5}
-                    y={geo.mainTop + 11}
+                    y={geo.mainTop + 11 + (a.row ?? 0) * 13}
                     textAnchor={right ? "end" : "start"}
                     fontSize={10}
                     fill={a.color ?? "var(--ink-2)"}
@@ -1303,7 +1303,7 @@ export function KeyGlyph({ k }: { k: TSKey }) {
       ) : k.glyph === "buy" || k.glyph === "sell" ? (
         <path d={tri(5, 5, k.glyph === "buy", 3.6)} fill={k.color} />
       ) : k.glyph === "box" ? (
-        <rect x={0.5} y={1.5} width={9} height={7} fill={k.color} fillOpacity={k.opacity ?? 0.35} stroke={k.color} strokeOpacity={0.7} />
+        <rect x={0} y={0.5} width={10} height={9} fill={k.color} fillOpacity={k.opacity ?? 0.35} />
       ) : (
         <line x1={0} x2={10} y1={5} y2={5} stroke={k.color} strokeWidth={2} />
       )}

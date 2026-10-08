@@ -195,14 +195,14 @@ export function EquityGP({ className = "", style }: { className?: string; style?
     });
     flush(view.dates.length - 1);
     const present = new Set(runs.map((r) => r.color));
-    for (const v of Object.values(REGIME_SHADE)) if (present.has(v.color)) keys.push({ glyph: "box", color: v.color, label: v.label, opacity: 0.3 });
+    for (const v of Object.values(REGIME_SHADE)) if (present.has(v.color)) keys.push({ glyph: "box", color: v.color, label: v.label, opacity: v.opacity });
     return { shade: runs, regimeKeys: keys };
   }, [view, regimeAt]);
 
   const keys = useMemo<TSKey[]>(() => {
     const k: TSKey[] = [];
-    k.push({ glyph: "box", color: "var(--up)", label: "bot ahead", opacity: 0.35 });
-    k.push({ glyph: "box", color: "var(--down)", label: "bot behind", opacity: 0.35 });
+    k.push({ glyph: "box", color: "var(--up)", label: "bot ahead", opacity: 0.22 });
+    k.push({ glyph: "box", color: "var(--down)", label: "bot behind", opacity: 0.22 });
     return [...k, ...regimeKeys];
   }, [regimeKeys]);
 
@@ -222,6 +222,27 @@ export function EquityGP({ className = "", style }: { className?: string; style?
     const i = view.dates.findIndex((d) => d >= since);
     return i < 0 ? [] : [{ i, label: `bot idle since ${label}`, color: "var(--alert)" }];
   }, [view, bot.data, trades.data]);
+
+  // the current lag run, labelled where it began
+  const behind = useMemo<TSAnnotation[]>(() => {
+    if (!view) return [];
+    const gap = view.bot.map((b, i) => (b != null && view.spy[i] != null ? b - (view.spy[i] as number) : null));
+    let k = gap.length - 1;
+    while (k >= 0 && gap[k] == null) k--;
+    if (k < 0 || (gap[k] as number) >= 0) return [];
+    let start = k;
+    while (start > 0 && gap[start - 1] != null && (gap[start - 1] as number) < 0) start--;
+    if (start === 0) return [];
+    const d = view.dates[start];
+    return [{ i: start, label: `behind SPY since ${MON[+d.slice(5, 7) - 1]} ${d.slice(8, 10)}`, color: "var(--down)", row: 1 }];
+  }, [view]);
+
+  // largest daily trade count in the window — the trade-lane scale
+  const maxTrades = useMemo(() => {
+    const per = new Map<string, number>();
+    for (const m of markers) per.set(`${m.i}:${m.side}`, (per.get(`${m.i}:${m.side}`) ?? 0) + 1);
+    return Math.max(0, ...per.values());
+  }, [markers]);
 
   const series = useMemo<TSSeries[]>(
     () =>
@@ -275,6 +296,11 @@ export function EquityGP({ className = "", style }: { className?: string; style?
     body = (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(10, minmax(0, auto))", borderBottom: "1px solid var(--line)", flex: "none" }}>
+          <Stat label="vs SPY" title="Bot return minus SPY return over the window, percentage points" lead>
+            <span className={tone(view.botRet != null && view.spyRet != null ? view.botRet - view.spyRet : null)}>
+              {view.botRet != null && view.spyRet != null ? `${signed((view.botRet - view.spyRet) * 100)}pp` : "—"}
+            </span>
+          </Stat>
           <Stat label="Bot" swatch={BOT} title="Cromaz bot return over the window">
             <span className={tone(view.botRet)}>{fmtChg(view.botRet)}</span>
           </Stat>
@@ -290,20 +316,24 @@ export function EquityGP({ className = "", style }: { className?: string; style?
           <Stat label="Down capture" title="Average bot return on SPY down-days ÷ SPY's average down-day return (lower is better)">
             {pct(view.downCap)}
           </Stat>
-          <Stat label="Beat SPY" title="Share of sessions in the window where the bot's daily return beat SPY's">
+          <Stat label="Beat SPY" title="Share of sessions in the window where the bot's daily return beat SPY's" className={g.statOpt}>
             {pct(view.beat)}
           </Stat>
           <Stat label="Tracking err" title="Annualized volatility of (bot − SPY) daily returns">
             {view.te == null ? "—" : `${(view.te * 100).toFixed(1)}%`}
           </Stat>
-          <Stat label="Info ratio" title="Annualized active return ÷ tracking error">
+          <Stat label="Info ratio" title="Annualized active return ÷ tracking error" lastNarrow>
             <span className={tone(view.ir)}>{view.ir == null ? "—" : signed(view.ir)}</span>
           </Stat>
-          <Stat label="Best day" title={view.best ? `Best session: ${shortDate(view.best.d)}` : undefined}>
-            <span className={tone(view.best?.rb)}>{view.best ? fmtChg(view.best.rb) : "—"}</span>
-          </Stat>
-          <Stat label="Worst day" title={view.worst ? `Worst session: ${shortDate(view.worst.d)}` : undefined} last>
-            <span className={tone(view.worst?.rb)}>{view.worst ? fmtChg(view.worst.rb) : "—"}</span>
+          <Stat
+            label="Best / worst day"
+            className={g.statOpt}
+            title={view.best && view.worst ? `Best session ${shortDate(view.best.d)} · worst session ${shortDate(view.worst.d)}` : undefined}
+            last
+          >
+            <span className={tone(view.best?.rb)}>{view.best ? fmtChg(view.best.rb, 1) : "—"}</span>
+            <span style={{ color: "var(--ink-4)", margin: "0 3px" }}>/</span>
+            <span className={tone(view.worst?.rb)}>{view.worst ? fmtChg(view.worst.rb, 1) : "—"}</span>
           </Stat>
         </div>
         <div style={{ flex: 1, minHeight: 0, paddingTop: 2 }}>
@@ -315,7 +345,7 @@ export function EquityGP({ className = "", style }: { className?: string; style?
             markerSeries="bot"
             shade={shade}
             shadeStyle="fill"
-            annotations={annotations}
+            annotations={[...annotations, ...behind]}
             markerLane
             valueAxis="left"
             tagPlacement="axis"
@@ -341,7 +371,7 @@ export function EquityGP({ className = "", style }: { className?: string; style?
                 {k.label}
               </span>
             ))}
-            {markers.length > 0 && <span className={g.keyOpt}>trade tick height = trades that day</span>}
+            {markers.length > 0 && <span className={g.keyOpt}>trade ticks: tallest = {maxTrades} trades/day</span>}
           </span>
         ) : (
           "rebased to window start"
@@ -377,9 +407,32 @@ function RangeSeg({ value, onChange, disabled }: { value: Range; onChange: (r: R
   );
 }
 
-function Stat({ label, swatch, title, last, children }: { label: string; swatch?: string; title?: string; last?: boolean; children: ReactNode }) {
+function Stat({
+  label,
+  swatch,
+  title,
+  last,
+  lead,
+  lastNarrow,
+  className,
+  children,
+}: {
+  label: string;
+  swatch?: string;
+  title?: string;
+  last?: boolean;
+  lead?: boolean;
+  /** Becomes the row's last cell once the optional cells drop out. */
+  lastNarrow?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <div title={title} style={{ padding: "4px 3px 5px 8px", borderRight: last ? 0 : "1px solid var(--line)", minWidth: 0, overflow: "hidden" }}>
+    <div
+      title={title}
+      className={[className, lastNarrow ? g.lastNarrow : ""].filter(Boolean).join(" ") || undefined}
+      style={{ padding: "4px 3px 5px 8px", borderRight: last ? 0 : lead ? "1px solid var(--line-2)" : "1px solid var(--line)", minWidth: 0, overflow: "hidden", background: lead ? "var(--bg-2)" : undefined }}
+    >
       <div className="label" style={{ fontSize: 9, letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", color: "var(--ink-2)" }}>
         {swatch && <span style={{ width: 9, height: 2, background: swatch, display: "inline-block", flex: "none" }} />}
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{label}</span>

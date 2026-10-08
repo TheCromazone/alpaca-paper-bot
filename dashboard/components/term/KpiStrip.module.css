@@ -181,7 +181,7 @@ a.tile:hover .label {
 /* inline label at the end of a reference line */
 .refLabel {
   position: absolute;
-  right: 0;
+  right: 7px;
   padding: 0 3px;
   font-size: 9px;
   line-height: 10px;
@@ -304,5 +304,30 @@ a.tile:hover .refLabel {
   }
   .groupEnd {
     box-shadow: none;
+  }
+}
+
+/* book-derived tiles served from the snapshot share one amber top rule */
+.book {
+  box-shadow: inset 0 2px 0 var(--warn);
+}
+.book.groupEnd {
+  box-shadow: inset 0 2px 0 var(--warn), 1px 0 0 var(--line-2);
+}
+.bookEnd {
+  box-shadow: inset 0 2px 0 var(--warn), 1px 0 0 var(--line-2);
+}
+.winTag {
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 9.5px;
+  color: var(--ink-3);
+}
+.opt2 {
+  display: inline-flex;
+}
+@container (max-width: 112px) {
+  .winTag,
+  .opt2 {
+    display: none;
   }
 }

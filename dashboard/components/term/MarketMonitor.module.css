@@ -606,3 +606,43 @@ button.hcell:hover {
     display: none;
   }
 }
+
+/* round 7 */
+.subhead {
+  height: 14px;
+  flex: none;
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--line);
+}
+.subhead .r {
+  text-align: right;
+  padding-right: 4px;
+}
+.curveRow {
+  position: relative;
+}
+.curveKey {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 10px;
+  color: var(--ink-3);
+}
+.ckSolid,
+.ckDash {
+  display: inline-block;
+  width: 10px;
+  height: 0;
+  border-top: 1.5px solid var(--ink);
+}
+.ckDash {
+  border-top: 1px dashed var(--ink-3);
+  margin-left: 4px;
+}

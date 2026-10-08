@@ -12,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNow } from "@/components/term/ui";
 import { thesisState } from "@/components/term/security/thesisStatus";
+import { enforcement, type BotStatusX } from "@/components/term/security/enforcement";
 import { api, term, type UniverseRow } from "@/lib/api";
 import { Panel, Skeleton } from "@/components/term/ui";
 import { SecurityHeader, type Profile } from "@/components/term/security/SecurityHeader";
@@ -112,7 +113,9 @@ export default function SecurityPage() {
   const { data: bot } = useQuery({ queryKey: ["bot-status"], queryFn: api.botStatus, refetchInterval: 30_000 });
   const tState = useMemo(() => (data ? thesisState(data, bot, now) : null), [data, bot, now]);
   const [botPick, setBotPick] = useState<boolean | null>(null);
-  const botOpen = botPick ?? !(tState?.expired ?? false);
+  // Reasoning is the screen's prime content: open by default; an expired thesis keeps
+  // its status line on top instead of collapsing away.
+  const botOpen = botPick ?? true;
 
   useEffect(() => {
     if (T) document.title = `${T} US Equity · Cromaz Terminal`;
@@ -135,6 +138,8 @@ export default function SecurityPage() {
 
   const last = data.quote?.last ?? data.position?.market_price ?? null;
   const pos = data.position;
+  // ONE answer to "what acts on the stop / the cut?" — read by both the chart and POS.
+  const enf = enforcement(!!pos?.broker_stop, bot as BotStatusX | undefined, now);
   // Position levels are drawn from the day it opened (or its first buy fill).
   const firstBuy = [...data.trades].reverse().find((t) => t.side === "buy");
   const openedOn = pos?.opened_at ? etDate(pos.opened_at) : firstBuy ? etDate(firstBuy.filled_at ?? firstBuy.submitted_at) : null;
@@ -147,9 +152,9 @@ export default function SecurityPage() {
   const nNews = (newsQ.data?.items.length ?? 0) + data.news.length;
   const hasEps = data.earnings.history.length > 0;
   const deckCols = [
-    ...(newsInSide ? [] : [nNews || newsQ.isLoading ? 1.25 : 0.7]),
-    data.signals.length ? 1 : 0.7,
-    1.05,
+    ...(newsInSide ? [] : [nNews || newsQ.isLoading ? 1.1 : 0.7]),
+    data.signals.length ? 1.15 : 0.7,
+    hasEps ? 1.1 : 0.9,
   ]
     .map((f) => `minmax(0, ${f}fr)`)
     .join(" ");
@@ -174,8 +179,8 @@ export default function SecurityPage() {
                     cut: pos.midday_cut_price,
                     peak: pos.peak_price,
                     from: openedOn,
-                    // A broker GTC order is live regardless of the bot; a synthetic level needs the bot running.
-                    enforced: pos.broker_stop || (bot?.active ?? true),
+                    stopArmed: enf.stop.armed,
+                    cutArmed: enf.cut.armed,
                   }
                 : null
             }
@@ -189,7 +194,7 @@ export default function SecurityPage() {
       </div>
       <div className={s.side} style={{ display: "flex", flexDirection: "column" }}>
         <Slot id="pos" focus={focus} flex="0 0 auto">
-          {pos ? <PositionPanel pos={pos} last={last} prev={data.quote?.prev ?? null} trades={data.trades} /> : <LevelsPanel data={data} />}
+          {pos ? <PositionPanel pos={pos} last={last} prev={data.quote?.prev ?? null} trades={data.trades} enf={enf} /> : <LevelsPanel data={data} />}
         </Slot>
         <Slot id="bot" focus={focus} flex={newsInSide ? "0 0 auto" : "1 1 0"}>
           <BotReasoning data={data} last={last} state={tState} collapsed={hasThesis && !botOpen} onToggle={() => setBotPick(!botOpen)} />
@@ -211,11 +216,12 @@ export default function SecurityPage() {
         </Slot>
         {/* EVTS + DES share a column: earnings rows first, description clamped below. */}
         <div className={s.stack}>
-          <Slot id="evts" focus={focus} flex={hasEps ? "1 1 0" : "0 0 auto"}>
+          <Slot id="evts" focus={focus} flex="1 1 0">
             <SecEvents data={data} />
           </Slot>
-          <Slot id="des" focus={focus} flex={hasEps ? "0 0 auto" : "1 1 0"}>
-            <SecDes data={data} profile={profile} loading={needProfile && pq.isLoading} lines={hasEps ? 3 : "fit"} />
+          <Slot id="des" focus={focus} flex="0 0 auto">
+            {/* Company boilerplate is reference, not prime content: 3–4 lines + read more. */}
+            <SecDes data={data} profile={profile} loading={needProfile && pq.isLoading} lines={hasEps ? 3 : 4} />
           </Slot>
         </div>
       </div>

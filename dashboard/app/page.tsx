@@ -55,10 +55,12 @@ export default function Launchpad() {
       <div className="lp">
         {/* Live risk first: breaches outrank the bot's routine log. */}
         <RiskPanel className="span-5" style={{ minHeight: 420 }} />
-        <BotPanel className="span-4" style={{ minHeight: 420 }} />
+        {/* The ticket sits beside the guards it acts on; the bot's console
+            takes the edge so a stopped bot never owns the middle. */}
         <div className="span-3" style={{ minWidth: 0 }}>
           <ManualTradePanel />
         </div>
+        <BotPanel className="span-4" style={{ minHeight: 420 }} />
       </div>
 
       <div className="lp">

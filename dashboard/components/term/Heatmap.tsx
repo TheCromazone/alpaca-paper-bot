@@ -11,9 +11,9 @@
  *    hatched with a dashed inner border so it reads as a group.
  *  · held names always get their own outlined tile (padded off the outline).
  *
- * Color: one continuous diverging ramp (log-shaped so +0.1% and +0.9%
- * differ visibly) with the shared ±0.05% "unchanged" band. The ETF strip is
- * colored by each ETF's move ÷ its own typical daily move.
+ * Color: ONE absolute scale for every tile, ETF strip included — a
+ * continuous log-shaped diverging ramp (so +0.1% and +0.9% differ visibly)
+ * with the shared ±0.05% "unchanged" band.
  */
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -111,24 +111,6 @@ function tint(v: number | null | undefined, p: Period): { bg: string; fg: string
   return ramp(v, logT(v, SCALE[p], SCALE[p] / 20));
 }
 
-/** ETF color: the move ÷ its own typical daily move (σ), saturating at 3σ·√t. */
-function tintZ(v: number | null | undefined, sigma: number, p: Period): { bg: string; fg: string } {
-  if (v == null || !Number.isFinite(v)) return { bg: "var(--bg-2)", fg: "var(--ink-3)" };
-  if (dir(v) === "flat") return { bg: NEUTRAL_BG, fg: "var(--ink-2)" };
-  const days = p === "1D" ? 1 : p === "5D" ? 5 : 21;
-  const z = v / (sigma * Math.sqrt(days));
-  return ramp(v, logT(z, 3, 0.25));
-}
-
-/** σ of daily returns from a price series (fallback by asset type). */
-function sigmaOf(spark: (number | null)[] | undefined, bond: boolean): number {
-  const pts = (spark ?? []).filter((x): x is number => x != null && Number.isFinite(x));
-  const r: number[] = [];
-  for (let i = 1; i < pts.length; i++) r.push(pts[i] / pts[i - 1] - 1);
-  if (r.length < 8) return bond ? 0.004 : 0.01;
-  const m = r.reduce((a, b) => a + b, 0) / r.length;
-  return Math.sqrt(r.reduce((a, b) => a + (b - m) ** 2, 0) / (r.length - 1)) || (bond ? 0.004 : 0.01);
-}
 
 /** Cap-weighted change of a set of names. */
 function capAvg(members: Member[], f: (c: HeatCell) => number | null): number | null {
@@ -182,10 +164,7 @@ export function Heatmap({ className = "", style }: { className?: string; style?:
   const map = useMemo(() => (box && equities.length ? layout(equities, box.w, box.h) : null), [box, equities]);
   const blocks = map?.blocks ?? [];
   const grouped = map?.grouped ?? 0;
-  const expTxt = !map ? "" : Math.abs(map.exp - 1 / 3) < 0.01 ? "∛cap" : map.exp === 0.5 ? "√cap" : `cap^${map.exp}`;
-  // ETF colors use each ETF's own typical move (shares the WEI query).
-  const { data: mon } = useQuery({ queryKey: ["monitor"], queryFn: () => term.monitor(), refetchInterval: 60_000 });
-  const etfSigma = useMemo(() => new Map((mon?.rows ?? []).map((r) => [r.ticker, sigmaOf(r.spark, r.sector === "FixedIncome")])), [mon]);
+  const expTxt = !map ? "" : map.exp === 0.5 ? "√cap" : `cap^${map.exp}`;
 
   const stats = useMemo(() => {
     // 1D uses the API's own breadth counts verbatim (same numbers as the tape).
@@ -273,18 +252,16 @@ export function Heatmap({ className = "", style }: { className?: string; style?:
           </div>
 
           <div className={s.etfs} role="group" aria-label="ETFs, equal weight">
-            <span className={s.etfLabel} title="ETFs, equal-weight (AUM is not comparable with market cap); each colored by its move ÷ its own typical daily move">
+            <span className={s.etfLabel} title="ETFs, equal-weight (AUM is not comparable with market cap); same color scale as the stocks">
               ETF
             </span>
             {[...etfs.filter((c) => c.sector !== "FixedIncome"), null, ...etfs.filter((c) => c.sector === "FixedIncome")].map((c) => {
               if (!c) return <span key="sep" className={s.etfSep} title="Equity ETFs | bond ETFs" aria-hidden="true" />;
               const v = f(c);
-              const sg = etfSigma.get(c.ticker) ?? (c.sector === "FixedIncome" ? 0.004 : 0.01);
-              const h = tintZ(v, sg, period);
+              const h = tint(v, period);
               return (
                 <Link
                   key={c.ticker}
-                  title={`${c.ticker} ${fmtChg(v)} · typical daily move ${(sg * 100).toFixed(2)}% → colored by move ÷ typical move`}
                   href={`/security/${encodeURIComponent(c.ticker)}`}
                   className={`${s.etf} ${c.held ? s.held : ""}`}
                   style={{ background: h.bg, color: h.fg }}
@@ -314,9 +291,6 @@ export function Heatmap({ className = "", style }: { className?: string; style?:
                 </span>
               ))}
               <span>%</span>
-              <span className={s.etfNote} title="ETF strip: colored by each ETF's move ÷ its own typical daily move">
-                ETF: ÷σ
-              </span>
             </span>
             <span className={s.key}>
               <span className={s.keyHeld} />
@@ -324,7 +298,7 @@ export function Heatmap({ className = "", style }: { className?: string; style?:
             </span>
             <span
               className={s.key}
-              title={`Tile area ∝ ${expTxt} (compressed so more names get a legible tile). Hatched tiles group names too small for a label — colored by their cap-weighted move; hover lists them. Held names always get their own tile.`}
+              title={`Tile area ∝ ${expTxt} (compressed so more names get a legible tile; sector % stays cap-weighted). Hatched "N others" tiles group names too small for a label — colored by their cap-weighted move, members listed inside where they fit and on hover. Held names always get their own tile.`}
             >
               area ∝ {expTxt}
               <span className={s.keyAgg} />
@@ -350,16 +324,27 @@ function HeatTile({ t, v, period, onShow, onHide }: { t: Tile; v: number | null;
   const box: CSSProperties = { left: r.x, top: r.y, width: r.w, height: r.h };
   if (t.kind === "agg") {
     // A group, not a security: its cap-weighted move on the same ramp, a
-    // hatch + dashed inner border, uppercase label. Never a held outline.
+    // hatch + dashed inner border, uppercase "N others", then its members
+    // ("LOW −1.9") where they fit. Never a held outline.
     const h = tint(v, period);
     const fit = aggFit(r.w, r.h, t.label);
+    const head = fit === "stack" ? 12 * t.label.split(" ").length : fit === "line" ? 12 : 0;
+    const used = head + (r.h >= 14 && r.w >= 32 ? 12 : 0) + 6;
+    const lines = Math.max(0, Math.floor((r.h - used) / 12));
+    const entryW = 54;
+    const perLine = Math.max(1, Math.floor((r.w - 8 + 8) / (entryW + 8)));
+    const ms = [...t.members].sort((a, b) => b.cap - a.cap);
+    const cap = lines * perLine;
+    const listed = cap > 0 ? (ms.length > cap ? ms.slice(0, Math.max(0, cap - 1)) : ms) : [];
+    const restN = ms.length - listed.length;
+    const showList = r.w >= entryW + 6 && lines > 0;
     return (
       <div
         className={`${s.cell} ${s.agg}`}
         style={{ ...box, background: h.bg, color: h.fg }}
         tabIndex={0}
         {...handlers}
-        aria-label={`${t.label}, ${t.members.length} names, cap-weighted ${period} ${fmtChg(v)}`}
+        aria-label={`${t.label}: ${ms.map((m) => m.c.ticker).join(", ")}, cap-weighted ${period} ${fmtChg(v)}`}
       >
         {fit === "stack" ? (
           t.label.split(" ").map((w) => (
@@ -370,7 +355,20 @@ function HeatTile({ t, v, period, onShow, onHide }: { t: Tile; v: number | null;
         ) : fit === "line" ? (
           <span className={s.aggLab}>{t.label}</span>
         ) : null}
-        {r.h >= 14 && r.w >= 34 && <span className={s.aggChg}>{pct1(v)}</span>}
+        {r.h >= 14 && r.w >= 32 && <span className={s.aggChg}>{pct1(v)}</span>}
+        {showList && (
+          <span className={s.aggList} style={{ gridTemplateColumns: `repeat(${perLine}, auto)` }}>
+            {listed.map((m) => {
+              const mv = period === "1D" ? m.c.chg_1d : period === "5D" ? m.c.chg_5d : m.c.chg_1m;
+              return (
+                <span key={m.c.ticker}>
+                  {m.c.ticker} {pct1(mv).replace("%", "")}
+                </span>
+              );
+            })}
+            {restN > 0 && <span>+{restN}</span>}
+          </span>
+        )}
       </div>
     );
   }

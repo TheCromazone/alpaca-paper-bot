@@ -7,3 +7,12 @@
     display: none;
   }
 }
+/* the stat row sheds its two least-critical cells before it would clip */
+@media (max-width: 1380px) {
+  .statOpt {
+    display: none;
+  }
+  .lastNarrow {
+    border-right: 0 !important;
+  }
+}

@@ -492,3 +492,19 @@ a.hl:hover {
   border: 1px solid var(--line-2);
   vertical-align: 1px;
 }
+
+/* date-only marker inside a filing row (time column stays clock-only) */
+.filedTag {
+  display: inline-block;
+  margin-right: 7px;
+  padding: 0 3px;
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 12px;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  border: 1px solid var(--line-2);
+  vertical-align: 1px;
+}

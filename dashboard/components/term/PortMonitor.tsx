@@ -15,7 +15,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { api, term, type QuoteRow, type RiskGuard } from "@/lib/api";
+import { api, term, type QuoteRow, type RiskGuard, type RiskResp } from "@/lib/api";
 import { fmtChg, fmtNum, fmtPx, fmtSignedUSD, tone } from "@/lib/format";
 import { Empty, Panel, Skeleton, useNow } from "./ui";
 import { DataAge } from "./DataAge";
@@ -53,6 +53,18 @@ const SECTOR_ABBR: Record<string, string> = {
 
 type Severity = "breached" | "near" | "ok";
 
+/** /terminal/risk guard fields added by the API (single source with the
+ *  BRIEF): the binding guard, its distance, $ already past it, and who would
+ *  actually sell. Typed locally until lib/api.ts carries them. */
+type GuardX = RiskGuard & {
+  guard_kind?: "stop" | "cut";
+  guard_price?: number | null;
+  guard_distance?: number | null;
+  usd_beyond?: number | null;
+  stop_enforced_by?: "broker" | "synthetic" | "none";
+};
+type Protection = { scheduler_alive?: boolean; synthetic_stops?: boolean; dry_run?: boolean; last_sync_at?: string | null };
+
 type Row = {
   t: string;
   name: string;
@@ -82,6 +94,9 @@ type Row = {
   broker: boolean;
   /** Who would actually close this position at its guard. */
   order: "broker" | "synthetic" | "none";
+  orderWhy: string;
+  /** $ already through the binding guard ((guard − last) × qty), 0 if not breached. */
+  usdBeyond: number;
   opened: string | null;
   days: number | null;
   spark: (number | null)[];
@@ -102,7 +117,7 @@ const HIDE: Partial<Record<Key | "spark", string>> = {
   day: s["c-day"],
 };
 /** First column of each visual group gets extra lead-in space. */
-const GRP: Partial<Record<Key | "spark", string>> = { last: s.grp, qty: s.grp, pnl: s.grp, guardPx: s.grp };
+const GRP: Partial<Record<Key | "spark", string>> = { last: s.grpWide, qty: s.grp, pnl: s.grp, guardPx: s.grp };
 const cx = (k: Key | "spark") => [HIDE[k], GRP[k]].filter(Boolean).join(" ") || undefined;
 
 const COLS: { k: Key | "spark"; label: string; title: string; w?: number }[] = [
@@ -141,6 +156,7 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
   const risk = useQuery({ queryKey: ["risk"], queryFn: term.risk, refetchInterval: 60_000 });
   const bot = useQuery({ queryKey: ["bot-status"], queryFn: api.botStatus, refetchInterval: 30_000 });
   const botActive = bot.data?.active ?? true;
+  const botRoutines = bot.data?.routines_enabled;
   // default: what needs attention first — breached, then near, then by weight
   const [sort, setSort] = useState<{ k: Key; dir: 1 | -1 }>({ k: "status", dir: -1 });
   const [tip, setTip] = useState<{ row: Row; rect: DOMRect; panel: DOMRect } | null>(null);
@@ -151,18 +167,37 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
 
   const equity = summary.data?.equity ?? risk.data?.equity ?? null;
 
+  const prot = (risk.data as (RiskResp & { protection?: Protection }) | undefined)?.protection;
+
   const rows = useMemo<Row[]>(() => {
     const quotes = new Map<string, QuoteRow>((monitor.data?.rows ?? []).map((q) => [q.ticker, q]));
-    const guards = new Map<string, RiskGuard>((risk.data?.guards ?? []).map((g) => [g.ticker, g]));
+    const guards = new Map<string, GuardX>(((risk.data?.guards ?? []) as GuardX[]).map((g) => [g.ticker, g]));
     return (positions.data ?? []).map((p) => {
       const q = quotes.get(p.ticker);
       const g = guards.get(p.ticker);
       const last = p.market_price || q?.last || 0;
       const stopPx = g?.stop_price ?? p.stop_price;
       const cutPx = g?.cut_price ?? p.avg_cost * 0.93;
-      const guardPx = Math.max(stopPx, cutPx);
-      const guard = guardPx > 0 && last ? last / guardPx - 1 : null;
+      // the API's binding guard is the single source (BRIEF shows the same numbers)
+      const guardPx = g?.guard_price ?? Math.max(stopPx, cutPx);
+      const guard = g?.guard_distance ?? (guardPx > 0 && last ? last / guardPx - 1 : null);
+      const kind: "S" | "C" = g?.guard_kind ? (g.guard_kind === "cut" ? "C" : "S") : stopPx >= cutPx ? "S" : "C";
       const sev: Severity = guard == null ? "ok" : guard <= 0 ? "breached" : guard < NEAR ? "near" : "ok";
+      const order: Row["order"] = g?.stop_enforced_by ?? (g?.broker_stop || p.stop_order_id ? "broker" : botActive ? "synthetic" : "none");
+      const why: string[] = [];
+      if (order === "none") {
+        if (prot?.scheduler_alive === false) why.push("the scheduler is down");
+        if (prot?.dry_run) why.push("dry-run mode is on, so orders are only simulated");
+        if (kind === "C" && botRoutines === false) why.push("LLM routines are off and the −7% cut is sold by the midday routine");
+      }
+      const orderWhy =
+        order === "broker"
+          ? "A live stop order is working at Alpaca"
+          : order === "synthetic"
+            ? kind === "C"
+              ? "No broker order — the midday routine sells at the −7% cut"
+              : "No broker order — the 5-minute account sync sells once the trailing stop is breached"
+            : `Nothing will sell this automatically${why.length ? `: ${why.join("; ")}` : ""}.${sev === "breached" ? " Sell it by hand." : ""}`;
       return {
         t: p.ticker,
         name: q?.name ?? p.ticker,
@@ -181,13 +216,15 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
         cutPx,
         cutDist: cutPx > 0 && last ? last / cutPx - 1 : null,
         trail: g?.trail_pct ?? 0.1,
-        guardKind: stopPx >= cutPx ? "S" : "C",
+        guardKind: kind,
         guardPx,
         guard,
         sev,
         sevRank: sev === "breached" ? 2 : sev === "near" ? 1 : 0,
         broker: g?.broker_stop ?? !!p.stop_order_id,
-        order: g?.broker_stop || p.stop_order_id ? "broker" : botActive ? "synthetic" : "none",
+        order,
+        orderWhy,
+        usdBeyond: g?.usd_beyond ?? (sev === "breached" && guard != null ? Math.max(0, (guardPx - last) * p.qty) : 0),
         opened: p.opened_at,
         days: now && p.opened_at ? Math.max(0, Math.floor((now - new Date(p.opened_at).getTime()) / 86_400_000)) : null,
         spark: q?.spark ?? [],
@@ -196,7 +233,7 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
         earnIn: g?.earnings_in_days ?? null,
       };
     });
-  }, [positions.data, monitor.data, risk.data, equity, now, botActive]);
+  }, [positions.data, monitor.data, risk.data, equity, now, botActive, botRoutines, prot]);
 
   const sorted = useMemo(() => {
     const { k, dir } = sort;
@@ -224,6 +261,8 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
       w: equity ? mv / equity : null,
       breached: rows.filter((r) => r.sev === "breached").length,
       near: rows.filter((r) => r.sev === "near").length,
+      beyond: rows.reduce((a, r) => a + (r.usdBeyond || 0), 0),
+      dayBase: dayRows.reduce((a, r) => a + r.mv - (r.day as number), 0),
     };
   }, [rows, equity]);
 
@@ -296,17 +335,15 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
           <Stat label="Buying power" title="Buying power, including margin">
             {usdK(summary.data?.buying_power)}
           </Stat>
-          <Stat label="Unrealized / cost">
-            <span style={{ color: toneVar(tot.pnl) }}>{fmtSignedUSD(tot.pnl, 0)}</span>
-            <span className={s.statSub} style={{ color: toneVar(tot.pnl) }}>
-              {fmtChg(tot.pnlPct, 1)}
+          <Stat label="Day P&L" title="Today's P&L on the held book: Σ qty × (last − previous close)">
+            <span style={{ color: toneVar(tot.day) }}>{tot.day == null ? "—" : fmtSignedUSD(tot.day, 0)}</span>
+            <span className={s.statSub} style={{ color: toneVar(tot.day) }}>
+              {tot.day != null && tot.dayBase > 0 ? fmtChg(tot.day / tot.dayBase) : ""}
             </span>
           </Stat>
-          <Stat label="Guards" title="Positions at/below their binding guard (breached) · within 3% of it (near)">
-            <span style={{ color: tot.breached ? "var(--alert)" : "var(--ink-2)" }}>{tot.breached}</span>
-            <span className={s.statWord}>breached</span>
-            <span style={{ color: tot.near ? "var(--warn)" : "var(--ink-2)" }}>{tot.near}</span>
-            <span className={s.statWord}>near</span>
+          <Stat label="$ past guards" title="Σ (guard − last) × qty across breached positions — what is already below the binding guards">
+            <span style={{ color: tot.beyond > 0 ? "var(--alert)" : "var(--ink-2)" }}>{usdK(tot.beyond)}</span>
+            <span className={s.statSub}>{tot.breached ? `in ${tot.breached} names` : "none"}</span>
           </Stat>
         </div>
 
@@ -405,16 +442,12 @@ export function PortMonitor({ className = "", style }: { className?: string; sty
                     )}
                   </td>
                   <td
-                    title={
-                      r.order === "broker"
-                        ? "A live stop order is working at Alpaca"
-                        : r.order === "synthetic"
-                          ? "No broker order — the midday routine sells at the guard"
-                          : r.sev === "breached"
-                            ? "Breached with no broker stop and the bot off — nothing will sell this automatically; sell it by hand"
-                            : "No broker order and the bot is off — nothing will sell this automatically"
-                    }
-                    style={{ fontFamily: "var(--font-plex-cond), sans-serif", fontSize: 10.5, color: r.order === "broker" ? "var(--ink-2)" : r.order === "synthetic" ? "var(--ink-3)" : r.sev === "breached" ? "var(--alert)" : "var(--ink-3)" }}
+                    title={r.orderWhy}
+                    style={{
+                      fontFamily: "var(--font-plex-cond), sans-serif",
+                      fontSize: 10.5,
+                      color: r.order === "broker" ? "var(--ink-2)" : r.order === "synthetic" ? "var(--ink-2)" : r.sev === "breached" ? "var(--alert)" : "var(--ink-3)",
+                    }}
                   >
                     {r.order === "broker" ? "broker" : r.order === "synthetic" ? "synthetic" : r.sev === "breached" ? "manual" : "none"}
                   </td>

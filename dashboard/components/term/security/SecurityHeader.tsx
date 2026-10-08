@@ -43,7 +43,7 @@ function Sma({ sma, last }: { sma: number | null; last: number | null | undefine
       {fmtNum(sma, sma >= 100 ? 1 : 2)}
       <span className={`${s.statSub} ${above ? "up" : "down"}`}>
         {above ? "▲" : "▼"}
-        {Math.abs(d * 100).toFixed(Math.abs(d) >= 0.1 ? 0 : 1)}%
+        {Math.abs(d * 100).toFixed(1)}%
       </span>
     </>
   );

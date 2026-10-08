@@ -234,7 +234,7 @@ function Heartbeat() {
       {run ? (
         <span className="num" style={{ fontSize: 11, color: "var(--ink-2)", display: "inline-flex", alignItems: "center", gap: 6 }}>
           <span className={`dot${stale || failed ? "" : " live"}`} style={{ color: stale || failed ? "var(--alert)" : color }} />
-          {run.routine} {now ? `${fmtAge(run.started_at, now)} ago` : ""}
+          <span className="dim">last run</span> {run.routine} {now ? `· ${fmtAge(run.started_at, now)} ago` : ""}
           {stale && <span className="pill alert">Stale</span>}
           {failed && !stale && <span className="pill alert">{run.status}</span>}
         </span>
@@ -355,7 +355,29 @@ function useApiLatency() {
   return { ms, ok };
 }
 
-type TapeItem = { ticker: string; last: number | null; chg_1d: number | null; held: boolean };
+type TapeItem = {
+  ticker: string;
+  last: number | null;
+  chg_1d: number | null;
+  held: boolean;
+  /** Market levels (indexes, yields, futures) lead the tape and don't link. */
+  market?: "idx" | "pct" | "lvl";
+};
+
+/** Index / rates / dollar / commodities / crypto levels that lead the tape,
+ * from the monitor's macro block (Yahoo same-day closes first, FRED after). */
+const TAPE_MARKETS: { label: string; ids: string[]; kind: "idx" | "pct" | "lvl" }[] = [
+  { label: "SPX", ids: ["YF:^GSPC", "SP500"], kind: "idx" },
+  { label: "NDX", ids: ["YF:^NDX"], kind: "idx" },
+  { label: "DOW", ids: ["YF:^DJI", "DJIA"], kind: "idx" },
+  { label: "RUT", ids: ["YF:^RUT"], kind: "idx" },
+  { label: "UST10Y", ids: ["DGS10"], kind: "pct" },
+  { label: "VIX", ids: ["VIXCLS"], kind: "lvl" },
+  { label: "DXY", ids: ["YF:DX-Y.NYB"], kind: "idx" },
+  { label: "GOLD", ids: ["YF:GC=F"], kind: "idx" },
+  { label: "WTI", ids: ["YF:CL=F", "DCOILWTICO"], kind: "idx" },
+  { label: "BTC", ids: ["YF:BTC-USD", "CBBTCUSD"], kind: "idx" },
+];
 
 /**
  * The universe tape, paged instead of scrolled: a flex row that wraps into a
@@ -389,13 +411,28 @@ function Tape({ items }: { items: TapeItem[] }) {
   return (
     <div className="tape" aria-label="Universe tape" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
       <div className="tape-page" ref={ref} key={start}>
-        {page.map((c) => (
-          <Link key={c.ticker} href={`/security/${encodeURIComponent(c.ticker)}`} className="num tape-item">
-            <span style={{ color: c.held ? "var(--blue)" : "var(--ink)", fontWeight: 600 }}>{c.ticker}</span>
-            <span style={{ color: "var(--ink-2)" }}>{fmtPx(c.last)}</span>
-            <span className={tone(c.chg_1d)}>{fmtChg(c.chg_1d)}</span>
-          </Link>
-        ))}
+        {page.map((c) =>
+          c.market ? (
+            <span key={c.ticker} className="num tape-item" title={c.market === "pct" ? "yield, change in bp" : undefined}>
+              <span style={{ color: "var(--amber-2)", fontWeight: 600 }}>{c.ticker}</span>
+              <span style={{ color: "var(--ink-2)" }}>{c.market === "pct" ? `${c.last?.toFixed(2)}%` : fmtPx(c.last)}</span>
+              {c.market === "idx" ? (
+                <span className={tone(c.chg_1d)}>{fmtChg(c.chg_1d)}</span>
+              ) : (
+                // Yields and VIX: sign isn't good/bad, so neutral ink + arrow.
+                <span style={{ color: "var(--ink-2)" }}>
+                  {c.chg_1d == null ? "" : `${c.chg_1d > 0 ? "▲" : c.chg_1d < 0 ? "▼" : ""}${c.market === "pct" ? `${Math.abs(c.chg_1d * 100).toFixed(0)}bp` : Math.abs(c.chg_1d).toFixed(2)}`}
+                </span>
+              )}
+            </span>
+          ) : (
+            <Link key={c.ticker} href={`/security/${encodeURIComponent(c.ticker)}`} className="num tape-item">
+              <span style={{ color: c.held ? "var(--blue)" : "var(--ink)", fontWeight: 600 }}>{c.ticker}</span>
+              <span style={{ color: "var(--ink-2)" }}>{fmtPx(c.last)}</span>
+              <span className={tone(c.chg_1d)}>{fmtChg(c.chg_1d)}</span>
+            </Link>
+          ),
+        )}
       </div>
     </div>
   );
@@ -404,9 +441,22 @@ function Tape({ items }: { items: TapeItem[] }) {
 export function StatusBar() {
   const { data: heat } = useQuery({ queryKey: ["heatmap"], queryFn: term.heatmap, refetchInterval: 60_000 });
   const { data: regime } = useQuery({ queryKey: ["regime"], queryFn: api.regime, refetchInterval: 300_000, retry: false });
+  const { data: monitor } = useQuery({ queryKey: ["monitor"], queryFn: () => term.monitor(), refetchInterval: 60_000 });
   const { ms, ok } = useApiLatency();
   const cells = (heat?.cells ?? []).filter((c) => c.chg_1d != null);
-  const ordered = [...cells.filter((c) => c.held), ...cells.filter((c) => !c.held)];
+  const markets: TapeItem[] = useMemo(() => {
+    const byId = new Map((monitor?.macro ?? []).map((m) => [m.series_id, m]));
+    return TAPE_MARKETS.flatMap(({ label, ids, kind }) => {
+      const m = ids.map((id) => byId.get(id)).find(Boolean);
+      if (!m) return [];
+      // VIX's FRED change is a level change; the tape shows it in points.
+      const prev = m.spark.length >= 2 ? m.spark[m.spark.length - 2] : null;
+      const chg = kind === "lvl" ? (m.last != null && prev != null ? m.last - prev : null) : m.chg_1d;
+      return [{ ticker: label, last: m.last, chg_1d: chg, held: false, market: kind }];
+    });
+  }, [monitor]);
+  // Markets lead, then what we hold, then the rest of the universe.
+  const ordered = [...markets, ...cells.filter((c) => c.held), ...cells.filter((c) => !c.held)];
   const label = regime?.regime_label?.replace("_", " ").toUpperCase();
   const rTone = regime?.regime_label === "risk_on" ? "up" : regime?.regime_label === "risk_off" ? "down" : "";
   return (

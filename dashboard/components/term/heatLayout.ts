@@ -5,15 +5,17 @@
  * Rules, in priority order:
  *  1. Every sector is its own block (header strip + tiles); block area ∝ the
  *     sector's summed name weight.
- *  2. Name weight = cap^p. p is chosen per panel size: the steepest of
- *     0.6 → ⅓ that keeps ≤ 20 names grouped (else ⅓); the legend states it.
+ *  2. Name weight = cap^p: cap^0.6 when it lays out cleanly with ≤ 20 names
+ *     grouped, else √cap (flatter would shrink NVDA/AAPL to MU size and
+ *     contradict the cap-weighted headers). The legend states it.
  *  3. Held names are never aggregated: own tile, label always fits (area
  *     raised to a legible minimum when needed — `floored`).
  *  4. Every name tile carries "TKR / ±x.x%" horizontally at ≥ 10px; names
  *     too small for that share one "N others" tile per sector (never split
- *     into look-alike twins).
- *  5. An aggregate is never the largest tile in its sector while promoting
- *     its biggest members still fits.
+ *     into look-alike twins, never the whole sector, never drawn larger
+ *     than its sector's biggest named tile). The tile lists its members
+ *     where space allows.
+ *  5. Every sector header fits its name + cap-weighted %.
  */
 import type { HeatCell } from "@/lib/api";
 
@@ -194,11 +196,12 @@ export function fitLabel(w: number, h: number, len: number, plen = PLEN): Fit | 
 export type AggFit = "line" | "stack";
 export function aggFit(w: number, h: number, label: string): AggFit | null {
   // 10px small caps ≈ 5.5px/char; change line 10px mono below.
-  // The change line ("−1.4%", 10px mono) needs 34px too.
-  if (w >= Math.max(label.length * 5.5 + 7, 34) && h >= 26) return "line";
+  // 10px semibold condensed caps ≈ 5.4px/char; the change line ("−1.4%",
+  // 10px mono) needs 32px. Two stacked 10px lines need 24px.
+  if (w >= Math.max(label.length * 5.4 + 4, 32) && h >= 24) return "line";
   const words = label.split(" ");
   const longest = Math.max(...words.map((x) => x.length));
-  if (words.length > 1 && w >= Math.max(longest * 5.5 + 7, 34) && h >= 12 * words.length + 14) return "stack";
+  if (words.length > 1 && w >= Math.max(longest * 5.4 + 2, 32) && h >= 12 * words.length + 13) return "stack";
   return null;
 }
 /** First label variant that fits, or null. */
@@ -274,11 +277,13 @@ export function layoutBlock(members: Member[], inner: R, block: string, exp = 1)
     return fitLabel(p.r.w - pad, p.r.h - pad, p.d.labels[0].length) != null;
   };
 
+  let allowWhole = false;
   const evaluate = (k: number, F: number, vr: Variant): Cand | null => {
     const top = free.slice(0, k);
     const shownSet = new Set([...held, ...top].map((m) => m.c.ticker));
     const rest = sorted.filter((m) => !shownSet.has(m.c.ticker));
     if (rest.length === 1) return null; // a one-name remainder is just that name
+    if (!allowWhole && rest.length === sorted.length) return null; // never a whole sector as one anonymous tile
     const units: U[] = [];
     for (const m of sorted) {
       if (!shownSet.has(m.c.ticker)) continue;
@@ -286,9 +291,7 @@ export function layoutBlock(members: Member[], inner: R, block: string, exp = 1)
       units.push({ id: m.c.ticker, kind: "name", members: [m], labels: [m.c.ticker], floor: needs ? F : 0, why: m.c.held ? "held" : needs ? "promoted" : undefined });
     }
     if (rest.length) {
-      // A bucket holding the whole sector is just "N names".
-      const whole = rest.length === sorted.length;
-      const u: U = { id: "agg", kind: "agg", members: rest, labels: whole ? [`${rest.length} names`] : [`${rest.length} others`, `${rest.length} more`], floor: 0 };
+      const u: U = { id: "agg", kind: "agg", members: rest, labels: [`${rest.length} others`], floor: 0 };
       if (rest.reduce((a, m) => a + trueArea(m), 0) < AGG_FLOOR) u.floor = AGG_FLOOR;
       units.push(u);
     }
@@ -316,7 +319,11 @@ export function layoutBlock(members: Member[], inner: R, block: string, exp = 1)
         hard++;
       }
     const maxName = Math.max(0, ...names.map((p) => p.r.w * p.r.h));
-    for (const p of aggs) if (p.r.w * p.r.h >= maxName && names.length) score += 25; // soft: rule 5
+    for (const p of aggs)
+      if (names.length && p.r.w * p.r.h > maxName) {
+        score += 200;
+        hard++;
+      }
     score += (extra / area) * 60;
     score += names.filter((p) => p.d.why === "promoted").length * 1.5;
     score -= names.filter((p) => !p.d.why).length * 3;
@@ -328,14 +335,24 @@ export function layoutBlock(members: Member[], inner: R, block: string, exp = 1)
 
   let best: Cand | null = null;
   const better = (a: Cand, b: Cand | null) => !b || a.score < b.score - 1e-9 || (Math.abs(a.score - b.score) < 1e-9 && a.shown > b.shown);
-  for (let k = 0; k <= free.length; k++)
-    for (const F of FLOORS)
-      for (const vr of VARIANTS) {
-        const c = evaluate(k, F, vr);
-        if (c && better(c, best)) best = c;
-      }
-  if (!best) return { tiles: [], hard: 99 };
-  const tiles = best.placed.map(({ d, r }) => ({
+  const search = () => {
+    for (let k = 0; k <= free.length; k++)
+      for (const F of FLOORS)
+        for (const vr of VARIANTS) {
+          const c = evaluate(k, F, vr);
+          if (c && better(c, best)) best = c;
+        }
+  };
+  search();
+  // Only if no layout names anyone may a sector collapse into one tile.
+  if (!best) {
+    allowWhole = true;
+    search();
+  }
+  // (`best` is assigned inside search(); read it through a typed alias.)
+  const fin = best as Cand | null;
+  if (!fin) return { tiles: [], hard: 99 };
+  const tiles = fin.placed.map(({ d, r }) => ({
     kind: d.kind,
     label: d.kind === "agg" ? (pickAgg(r.w, r.h, d.labels) ?? d.labels[d.labels.length - 1]) : d.labels[0],
     members: d.members,
@@ -344,9 +361,9 @@ export function layoutBlock(members: Member[], inner: R, block: string, exp = 1)
     sector: block,
     floored: d.floor > 0 && d.floor > d.members.reduce((a, m) => a + trueArea(m), 0),
     why: d.why,
-    capped: d.kind === "agg" && best!.placed.some((p) => p.d.kind === "name") && r.w * r.h < d.members.reduce((a, m) => a + trueArea(m), 0) * 0.92,
+    capped: d.kind === "agg" && fin.placed.some((p) => p.d.kind === "name") && r.w * r.h < d.members.reduce((a, m) => a + trueArea(m), 0) * 0.92,
   }));
-  return { tiles, hard: best.hard };
+  return { tiles, hard: fin.hard };
 }
 
 // ── blocks ───────────────────────────────────────────────────────────────
@@ -390,24 +407,58 @@ function layoutAt(by: Map<string, Member[]>, W: number, H: number, exp: number):
     return h ? h * 2200 + (ms.length > h ? 1900 : 0) : 0;
   };
   const secs = [...by.keys()].map((key) => ({ key, cap: wOf(key), min: minOf(key) }));
-  const placed = solveBlocks(secs, W, H);
-  let grouped = 0;
-  let hard = 0;
-  const blocks = placed.map(({ d, r }) => {
-    const br = snap(r, SGAP);
-    const inner: R = { x: 0, y: HEAD, w: br.w + 1, h: br.h - HEAD + 1 };
-    const members = by.get(d.key)!;
-    const [name, short] = wordsOf(d.key);
-    const res = layoutBlock(members, inner, d.key, exp);
-    grouped += res.tiles.filter((t) => t.kind === "agg").reduce((a, t) => a + t.members.length, 0);
-    hard += res.hard;
-    return { key: d.key, name, short, r: br, tiles: res.tiles, members, cap: capOf(d.key) };
-  });
-  return { blocks, grouped, hard };
+  let placed = solveBlocks(secs, W, H);
+  // Rule 5: every header fits its short name + %; grow narrow blocks.
+  for (let i = 0; i < 6; i++) {
+    let grew = false;
+    for (const p of placed) {
+      const need = headerW(wordsOf(p.d.key)[1]);
+      const w = p.r.w - SGAP;
+      if (w < need) {
+        const sec = secs.find((x) => x.key === p.d.key)!;
+        const area = (p.r.w - SGAP) * (p.r.h - SGAP);
+        sec.min = Math.max(sec.min ?? 0, area * Math.pow(need / Math.max(1, w), 2) * 1.05);
+        grew = true;
+      }
+    }
+    if (!grew) break;
+    placed = solveBlocks(secs, W, H);
+  }
+  const build = () => {
+    let grouped = 0;
+    let hard = 0;
+    const failing: string[] = [];
+    const blocks = placed.map(({ d, r }) => {
+      const br = snap(r, SGAP);
+      const inner: R = { x: 0, y: HEAD, w: br.w + 1, h: br.h - HEAD + 1 };
+      const members = by.get(d.key)!;
+      const [name, short] = wordsOf(d.key);
+      const res = layoutBlock(members, inner, d.key, exp);
+      grouped += res.tiles.filter((t) => t.kind === "agg").reduce((a, t) => a + t.members.length, 0);
+      hard += res.hard;
+      if (res.hard) failing.push(d.key);
+      return { key: d.key, name, short, r: br, tiles: res.tiles, members, cap: capOf(d.key) };
+    });
+    return { blocks, grouped, hard, failing };
+  };
+  // A block whose tiles still break a rule gets a little more room, re-solved
+  // (a few rounds; keep the best).
+  let best = build();
+  for (let i = 0; i < 3 && best.failing.length; i++) {
+    for (const key of best.failing) {
+      const p = placed.find((x) => x.d.key === key)!;
+      const sec = secs.find((x) => x.key === key)!;
+      sec.min = Math.max(sec.min ?? 0, (p.r.w - SGAP) * (p.r.h - SGAP) * 1.25);
+    }
+    placed = solveBlocks(secs, W, H);
+    const next = build();
+    if (next.hard < best.hard) best = next;
+  }
+  return { blocks: best.blocks, grouped: best.grouped, hard: best.hard };
 }
 
 /** Area exponents tried, steepest (most cap-faithful) first. */
-export const EXPONENTS = [0.6, 0.5, 0.4, 1 / 3];
+export const EXPONENTS = [0.6, 0.5];
 
 export function layout(cells: HeatCell[], W: number, H: number): { blocks: Block[]; exp: number; grouped: number } {
   const by = new Map<string, Member[]>();
@@ -419,17 +470,13 @@ export function layout(cells: HeatCell[], W: number, H: number): { blocks: Block
     const med = known.length ? known[Math.floor(known.length / 2)] : 1;
     by.set(key, list.map((c) => ({ c, cap: c.mcap && c.mcap > 0 ? c.mcap : med })));
   }
-  // Steepest exponent that keeps ≤ 20 names grouped with no defects; else
-  // the one with the fewest (grouped + defects), steeper on ties.
-  let best: { blocks: Block[]; grouped: number; hard: number; exp: number } | null = null;
-  for (const exp of EXPONENTS) {
-    const res = { ...layoutAt(by, W, H, exp), exp };
-    if (res.grouped <= 20 && res.hard === 0) return res;
-    if (!best || res.grouped + 5 * res.hard < best.grouped + 5 * best.hard) best = res;
-  }
-  return { blocks: best!.blocks, exp: best!.exp, grouped: best!.grouped };
+  // cap^0.6 when it is clean with ≤ 20 grouped; otherwise √cap.
+  const steep = { ...layoutAt(by, W, H, 0.6), exp: 0.6 };
+  if (steep.grouped <= 20 && steep.hard === 0) return steep;
+  const res = { ...layoutAt(by, W, H, 0.5), exp: 0.5 };
+  return { blocks: res.blocks, exp: res.exp, grouped: res.grouped };
 }
 
 /** Header text that fits a block width; null avg when even that won't fit. */
 export const headerText = (b: Block) => (b.r.w >= headerW(b.name) ? b.name : b.short);
-export const headerHasAvg = (b: Block) => b.r.w >= headerW(b.short);
+export const headerHasAvg = (b: Block) => b.r.w >= headerW(b.short) - 6;

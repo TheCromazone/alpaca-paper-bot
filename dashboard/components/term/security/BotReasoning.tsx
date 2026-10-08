@@ -38,7 +38,21 @@ function VsLast({ t, last }: { t: Trade; last: number | null }) {
   );
 }
 
-function DecisionItem({ d, trade, last, open, onToggle }: { d: Decision; trade: Trade | undefined; last: number | null; open: boolean; onToggle: () => void }) {
+function DecisionItem({
+  d,
+  trade,
+  last,
+  open,
+  onToggle,
+  isLead = false,
+}: {
+  d: Decision;
+  trade: Trade | undefined;
+  last: number | null;
+  open: boolean;
+  onToggle: () => void;
+  isLead?: boolean;
+}) {
   const parts = thesisParts(d.reason);
   const structured = parts.some((p) => p.k);
   return (
@@ -52,6 +66,11 @@ function DecisionItem({ d, trade, last, open, onToggle }: { d: Decision; trade: 
           </span>
         )}
         {d.dry_run && <span className="pill warn">Dry run</span>}
+        {isLead && (
+          <span className="label" style={{ fontSize: 9, color: "var(--cyan)" }} title="The decision behind the largest fill — the position's founding thesis">
+            opening
+          </span>
+        )}
         <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
           {trade && <VsLast t={trade} last={last} />}
           <span className={s.chev} aria-hidden="true">{open ? "▾" : "▸"}</span>
@@ -211,10 +230,24 @@ export function BotReasoning({
   const byId = new Map(trades.map((t) => [t.id, t]));
   const linked = new Set(decisions.map((d) => d.trade_id).filter((x): x is number => x != null));
   const orphans = trades.filter((t) => !linked.has(t.id));
-  // Expanded view shows every thesis in full; each can still be folded individually.
-  const [closed, setClosed] = useState<Set<number>>(() => new Set());
+  // The opening trade's thesis (largest fill) leads, expanded in full; add-ons and
+  // later decisions follow as one-line headlines, expandable on click.
+  const lead = (() => {
+    let best: Decision | null = null;
+    let bestN = -1;
+    for (const d of decisions) {
+      const n = d.trade_id != null ? (byId.get(d.trade_id)?.notional ?? 0) : 0;
+      if (n > bestN) {
+        best = d;
+        bestN = n;
+      }
+    }
+    return best;
+  })();
+  const ordered = lead ? [lead, ...decisions.filter((d) => d.id !== lead.id)] : decisions;
+  const [open, setOpen] = useState<Set<number>>(() => new Set(lead ? [lead.id] : []));
   const toggle = (id: number) =>
-    setClosed((prev) => {
+    setOpen((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -266,14 +299,15 @@ export function BotReasoning({
         <div className={s.col}>
           {header}
           <FitList unit="entries">
-            {decisions.map((d) => (
+            {ordered.map((d) => (
               <DecisionItem
                 key={d.id}
                 d={d}
                 trade={d.trade_id != null ? byId.get(d.trade_id) : undefined}
                 last={last}
-                open={!closed.has(d.id)}
+                open={open.has(d.id)}
                 onToggle={() => toggle(d.id)}
+                isLead={d.id === lead?.id && decisions.length > 1}
               />
             ))}
             {orphans.map((t) => (

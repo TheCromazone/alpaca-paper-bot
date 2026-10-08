@@ -44,8 +44,17 @@ const KINDS: { kind: Kind; tag: string; name: string }[] = [
 const RANK = new Map(KINDS.map((k, i) => [k.kind, i]));
 const TAG = new Map(KINDS.map((k) => [k.kind, k.tag]));
 
-type Metrics = NonNullable<BriefItem["metrics"]>;
-const metricsOf = (it: BriefItem): Metrics => it.metrics ?? {};
+/** Round-7 fields the shared type may not carry yet (built defensively). */
+type Metrics = NonNullable<BriefItem["metrics"]> & {
+  guard_kind?: "stop" | "cut" | string | null;
+  guard_price?: number | null;
+  guard_distance?: number | null;
+  stop_enforced_by?: string | null;
+  reason?: string | null;
+};
+const metricsOf = (it: BriefItem): Metrics => (it.metrics ?? {}) as Metrics;
+/** Distance to the binding guard (same as PORT's GUARD/DIST). */
+const guardDist = (m: Metrics) => m.guard_distance ?? (m.stop_distance != null && m.cut_distance != null ? Math.min(m.stop_distance, m.cut_distance) : (m.stop_distance ?? m.cut_distance ?? null));
 
 /** Rank within a severity tier: $ already through the tightest breached
  *  guard (value × depth), then position size. */
@@ -149,21 +158,22 @@ function sentence(text: string, tickers: Set<string>, own: string | null, dimTai
   );
 }
 
-/** Age of an item's fact: "in 1d" for a future date, "2d" / "3h" for past. */
-function ageOf(at: string | null | undefined, now: number): { text: string; title: string } | null {
+/** When an item's fact happened / happens: ages read "3h ago", upcoming
+ *  events read "in 1d" (or "today"), so a date is never mistaken for an age. */
+function ageOf(at: string | null | undefined, now: number): { text: string; title: string; future: boolean } | null {
   if (!at || !now) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(at)) {
     const [y, m, d] = at.split("-").map(Number);
     const today = new Date(now);
     const t0 = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
     const days = Math.round((Date.UTC(y, m - 1, d) - t0) / 86_400_000);
-    if (days > 0) return { text: `in ${days}d`, title: `On ${at}` };
-    if (days === 0) return { text: "today", title: `On ${at}` };
-    return { text: `${-days}d`, title: `${at} — ${-days} day${days < -1 ? "s" : ""} ago` };
+    if (days > 0) return { text: `in ${days}d`, title: `Scheduled for ${at}`, future: true };
+    if (days === 0) return { text: "today", title: `Today, ${at}`, future: true };
+    return { text: `${-days}d ago`, title: `${at} — ${-days} day${days < -1 ? "s" : ""} ago`, future: false };
   }
   const secs = (now - new Date(at).getTime()) / 1000;
-  if (secs < 90) return { text: "now", title: at };
-  return { text: fmtAge(at, now), title: `${at} — ${fmtAge(at, now)} ago` };
+  if (secs < 90) return { text: "now", title: at, future: false };
+  return { text: `${fmtAge(at, now)} ago`, title: `${at} — ${fmtAge(at, now)} ago`, future: false };
 }
 
 // ── rows model (flat, so the list can end on whole rows) ─────────────────
@@ -171,7 +181,8 @@ function ageOf(at: string | null | undefined, now: number): { text: string; titl
 type RowModel =
   | { type: "sec"; key: string; tag: string; text: string }
   | { type: "thead"; key: string }
-  | { type: "bhead"; key: string; n: number; more?: { n: number; names: string } }
+  | { type: "bhead"; key: string; n: number }
+  | { type: "bfoot"; key: string; n: number; names: string }
   | { type: "guard"; key: string; it: BriefItem }
   | { type: "breach"; key: string; it: BriefItem }
   | { type: "item"; key: string; it: BriefItem; tag?: string; more?: number }
@@ -185,21 +196,27 @@ const distTint = (d: number | null | undefined) => (d == null ? "" : d < 0 ? s.t
 
 type Status = { main: string; short?: string; sub?: string; pill: "solid" | "alert" | "warn" | "plain" };
 
-/** API action → status pill. Solid alert = the broker stop failed;
- *  outlined alert = a manual sell is due; warn = a scheduled sell / watch. */
-function status(action: string | undefined): Status {
+/** API action → status pill (round-7 vocabulary). Alert = nothing / no one
+ *  is selling it yet; warn = the system will act, or a level is near.
+ *    STOP UNFILLED    broker stop exists, hasn't filled     solid alert
+ *    MANUAL SELL      nothing will sell it (`reason`)        outlined alert
+ *    SELL @ next sync synthetic 5-min stop will sell         warn
+ *    SELL @ midday    cut breached, routines active          warn
+ *    WATCH cut|stop   within 2% of a level                   warn */
+function status(action: string | undefined, reason?: string | null): Status {
   const a = (action ?? "").trim();
   const [main0, ...rest] = a.split(" · ");
   const main = main0.toUpperCase();
-  const sub = rest.join(" · ") || undefined;
-  // The pill text alone says which: the broker stop didn't fill vs a
-  // manual sell is due — solid vs outlined only reinforces it.
-  if (main.startsWith("STOP BREACHED") || main === "STOP") return { main: "STOP UNFILLED", short: "UNFILLED", sub: "stop breached, order didn't fill", pill: "solid" };
-  if (main.startsWith("MANUAL SELL")) return { main: "SELL MANUALLY", short: "SELL NOW", sub: sub ? `below cut · ${sub}` : "below cut", pill: "alert" };
-  if (main.startsWith("SELL")) return { main: main.replace(/^SELL\s*/, "SELL "), sub, pill: "warn" };
+  const sub = rest.join(" · ") || reason || undefined;
+  if (main.startsWith("STOP UNFILLED") || main.startsWith("STOP BREACHED") || main === "STOP")
+    return { main: "STOP UNFILLED", short: "UNFILLED", sub: "broker stop placed, not filled", pill: "solid" };
+  if (main.startsWith("MANUAL SELL")) return { main: "SELL MANUALLY", short: "SELL NOW", sub: sub ? `nothing will sell it — ${sub}` : "nothing will sell it", pill: "alert" };
+  if (main.startsWith("SELL @ NEXT SYNC")) return { main: "SELLS @ SYNC", short: "@ SYNC", sub: "the 5-min synthetic stop will sell", pill: "warn" };
+  if (main.startsWith("SELL @ MIDDAY")) return { main: "SELL @ MIDDAY", short: "MIDDAY", sub: "cut breached — the midday routine sells", pill: "warn" };
+  if (main.startsWith("SELL")) return { main, sub, pill: "warn" };
   if (main.startsWith("WATCH")) {
-    const what = main.replace(/^WATCH\s*/, "").toLowerCase();
-    return { main: "WATCH", sub: [what, sub].filter(Boolean).join(" · ") || undefined, pill: "warn" };
+    const what = main.replace(/^WATCH\s*/, "");
+    return { main: `WATCH ${what}`.trim(), short: "WATCH", sub: `within 2% of the ${what.toLowerCase() || "guard"}`, pill: "warn" };
   }
   return { main: main || "—", sub, pill: "plain" };
 }
@@ -231,12 +248,16 @@ export function Brief({ className = "", style }: { className?: string; style?: C
     for (const it of items) c.set(it.kind, (c.get(it.kind) ?? 0) + 1);
     return c;
   }, [items]);
-  // Severity counts over exactly the items listed, so they sum to ALL.
+  // The API's `counts` are the single truth (the top bar uses them too);
+  // fall back to counting items (headline included) for older payloads.
   const sevCount = useMemo(() => {
+    const k = data?.counts;
+    if (k) return [k.info, k.watch, k.act, k.breach];
     const c = [0, 0, 0, 0];
-    for (const it of items) c[sevOf(it)]++;
+    for (const it of data?.items ?? []) c[sevOf(it)]++;
     return c;
-  }, [items]);
+  }, [data]);
+  const allN = sevCount.reduce((a, b) => a + b, 0);
   const tailCount = useMemo(() => {
     const m = new Map<string, number>();
     for (const it of items) {
@@ -272,8 +293,9 @@ export function Brief({ className = "", style }: { className?: string; style?: C
         const urgent = guards.filter((g) => sevOf(g) >= 2);
         const restN = risk.length - urgent.length;
         const names = `${guards.filter((g) => sevOf(g) < 2).map((g) => g.ticker).join(" ")}${notes.length ? " · slots note" : ""}`.trim();
-        out.push({ type: "bhead", key: "bhead", n: urgent.length, more: restN > 0 ? { n: restN, names } : undefined });
+        out.push({ type: "bhead", key: "bhead", n: urgent.length });
         urgent.forEach((it, i) => out.push({ type: "breach", key: `b-${it.ticker}-${i}`, it }));
+        if (restN > 0) out.push({ type: "bfoot", key: "bfoot", n: restN, names });
       }
       for (const k of KINDS) {
         if (k.kind === "risk") continue;
@@ -322,7 +344,7 @@ export function Brief({ className = "", style }: { className?: string; style?: C
     // rows first) before hiding anything.
     if (over && only === "all") {
       const cands = [...el.querySelectorAll<HTMLElement>("[data-clamp]")]
-        .filter((r) => !clamped.has(r.dataset.clamp!) && (r.querySelector<HTMLElement>("[data-text]")?.offsetHeight ?? 0) > 20)
+        .filter((r) => r.dataset.noclamp == null && !clamped.has(r.dataset.clamp!) && (r.querySelector<HTMLElement>("[data-text]")?.offsetHeight ?? 0) > 20)
         .sort((a, b) => Number(a.dataset.prio) - Number(b.dataset.prio));
       if (cands.length) {
         setClampSt({ key: capKey, keys: [...clamped, cands[0].dataset.clamp!] });
@@ -451,7 +473,7 @@ export function Brief({ className = "", style }: { className?: string; style?: C
 
           <div className={s.filters} role="group" aria-label="Filter brief by kind">
             <button type="button" className={s.chip} aria-pressed={only === "all"} onClick={() => pick("all")} title="Digest of every kind">
-              ALL <span className={s.chipN}>{items.length}</span>
+              ALL <span className={s.chipN}>{allN}</span>
             </button>
             {KINDS.filter((k) => kindCount.get(k.kind)).map((k) => (
               <button key={k.kind} type="button" className={s.chip} aria-pressed={only === k.kind} onClick={() => pick(only === k.kind ? "all" : k.kind)} title={k.name}>
@@ -496,23 +518,27 @@ export function Brief({ className = "", style }: { className?: string; style?: C
                     <span className={s.btag} title={`${r.n} position${r.n === 1 ? "" : "s"} through a guard`}>
                       RISK
                     </span>
-                    <span title="STOP UNFILLED (solid) = the trailing stop was breached but the broker order didn't fill; SELL MANUALLY (outlined) = below the −7% cut and the bot is off">
+                    <span title="SELL MANUALLY (outlined) = nothing will sell it; STOP UNFILLED (solid) = a broker stop exists but hasn't filled; SELL @ MIDDAY / SELLS @ SYNC (warn) = the bot will sell">
                       STATUS
                     </span>
-                    <span className={s.r} title="Last price vs the 10% trailing stop; negative = already through it">
-                      TO STOP
+                    <span className={s.r} title="Last price vs the binding guard (the tighter of the 10% trailing stop and the −7% cut) — same as PORT's DIST. Negative = already through it.">
+                      TO GUARD
                     </span>
-                    <span className={s.r} title="$ value already past the tightest breached level (position value × depth); ranks the breaches">
-                      $ PAST
+                    <span className={`${s.r} ${s.sorted}`} title="Sorted by this column, largest first: $ value below the binding guard = (guard − last) × shares">
+                      $ BELOW ▾
                     </span>
-                    {r.more ? (
-                      <button type="button" className={s.dmore} onClick={() => pick("risk")} title={`${r.more.n} more risk items: ${r.more.names}`}>
-                        +{r.more.n}
-                      </button>
-                    ) : (
-                      <span className={s.dmoreGap} />
-                    )}
+                    <span className={s.r} title="Position weight in the book">
+                      WT
+                    </span>
                   </div>
+                );
+              if (r.type === "bfoot")
+                return (
+                  <button key={r.key} type="button" data-row="body" className={s.bfoot} style={hide} onClick={() => pick("risk")} title={`${r.n} more risk items: ${r.names}`}>
+                    <span>+{r.n} more risk</span>
+                    <span className={s.bfootNames}>{r.names}</span>
+                    <span className={s.go}>→</span>
+                  </button>
                 );
               if (r.type === "breach") return <BreachRow key={r.key} it={r.it} style={hide} />;
               if (r.type === "guard") return <GuardRow key={r.key} it={r.it} style={hide} />;
@@ -534,13 +560,21 @@ export function Brief({ className = "", style }: { className?: string; style?: C
               // Clamp priority: info before watch before act; lower rows first.
               const prio = sevOf(it) * 100 - idx;
               return (
-                <div key={r.key} data-row="body" data-clamp={r.tag ? r.key : undefined} data-prio={prio} className={`${s.item}${r.tag ? ` ${s.digest}` : ""}`} style={hide}>
+                <div
+                  key={r.key}
+                  data-row="body"
+                  data-clamp={r.tag ? r.key : undefined}
+                  data-noclamp={it.kind === "catalyst" || it.kind === "macro" ? "" : undefined}
+                  data-prio={prio}
+                  className={`${s.item}${r.tag ? ` ${s.digest}` : ""}`}
+                  style={hide}
+                >
                   {r.tag && <span className={s.dtag}>{r.tag}</span>}
                   <Marker it={it} />
                   <span data-text className={`${s.text}${sevOf(it) >= 1 ? ` ${s.strong}` : ""} ${lines}`} title={r.tag ? it.text : undefined}>
                     {sentence(text, tickers, it.ticker, dim, lines !== s.clamp1)}
                   </span>
-                  <span className={s.ageCell} title={age?.title}>
+                  <span className={`${s.ageCell} ${age?.future ? s.ageFuture : ""}`} title={age?.title}>
                     {age?.text ?? ""}
                   </span>
                   {r.tag &&
@@ -587,7 +621,8 @@ function Pill({ st }: { st: Status }) {
 function GuardRow({ it, style }: { it: BriefItem; style?: CSSProperties }) {
   const m = metricsOf(it);
   const t = it.ticker ?? "";
-  const st = status(m.action);
+  const st = status(m.action, m.reason);
+  const gd = guardDist(m);
   return (
     <Link href={`/security/${encodeURIComponent(t)}`} data-row="body" className={`${s.gt} ${s.grow}`} style={style} title={it.text}>
       <SevMark sev={sevOf(it)} />
@@ -601,34 +636,35 @@ function GuardRow({ it, style }: { it: BriefItem; style?: CSSProperties }) {
       </span>
       <span className={s.detail}>
         <span>wt {m.weight != null ? `${(m.weight * 100).toFixed(1)}%` : "—"}</span>
-        <span title={m.cut_price != null ? `−7% cut at ${fmtPx(m.cut_price)}` : undefined}>
-          to cut <b className={distTint(m.cut_distance)}>{fmtChg(m.cut_distance, 1)}</b>
-        </span>
-        <span title={m.stop_price != null ? `10% trailing stop at ${fmtPx(m.stop_price)}` : undefined}>
-          to stop <b className={distTint(m.stop_distance)}>{fmtChg(m.stop_distance, 1)}</b>
+        <span
+          title={`Binding guard: ${m.guard_kind ?? "—"} at ${fmtPx(m.guard_price)} (same as PORT's DIST)\n−7% cut ${fmtPx(m.cut_price)} (${fmtChg(m.cut_distance, 1)}) · 10% trailing stop ${fmtPx(m.stop_price)} (${fmtChg(m.stop_distance, 1)})`}
+        >
+          to {m.guard_kind ?? "guard"} <b className={distTint(gd)}>{fmtChg(gd, 1)}</b>
         </span>
         {m.usd_beyond ? (
           <span>
-            <b className={s.tAlert}>${Math.round(m.usd_beyond)}</b> past
+            <b className={s.tAlert}>${Math.round(m.usd_beyond)}</b> below guard
           </span>
         ) : null}
+        {m.reason && <span className={s.why}>{m.reason}</span>}
       </span>
     </Link>
   );
 }
 
-/** ALL view: one line per breach — TKR · STATUS · TO STOP · $ PAST. */
+/** ALL view: one line per breach — TKR · STATUS · TO GUARD · $ BELOW · WT. */
 function BreachRow({ it, style }: { it: BriefItem; style?: CSSProperties }) {
   const m = metricsOf(it);
   const t = it.ticker ?? "";
-  const st = status(m.action);
+  const st = status(m.action, m.reason);
+  const gd = guardDist(m);
   return (
     <Link
       href={`/security/${encodeURIComponent(t)}`}
       data-row="body"
       className={`${s.bt} ${s.brow}`}
       style={style}
-      title={`${it.text}\nLast ${fmtPx(m.last)} · P&L ${fmtUsd0(m.pnl_usd)} ${fmtChg(m.pnl_pct, 1)} · weight ${m.weight != null ? `${(m.weight * 100).toFixed(1)}%` : "—"} · to cut ${fmtChg(m.cut_distance, 1)} · stop ${fmtPx(m.stop_price)}`}
+      title={`${it.text}\nLast ${fmtPx(m.last)} · P&L ${fmtUsd0(m.pnl_usd)} ${fmtChg(m.pnl_pct, 1)} · ${m.guard_kind ?? "guard"} ${fmtPx(m.guard_price)}`}
     >
       <span className={s.bname}>
         <SevMark sev={sevOf(it)} />
@@ -637,9 +673,12 @@ function BreachRow({ it, style }: { it: BriefItem; style?: CSSProperties }) {
       <span className={s.st} title={st.sub}>
         <Pill st={st} />
       </span>
-      <span className={`${s.r} ${s.cell} ${distTint(m.stop_distance)}`}>{fmtChg(m.stop_distance, 1)}</span>
+      <span className={`${s.r} ${s.cell} ${distTint(gd)}`} title={m.guard_kind ? `binding guard: ${m.guard_kind} at ${fmtPx(m.guard_price)}` : undefined}>
+        {fmtChg(gd, 1)}
+        {m.guard_kind && <i className={s.gk}>{m.guard_kind}</i>}
+      </span>
       <span className={`${s.r} ${s.cell} ${m.usd_beyond ? s.tAlert : ""}`}>{m.usd_beyond ? `$${Math.round(m.usd_beyond)}` : "—"}</span>
-      <span className={s.dmoreGap} />
+      <span className={`${s.r} ${s.wt}`}>{m.weight != null ? `${(m.weight * 100).toFixed(1)}%` : "—"}</span>
     </Link>
   );
 }

@@ -135,6 +135,10 @@
 .tbl .grp {
   padding-left: 7px;
 }
+/* Last sits after the ticker + earnings badge: give it real air */
+.tbl .grpWide {
+  padding-left: 14px;
+}
 .tbl tbody tr {
   cursor: pointer;
 }

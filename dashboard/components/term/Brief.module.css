@@ -702,19 +702,17 @@ a.t:hover {
 /* state-tinted cells: ink number, tinted background */
 .tAlert {
   background: var(--alert-bg);
-  box-shadow: inset 0 0 0 1px rgba(255, 92, 176, 0.35);
   color: var(--ink) !important;
 }
 .tWarn {
   background: var(--warn-bg);
-  box-shadow: inset 0 0 0 1px rgba(255, 210, 63, 0.35);
   color: var(--ink) !important;
 }
 /* ALL view: compact one-line breach rows */
 .bt {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) 54px 44px 30px;
-  column-gap: 6px;
+  grid-template-columns: 52px minmax(0, 1fr) 66px 58px 34px;
+  column-gap: 5px;
   align-items: center;
   padding: 0 10px;
   font-family: var(--font-plex-mono), monospace;
@@ -765,8 +763,11 @@ a.t:hover {
 }
 @container (max-width: 330px) {
   .bt {
-    grid-template-columns: 50px minmax(0, 1fr) 50px 40px 30px;
-    column-gap: 5px;
+    grid-template-columns: 48px minmax(0, 1fr) 58px 40px 32px;
+    column-gap: 4px;
+  }
+  .gk {
+    display: none;
   }
   .pillLong {
     display: none;
@@ -774,4 +775,93 @@ a.t:hover {
   .pillShort {
     display: inline;
   }
+}
+
+/* ── round 7 ──────────────────────────────────────────────────────────── */
+.gk {
+  font-style: normal;
+  font-family: var(--font-plex-cond), sans-serif;
+  font-size: 9.5px;
+  color: var(--ink-3);
+  margin-left: 3px;
+}
+.wt {
+  color: var(--ink-2);
+  font-size: 10px;
+}
+.sorted {
+  color: var(--ink-2);
+}
+.bfoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 18px;
+  padding: 0 10px 0 23px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  text-align: left;
+}
+.bfoot:hover {
+  color: var(--amber-2);
+  background: var(--bg-2);
+}
+.bfootNames {
+  font-family: var(--font-plex-cond), sans-serif;
+  font-weight: 400;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.bfoot .go {
+  margin-left: auto;
+}
+.ageFuture {
+  color: var(--warn);
+}
+.ageCell {
+  min-width: 44px;
+  text-align: right;
+}
+/* round 7: vertical rhythm so ALL fits every breach + every kind */
+.lead {
+  padding: 4px 10px 4px;
+}
+.kicker {
+  margin-bottom: 1px;
+}
+.headline {
+  font-size: 14px;
+  line-height: 1.25;
+}
+.brow {
+  height: 17px;
+}
+.bthead {
+  height: 16px;
+}
+.bfoot {
+  height: 16px;
+}
+.digest {
+  font-size: 11px;
+  line-height: 1.25;
+  padding-top: 2px;
+  padding-bottom: 1px;
+}
+.digest .ageCell,
+.digest .dtag {
+  line-height: 13.75px;
+}
+.digest .mk {
+  margin-top: 4px;
 }

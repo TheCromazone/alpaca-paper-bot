@@ -6,10 +6,10 @@
  * the same ladder for the technical levels instead.
  */
 import type { CSSProperties } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { api, type SecurityResp } from "@/lib/api";
+import type { SecurityResp } from "@/lib/api";
+import type { Enforcement } from "./enforcement";
 import { fmtChg, fmtNum, fmtPx, fmtSignedUSD, tone } from "@/lib/format";
-import { BOT_STALE_MS, Bar, Panel, useNow } from "../ui";
+import { Bar, Panel, useNow } from "../ui";
 import { etDate, fmtD } from "./util";
 import s from "./security.module.css";
 
@@ -20,6 +20,7 @@ type Pos = NonNullable<SecurityResp["position"]>;
 type Mark = { k: string; v: number; color: string; strong?: boolean; value?: boolean };
 
 const LANE_TOP = [2, 38, 52]; // label rows: above the track, below, further below
+const LANE_TOP_C = [0, 26, 38]; // compact: keys only, no values
 const ASSUMED_W = 420; // px — only used to estimate label widths as % of the track
 
 /**
@@ -27,7 +28,7 @@ const ASSUMED_W = 420; // px — only used to estimate label widths as % of the 
  * Pure HTML (percent positions) so it needs no measuring. Labels are packed
  * into lanes (above, below, below-2) so neighbours never collide.
  */
-export function Ladder({ marks, shade }: { marks: Mark[]; shade?: { from: number; to: number; color: string }[] }) {
+export function Ladder({ marks, shade, compact = false }: { marks: Mark[]; shade?: { from: number; to: number; color: string }[]; compact?: boolean }) {
   const vals = marks.map((m) => m.v);
   const lo0 = Math.min(...vals);
   const hi0 = Math.max(...vals);
@@ -54,14 +55,16 @@ export function Ladder({ marks, shade }: { marks: Mark[]; shade?: { from: number
     it.lane = lane;
     taken[lane].push(span);
   }
-  const height = taken[2].length ? 70 : 56;
+  const TRACK = compact ? 19 : 28;
+  const lanes = compact ? LANE_TOP_C : LANE_TOP;
+  const height = compact ? (taken[2].length ? 54 : 42) : taken[2].length ? 70 : 56;
   return (
     <div style={{ position: "relative", height, margin: "0 16px" }} aria-hidden="true">
-      <div style={{ position: "absolute", left: 0, right: 0, top: 28, height: 1, background: "var(--line-2)" }} />
+      <div style={{ position: "absolute", left: 0, right: 0, top: TRACK, height: 1, background: "var(--line-2)" }} />
       {shade?.map((z, i) => {
         const a = Math.max(0, Math.min(100, pct(Math.min(z.from, z.to))));
         const b = Math.max(0, Math.min(100, pct(Math.max(z.from, z.to))));
-        return <div key={i} style={{ position: "absolute", left: `${a}%`, width: `${b - a}%`, top: 25, height: 7, background: z.color }} />;
+        return <div key={i} style={{ position: "absolute", left: `${a}%`, width: `${b - a}%`, top: TRACK - 3, height: 7, background: z.color }} />;
       })}
       {items.map((m) => (
         <div key={m.k}>
@@ -69,7 +72,7 @@ export function Ladder({ marks, shade }: { marks: Mark[]; shade?: { from: number
             style={{
               position: "absolute",
               left: `calc(${m.p}% - ${m.strong ? 1.5 : 0.5}px)`,
-              top: m.strong ? 20 : 23,
+              top: TRACK - (m.strong ? 8 : 5),
               width: m.strong ? 3 : 1,
               height: m.strong ? 17 : m.lane === 2 ? 26 : 11,
               background: m.color,
@@ -81,7 +84,7 @@ export function Ladder({ marks, shade }: { marks: Mark[]; shade?: { from: number
             style={{
               position: "absolute",
               left: `${m.a}%`,
-              top: LANE_TOP[m.lane],
+              top: lanes[m.lane],
               fontSize: 10,
               lineHeight: "16px",
               whiteSpace: "nowrap",
@@ -100,53 +103,31 @@ export function Ladder({ marks, shade }: { marks: Mark[]; shade?: { from: number
 
 // ── POS ──────────────────────────────────────────────────────────────────
 
-/**
- * One exit guard. Status is about enforcement, not just distance:
- *  - BREACHED · UNFILLED  price is through the level but the position is still open
- *  - UNENFORCED · BOT STALE  synthetic level and the bot (its only enforcer) isn't running
- *  - NEAR / ARMED otherwise.
- */
-function Guard({
-  name,
-  price,
-  note,
-  dist,
-  enforced,
-  offReason,
-}: {
-  name: string;
-  price: number;
-  note: string;
-  dist: number | null;
-  enforced: boolean;
-  offReason: string;
-}) {
+/** One exit guard: level, distance, state (Breached / Off / Near / Armed) and the rule + its enforcer. */
+function Guard({ name, price, note, dist, armed }: { name: string; price: number; note: string; dist: number | null; armed: boolean }) {
   const breached = dist != null && dist < 0;
   const near = dist != null && dist >= 0 && dist < 0.03;
-  // Action state → --alert; watch state → warn. "Unenforced" is said once, in the panel banner.
+  // Action state → --alert; watch → warn. Why a guard is off is said once, in the banner.
   const state = breached
     ? { cls: "alert", text: "Breached · unfilled", title: "Price is through this level and the position is still open — the exit has not executed." }
-    : near
-      ? { cls: "warn", text: "Near", title: "Within 3% of the level." }
-      : enforced
-        ? { cls: "", text: "Armed", title: "The bot checks this level on its scheduled routines." }
-        : null;
-  void offReason;
+    : !armed
+      ? { cls: "", text: "Off", title: "Nothing is acting on this level — see the banner above for why." }
+      : near
+        ? { cls: "warn", text: "Near", title: "Within 3% of the level." }
+        : { cls: "", text: "Armed", title: "Will be acted on when breached." };
   return (
     <div className={s.guard}>
-      <span className="label" style={{ color: breached ? "var(--alert)" : enforced ? "var(--ink-2)" : "var(--ink-3)" }}>{name}</span>
-      <span className="num" style={{ color: "var(--ink)", textAlign: "right" }}>{fmtPx(price)}</span>
+      <span className="label" style={{ color: breached ? "var(--alert)" : armed ? "var(--ink-2)" : "var(--ink-3)" }}>{name}</span>
+      <span className="num" style={{ color: armed || breached ? "var(--ink)" : "var(--ink-2)", textAlign: "right" }}>{fmtPx(price)}</span>
       <span className={`num ${breached ? "alert" : near ? "warn" : "flat"}`} style={{ textAlign: "right" }} title="Last price relative to the level">
         {dist == null ? "—" : `${fmtChg(dist)}`}
       </span>
       <span style={{ display: "inline-flex", justifyContent: "flex-end" }}>
-        {state ? (
-          <span className={`pill ${state.cls}`} title={state.title}>
-            {state.text}
-          </span>
-        ) : null}
+        <span className={`pill ${state.cls}`} title={state.title} style={!armed && !breached ? { color: "var(--ink-3)", borderStyle: "dashed" } : undefined}>
+          {state.text}
+        </span>
       </span>
-      {/* The rule itself, always in full. */}
+      {/* The rule and what acts on it — derived from the same enforcement source as the banner. */}
       <span className={s.guardNote}>{note}</span>
     </div>
   );
@@ -185,6 +166,7 @@ export function PositionPanel({
   last,
   prev,
   trades,
+  enf,
   className = "",
   style,
 }: {
@@ -193,17 +175,12 @@ export function PositionPanel({
   /** Prior session close, for day P&L. */
   prev: number | null;
   trades: SecurityResp["trades"];
+  /** enforcement.ts — computed once by the page, shared with the chart. */
+  enf: Enforcement;
   className?: string;
   style?: CSSProperties;
 }) {
   const now = useNow(60_000);
-  const { data: bot } = useQuery({ queryKey: ["bot-status"], queryFn: api.botStatus, refetchInterval: 30_000 });
-  const run = bot?.last_llm_run;
-  // /bot/status says whether the bot is actually running its routines; fall back to the shared staleness rule.
-  const fallbackStale = !!now && (!run || now - new Date(run.started_at).getTime() > BOT_STALE_MS);
-  const active = bot ? (bot.active ?? !fallbackStale) : true;
-  const offReason = bot?.routines_enabled === false ? "bot off" : "bot stale";
-  const enforced = pos.broker_stop || active;
   const px = last ?? pos.market_price;
   const days = pos.opened_at && now ? Math.floor((now - new Date(pos.opened_at).getTime()) / 86_400_000) : null;
   const basis = pos.qty * pos.avg_cost;
@@ -225,17 +202,33 @@ export function PositionPanel({
       style={style}
       flush
       actions={
-        <span className="pill" title={pos.broker_stop ? "A GTC trailing-stop order is live at the broker" : "No broker order — the bot's routines enforce the 10% trail"}>
-          {pos.broker_stop ? "Broker stop" : "Synthetic stop"}
-        </span>
+        !enf.known ? undefined : enf.stop.by === "broker" ? (
+          <span className="pill" title="A GTC trailing-stop order is live at the broker">Broker stop</span>
+        ) : enf.stop.by === "synthetic" ? (
+          <span className="pill" title="No broker order — the 5-min sync job sells a breach (scheduler up, DRY_RUN off)">Synthetic · armed</span>
+        ) : (
+          <span className="pill warn" style={{ borderStyle: "dashed" }} title={`No broker order and the 5-min sync can't act: ${enf.stop.why.join(", ")}`}>
+            Stop inactive
+          </span>
+        )
       }
     >
-      {!enforced && (
+      {enf.known && (!enf.stop.armed || !enf.cut.armed) && (
         <div className={s.banner} role="status">
-          <span className="pill alert">Unenforced</span>
+          <span className="pill alert">Inactive</span>
           <span>
-            {offReason === "bot off" ? "Bot routines disabled" : "Bot stale"}
-            {run ? ` · last run ${fmtD(etDate(run.started_at), "dmy")} (${now ? Math.floor((now - new Date(run.started_at).getTime()) / 86_400_000) : "?"}d)` : ""} — the synthetic 10% trail and −7% cut below are not being acted on.
+            {!enf.stop.armed && (
+              <>
+                <b>Trail stop</b> ({enf.stop.why.join(", ")})
+              </>
+            )}
+            {!enf.stop.armed && !enf.cut.armed && " · "}
+            {!enf.cut.armed && (
+              <>
+                <b>−7% cut</b> ({enf.cut.why.join("; ")})
+              </>
+            )}
+            {" — "}a breach of {!enf.stop.armed && !enf.cut.armed ? "either level" : "it"} will not be sold.
           </span>
         </div>
       )}
@@ -315,6 +308,7 @@ export function PositionPanel({
       <div style={{ padding: "4px 0 0" }}>
         {/* Positions only — the values sit in the rows above/below. */}
         <Ladder
+          compact
           marks={[
             { k: "CUT", v: pos.midday_cut_price, color: px < pos.midday_cut_price ? "var(--alert)" : "#c3cbd5", value: false },
             { k: "STOP", v: pos.stop_price, color: px < pos.stop_price ? "var(--alert)" : "var(--warn)", value: false },
@@ -331,19 +325,18 @@ export function PositionPanel({
       <Guard
         name="Trail stop"
         price={pos.stop_price}
-        note={`${(pos.trail_pct * 100).toFixed(0)}% below the peak close${pos.broker_stop ? " · broker GTC order" : " · synthetic (bot-enforced)"}`}
+        note={`${(pos.trail_pct * 100).toFixed(0)}% below the peak close · ${
+          enf.stop.by === "broker" ? "broker GTC order" : enf.stop.armed ? "5-min sync job sells on breach" : "5-min sync would sell — not running"
+        }`}
         dist={pos.stop_distance}
-        enforced={enforced}
-        offReason={offReason}
+        armed={enf.stop.armed}
       />
-      {/* The −7% cut is only ever enforced by the 13:00 midday routine — never a broker order. */}
       <Guard
         name="Midday cut"
         price={pos.midday_cut_price}
-        note="−7% from avg cost · sold by the 13:00 ET midday routine"
+        note={`−7% from avg cost · ${enf.cut.armed ? "13:00 ET midday routine sells" : "only the 13:00 ET midday routine sells — off"}`}
         dist={pos.midday_cut_distance}
-        enforced={active}
-        offReason={offReason}
+        armed={enf.cut.armed}
       />
     </Panel>
   );

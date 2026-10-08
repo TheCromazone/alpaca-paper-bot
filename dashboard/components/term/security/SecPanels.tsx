@@ -11,7 +11,7 @@ import type { SecurityResp, TickerNews } from "@/lib/api";
 import { fmtBig, fmtChg, fmtET, fmtNum, tone } from "@/lib/format";
 import { Panel, Skeleton, useNow } from "../ui";
 import { FitLines, FitList } from "./Fit";
-import { dayNum, daysUntil, etDate, exchangeName, fmtD, ymd, MONTHS } from "./util";
+import { dayNum, daysUntil, etDate, fmtD, ymd, MONTHS } from "./util";
 import type { Profile } from "./SecurityHeader";
 import s from "./security.module.css";
 
@@ -50,7 +50,7 @@ function SentNum({ v }: { v: number | null }) {
   return (
     <span
       className={`num ${neutral ? "" : v! > 0 ? "up" : "down"}`}
-      style={{ fontSize: neutral ? 10 : 11, textAlign: "right", color: neutral ? "var(--ink-4)" : undefined }}
+      style={{ fontSize: neutral ? 10 : 11, textAlign: "right", color: neutral ? "var(--ink-3)" : undefined }}
       title={
         v == null
           ? "No sentiment score"
@@ -177,23 +177,18 @@ export function SecNews({
 /** API adds 13F context to each signal; declared here until lib/api.ts types it. */
 type Sig = SecurityResp["signals"][number] & { period?: string | null; filed?: string | null; change?: string | null };
 
-type FlowItem = {
-  key: string;
-  who: string;
-  investor: boolean;
-  tag: string;
-  dir: "buy" | "sell";
-  verb: string;
-  up: boolean;
-  amount: number | null;
-  as_of: string;
-  period: string | null;
-  filed: string | null;
-  n: number;
+/** Statutory PTR amount bands, keyed by the midpoint the DB stores. */
+const PTR_BANDS: Record<number, string> = {
+  8000: "$1,001–$15,000",
+  32500: "$15,001–$50,000",
+  75000: "$50,001–$100,000",
+  175000: "$100,001–$250,000",
+  375000: "$250,001–$500,000",
+  750000: "$500,001–$1,000,000",
+  3000000: "$1,000,001–$5,000,000",
+  15000000: "$5,000,001–$25,000,000",
+  37500000: "$25,000,001–$50,000,000",
 };
-
-const flowTag = (kind: string, chamber: string | null | undefined) =>
-  kind === "investor" ? "13F" : chamber === "senate" ? "SEN" : chamber === "house" ? "HSE" : "PTR";
 
 /** "2026-06-30" → "Q2'26". */
 const qLabel = (d: string) => {
@@ -201,123 +196,148 @@ const qLabel = (d: string) => {
   return `Q${Math.ceil(m / 3)}'${String(y).slice(2)}`;
 };
 
+type PtrRow = { key: string; who: string; chamber: string; up: boolean; mid: number | null; day: string; n: number };
+type F13Row = { key: string; who: string; verb: string; up: boolean; value: number | null; period: string | null; filed: string | null };
+
 export function SecFlow({ data, className = "", style }: P & { data: SecurityResp }) {
   const now = useNow(60_000);
   const sig = data.signals as Sig[];
-  // Identical disclosures (same filer, side, day, size) collapse to one row ×N.
-  const groups = new Map<string, FlowItem>();
-  for (const g of sig) {
-    const investor = g.kind === "investor";
-    const tag = flowTag(g.kind, g.chamber);
-    const change = (g.change ?? "").toLowerCase();
-    // 13F rows are quarter-end holdings changes, not trades: use the change verb.
-    const verb = investor ? (change ? change.toUpperCase() : g.direction === "buy" ? "ADD" : "TRIM") : g.direction === "buy" ? "BUY" : "SELL";
-    const up = investor ? change ? change === "new" || change === "add" : g.direction === "buy" : g.direction === "buy";
-    const key = `${g.source}|${verb}|${etDate(g.as_of)}|${g.amount ?? ""}|${tag}|${g.period ?? ""}`;
-    const prev = groups.get(key);
+  // Politician PTRs: identical disclosures (filer, side, day, band) collapse to one row ×N.
+  const ptrMap = new Map<string, PtrRow>();
+  for (const g of sig.filter((x) => x.kind !== "investor")) {
+    const day = etDate(g.as_of);
+    const key = `${g.source}|${g.direction}|${day}|${g.amount ?? ""}`;
+    const prev = ptrMap.get(key);
     if (prev) prev.n += 1;
     else
-      groups.set(key, {
+      ptrMap.set(key, {
         key,
         who: g.source,
-        investor,
-        tag,
-        dir: g.direction,
-        verb,
-        up,
-        amount: g.amount,
-        as_of: g.as_of,
-        period: g.period ?? null,
-        filed: g.filed ?? null,
+        chamber: g.chamber === "senate" ? "SEN" : g.chamber === "house" ? "HSE" : "PTR",
+        up: g.direction === "buy",
+        mid: g.amount,
+        day,
         n: 1,
       });
   }
-  // Fresh trades first; quarter-old 13F holdings after, dimmed.
-  const rows = [...groups.values()].sort((a, b) => Number(a.investor) - Number(b.investor) || b.as_of.localeCompare(a.as_of));
-  const ptr = sig.filter((g) => g.kind !== "investor");
-  const ptrBuys = ptr.filter((g) => g.direction === "buy");
-  const ptrNet = ptrBuys.reduce((a, g) => a + (g.amount ?? 0), 0) - ptr.filter((g) => g.direction === "sell").reduce((a, g) => a + (g.amount ?? 0), 0);
-  const f13 = rows.filter((r) => r.investor);
-  const f13Adds = f13.filter((r) => r.up).length;
+  const ptr = [...ptrMap.values()].sort((a, b) => b.day.localeCompare(a.day));
+  const ptrN = sig.filter((x) => x.kind !== "investor").length;
+  const ptrBuys = ptr.reduce((a, r) => a + (r.up ? r.n : 0), 0);
+  const ptrNet = ptr.reduce((a, r) => a + (r.up ? 1 : -1) * (r.mid ?? 0) * r.n, 0);
+  // 13F: quarter-end holdings changes — top holders by reported position value.
+  const f13: F13Row[] = sig
+    .filter((x) => x.kind === "investor")
+    .map((g) => {
+      const change = (g.change ?? "").toLowerCase();
+      const up = change ? change === "new" || change === "add" : g.direction === "buy";
+      return {
+        key: `f${g.id}`,
+        who: g.source,
+        verb: change ? change.toUpperCase() : up ? "ADD" : "TRIM",
+        up,
+        value: g.amount,
+        period: g.period ?? null,
+        filed: g.filed ?? null,
+      };
+    })
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
   const periods = [...new Set(f13.map((r) => r.period).filter((x): x is string => !!x))].sort();
-  const latestPeriod = periods[periods.length - 1] ?? null;
-  const periodAge = latestPeriod && now ? dayNum(etDate(new Date(now).toISOString())) - dayNum(latestPeriod) : null;
+  const latest = periods[periods.length - 1] ?? null;
+  const filedDays = [...new Set(f13.map((r) => r.filed).filter((x): x is string => !!x))].sort();
+  const age = latest && now ? dayNum(etDate(new Date(now).toISOString())) - dayNum(latest) : null;
+  const f13Adds = f13.filter((r) => r.up).length;
+  /** "~$16K mid": total of the disclosed-range midpoints (×N already folded in). */
+  const k$ = (v: number) => (Math.abs(v) < 1e6 ? `$${Math.round(Math.abs(v) / 1000)}K` : `$${fmtBig(Math.abs(v))}`);
+  const midLabel = (v: number | null, n: number) => (v ? `~${k$(v * n)} mid` : "—");
   return (
     <Panel code="FLOW" title="Politician & 13F" className={className} style={style} flush bodyStyle={{ overflow: "hidden" }}>
       {!sig.length ? (
         <Note>
-          No congressional trades or 13F moves in {data.ticker} on record. House PTRs scrape daily, Senate eFD daily, 13F weekly.
+          No congressional trades or 13F holders of {data.ticker} on record. House PTRs scrape daily, Senate eFD daily, 13F weekly.
         </Note>
       ) : (
         <div className={s.col}>
-          <div className={s.subHead} style={{ justifyContent: "space-between", flex: "none", columnGap: 10, rowGap: 1, flexWrap: "wrap", height: "auto", minHeight: 22, padding: "3px 10px" }}>
-            {ptr.length > 0 && (
-              <span className="num" style={{ fontSize: 10.5, whiteSpace: "nowrap" }} title={`Congressional PTRs: ${ptrBuys.length} buys, ${ptr.length - ptrBuys.length} sells. Net of disclosed-range midpoints.`}>
-                <span className="label" style={{ marginRight: 5 }}>PTR</span>
-                <span className="up">▲{ptrBuys.length}</span> <span className="down">▼{ptr.length - ptrBuys.length}</span>{" "}
+          {/* ── congressional PTRs ── */}
+          <div className={s.flowSec} title={`${ptrN} disclosures: ${ptrBuys} buys, ${ptrN - ptrBuys} sells. Net of disclosed-range midpoints.`}>
+            <span className="label">Congress PTR</span>
+            {ptrN > 0 ? (
+              <span className="num">
+                <span className="up">▲{ptrBuys}</span> <span className="down">▼{ptrN - ptrBuys}</span> net{" "}
                 <span className={tone(ptrNet)}>
-                  {ptrNet >= 0 ? "+" : "−"}${fmtBig(Math.abs(ptrNet))}
+                  ~{ptrNet >= 0 ? "+" : "−"}
+                  {k$(ptrNet)}
                 </span>
               </span>
-            )}
-            {f13.length > 0 && (
-              <span
-                className="num"
-                style={{ fontSize: 10.5, whiteSpace: "nowrap", color: "var(--ink-3)" }}
-                title="13F filings report quarter-end holdings, filed up to 45 days later — position changes, not trades."
-              >
-                <span className="label" style={{ marginRight: 5, color: "var(--ink-3)" }}>13F</span>
-                {latestPeriod ? `${qLabel(latestPeriod)} holdings` : "holdings"}
-                {periodAge != null ? ` · ${periodAge}d old` : ""} · {f13Adds} add · {f13.length - f13Adds} trim/exit
-              </span>
+            ) : (
+              <span className="dim">none</span>
             )}
           </div>
-          <FitList unit="filings">
-            {rows.map((g) => (
-              <div key={g.key} className={s.flowRow} style={g.investor ? { color: "var(--ink-3)" } : undefined}>
-                <span style={{ minWidth: 0 }}>
-                  <span className={s.flowWho} title={g.who} style={g.investor ? { color: "var(--ink-2)" } : undefined}>
-                    {g.who}
-                  </span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}>
-                    {g.investor ? (
-                      <span className="num" style={{ fontSize: 10, color: "var(--ink-3)" }} title={g.period ? `Holdings as of ${fmtD(g.period, "dmy")}` : undefined}>
-                        {g.period ? `${qLabel(g.period)} 13F` : "13F"}
-                        {g.filed ? ` · filed ${fmtD(g.filed, "md")}` : ""}
-                      </span>
-                    ) : (
-                      <>
-                        <span className="num" style={{ fontSize: 10, color: "var(--ink-3)" }}>{fmtD(etDate(g.as_of), "md")}</span>
-                        <span className={s.chip} style={{ color: "var(--ink-3)" }}>{g.tag}</span>
-                      </>
-                    )}
-                    {g.n > 1 && (
-                      <span className={s.chip} style={{ color: "var(--ink)" }} title={`${g.n} identical disclosures, aggregated`}>
-                        ×{g.n}
-                      </span>
-                    )}
-                  </span>
-                </span>
-                <span style={{ textAlign: "right" }}>
-                  <span
-                    className={`num ${g.up ? "up" : "down"}`}
-                    style={{ display: "block", fontWeight: 600, fontSize: 11, opacity: g.investor ? 0.8 : 1 }}
-                    title={g.investor ? "Change in the reported 13F position vs the prior quarter" : "Disclosed transaction"}
-                  >
-                    {g.up ? "▲" : "▼"} {g.verb}
-                  </span>
-                  <span
-                    className="num"
-                    style={{ display: "block", fontSize: 11, color: g.investor ? "var(--ink-3)" : "var(--ink)", marginTop: 1 }}
-                    title={g.investor ? "Reported position value at quarter-end" : `Midpoint of the disclosed range${g.n > 1 ? ` × ${g.n}` : ""}`}
-                  >
-                    {g.amount ? `$${fmtBig(g.amount * g.n)}` : "—"}
-                    {g.investor ? " pos." : ""}
-                  </span>
-                </span>
-              </div>
-            ))}
-          </FitList>
+          {ptr.length > 0 && (
+            <div style={{ flex: "1 1 0", minHeight: 0, display: "flex" }}>
+              <FitList unit="disclosures">
+                {ptr.map((r) => (
+                  <div key={r.key} className={s.flowLine} title={`${r.who} · ${r.chamber === "SEN" ? "Senate" : r.chamber === "HSE" ? "House" : "Congress"}${r.n > 1 ? ` · ${r.n} identical disclosures` : ""}`}>
+                    <span className="num dim">{fmtD(r.day)}</span>
+                    <span className={s.flowWho}>
+                      {r.who}
+                    </span>
+                    <span className={s.chip} style={{ color: "var(--ink-3)" }}>
+                      {r.chamber === "SEN" ? "S" : r.chamber === "HSE" ? "H" : "C"}
+                      {r.n > 1 ? `×${r.n}` : ""}
+                    </span>
+                    <span className={`num ${r.up ? "up" : "down"}`} style={{ fontWeight: 600 }}>
+                      {r.up ? "BUY" : "SELL"}
+                    </span>
+                    <span
+                      className="num"
+                      style={{ color: "var(--ink)", textAlign: "right" }}
+                      title={`Midpoint of the disclosed range${r.mid != null && PTR_BANDS[r.mid] ? ` (${PTR_BANDS[r.mid]})` : ""}${r.n > 1 ? ` × ${r.n} disclosures` : ""}. PTRs report a range, not an exact amount; the DB stores only the midpoint.`}
+                    >
+                      {midLabel(r.mid, r.n)}
+                    </span>
+                  </div>
+                ))}
+              </FitList>
+            </div>
+          )}
+          {/* ── 13F top holders (stale by construction: quarter-end, filed ≤45d later) ── */}
+          <div
+            className={s.flowSec}
+            style={{ borderTop: "1px solid var(--line)" }}
+            title="13F filings report quarter-end holdings, filed up to 45 days later — position changes, not trades."
+          >
+            <span className="label">13F top holders</span>
+            {f13.length > 0 ? (
+              <span
+                className="num dim"
+                title={filedDays.length ? `Filed ${fmtD(filedDays[0])}${filedDays.length > 1 ? `–${fmtD(filedDays[filedDays.length - 1])}` : ""} · ${f13Adds} new/add · ${f13.length - f13Adds} trim/exit` : undefined}
+              >
+                {latest ? `${qLabel(latest)} holdings` : "—"}
+                {age != null ? ` · ${age}d old` : ""}
+              </span>
+            ) : (
+              <span className="dim">none on file</span>
+            )}
+          </div>
+          {f13.length > 0 && (
+            <div style={{ flex: "1 1 0", minHeight: 0, display: "flex" }}>
+              <FitList unit="holders">
+                {f13.map((r) => (
+                  <div key={r.key} className={`${s.flowLine} ${s.flowLine13}`} title={r.period ? `${qLabel(r.period)} holdings${r.filed ? `, filed ${fmtD(r.filed)}` : ""}` : undefined}>
+                    <span className={s.flowWho} title={r.who} style={{ color: "var(--ink-2)" }}>
+                      {r.who}
+                    </span>
+                    <span className={`num ${r.up ? "up" : "down"}`} style={{ fontWeight: 600, opacity: 0.85 }}>
+                      {r.up ? "▲" : "▼"} {r.verb}
+                    </span>
+                    <span className="num" style={{ color: "var(--ink-2)", textAlign: "right" }} title="Reported position value at quarter-end">
+                      ${fmtBig(r.value)}
+                    </span>
+                  </div>
+                ))}
+              </FitList>
+            </div>
+          )}
         </div>
       )}
     </Panel>
@@ -336,8 +356,8 @@ function quarterLabel(q: string) {
 export function SecEvents({ data, className = "", style }: P & { data: SecurityResp }) {
   const now = useNow(60_000);
   const { next, history } = data.earnings; // newest first
-  // Surprise = actual ÷ consensus − 1 from the UNROUNDED estimate (matches the API's figure);
-  // ACT and EST both display at 2 dp, the exact estimate is in the tooltip.
+  // Surprise = actual ÷ consensus − 1 from the unrounded estimate (matches the API's figure).
+  // EST shows 3 dp when it has sub-cent precision (3.142), so ACT/EST/SURPRISE reconcile by eye.
   const surp = (h: (typeof history)[number]) =>
     h.eps_actual != null && h.eps_estimate ? h.eps_actual / h.eps_estimate - 1 : h.surprise_pct;
   const surprises = history.map(surp).filter((v): v is number => v != null);
@@ -358,8 +378,8 @@ export function SecEvents({ data, className = "", style }: P & { data: SecurityR
         <>
           {surprises.length ? `${beats}/${surprises.length} beats${avg != null ? ` · avg ${fmtChg(avg, 1)}` : ""}` : ""}
           {!next && (
-            <span style={{ color: "var(--ink-4)" }} title="The earnings calendar has no confirmed date for the next report yet">
-              {surprises.length ? " · " : ""}next date not yet published
+            <span style={{ color: "var(--ink-3)" }} title="Next report date not yet published — the earnings calendar has no confirmed date">
+              {surprises.length ? " · " : ""}next date TBA
             </span>
           )}
         </>
@@ -403,9 +423,9 @@ export function SecEvents({ data, className = "", style }: P & { data: SecurityR
                     <span
                       className="num"
                       style={{ color: "var(--ink-3)", textAlign: "right" }}
-                      title={h.eps_estimate != null ? `Consensus ${h.eps_estimate} (unrounded) — the surprise % is computed from this, not the 2-dp display` : undefined}
+                      title={h.eps_estimate != null ? `Consensus ${h.eps_estimate} (unrounded); surprise is computed from this` : undefined}
                     >
-                      {fmtNum(h.eps_estimate, 2)}
+                      {fmtNum(h.eps_estimate, h.eps_estimate != null && Math.abs(h.eps_estimate * 100 - Math.round(h.eps_estimate * 100)) > 1e-6 ? 3 : 2)}
                     </span>
                     <span className={s.evSurp}>
                       <span className={s.evTrack}>
@@ -443,16 +463,12 @@ export function SecDes({
   style,
 }: P & { data: SecurityResp; profile: Profile | null; loading: boolean; lines?: number | "fit" }) {
   const host = profile?.website ? profile.website.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "") : null;
-  const facts = [
-    profile?.industry ?? profile?.sector,
-    profile?.employees ? `${fmtNum(profile.employees, 0)} employees` : null,
-    exchangeName(profile?.exchange),
-  ].filter(Boolean);
   return (
     <Panel
       code="DES"
       title="Description"
-      sub={facts.length ? facts.join(" · ") : undefined}
+      // Industry/exchange are already in the header's meta line; headcount isn't.
+      sub={profile?.employees ? <span title={`${fmtNum(profile.employees, 0)} full-time employees`}>{`${Math.round(profile.employees / 1000)}K staff`}</span> : undefined}
       actions={
         host ? (
           <a

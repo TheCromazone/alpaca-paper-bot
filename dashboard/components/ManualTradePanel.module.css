@@ -224,10 +224,11 @@
 }
 .ctxMeta {
   font-family: var(--font-plex-mono), monospace;
+  font-size: 10px;
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
-  color: var(--ink-4);
+  color: var(--ink-2);
 }
 .ctxName {
   font-family: var(--font-plex-cond), sans-serif;
@@ -314,6 +315,40 @@
   font-family: var(--font-plex-mono), monospace;
   font-size: 9.5px;
   color: var(--ink-4);
+}
+.chipsHeld {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 3px;
+  margin-top: 3px;
+}
+.heldChip {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 3px;
+  height: 19px;
+  padding: 0 5px;
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  line-height: 17px;
+  color: var(--ink-2);
+  cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
+}
+.heldChip b {
+  font-weight: 600;
+  color: var(--ink);
+}
+.heldChip:hover {
+  border-color: var(--amber);
+}
+.heldChip:hover b {
+  color: var(--amber-2);
 }
 .pick {
   display: grid;

@@ -98,15 +98,15 @@ const SPOT: Record<string, { series: string[]; dp?: number; note: string; tag?: 
   EWJ: { series: ["YF:^N225"], note: "Nikkei 225 (EWJ tracks MSCI Japan; the Nikkei is the nearest free benchmark)" },
   EWG: { series: ["YF:^GDAXI"], note: "DAX (EWG tracks MSCI Germany; the DAX is the nearest free benchmark)" },
   FXI: { series: ["YF:^HSI"], note: "Hang Seng (FXI tracks FTSE China 50; the Hang Seng is the nearest free benchmark)" },
-  UUP: { series: ["YF:DX-Y.NYB", "DTWEXBGS"], note: "US dollar index (DXY)" },
+  UUP: { series: ["YF:DX-Y.NYB", "DTWEXBGS"], dp: 2, note: "US dollar index (DXY)" },
   FXE: { series: ["YF:EURUSD=X", "DEXUSEU"], dp: 4, note: "EURUSD" },
-  FXY: { series: ["YF:JPY=X", "DEXJPUS"], dp: 2, note: "USDJPY — moves inversely to FXY" },
+  FXY: { series: ["YF:JPY=X", "DEXJPUS"], dp: 2, note: "USDJPY level; FXY tracks the yen, so the change shown is the yen's (JPY up = FXY up)" },
   FXB: { series: ["YF:GBPUSD=X", "DEXUSUK"], dp: 4, note: "GBPUSD" },
-  GLD: { series: ["YF:GC=F"], dp: 1, note: "Gold front-month future, $/oz" },
-  SLV: { series: ["YF:SI=F"], dp: 2, note: "Silver front-month future, $/oz" },
-  USO: { series: ["YF:CL=F", "DCOILWTICO"], dp: 2, note: "WTI crude front-month future, $/bbl" },
-  UNG: { series: ["YF:NG=F", "DHHNGSP"], dp: 3, note: "Henry Hub natural gas future, $/MMBtu" },
-  CPER: { series: ["YF:HG=F"], dp: 3, note: "Copper front-month future, $/lb" },
+  GLD: { series: ["YF:GC=F"], note: "Gold front-month future, $/oz" },
+  SLV: { series: ["YF:SI=F"], note: "Silver front-month future, $/oz" },
+  USO: { series: ["YF:CL=F", "DCOILWTICO"], note: "WTI crude front-month future, $/bbl" },
+  UNG: { series: ["YF:NG=F", "DHHNGSP"], note: "Henry Hub natural gas future, $/MMBtu" },
+  CPER: { series: ["YF:HG=F"], note: "Copper front-month future, $/lb" },
   IBIT: { series: ["YF:BTC-USD", "CBBTCUSD"], note: "BTC/USD" },
   ETHA: { series: ["YF:ETH-USD", "CBETHUSD"], note: "ETH/USD" },
 };
@@ -132,6 +132,9 @@ const MACRO_META: Record<string, { code: string; kind: Kind; label?: string }> =
 };
 
 type Spot = { v: number; dp?: number; asOf: string; note: string; series: string; chg1d: number | null; tag?: string };
+/** FX rows whose quoted spot moves opposite to the ETF (USDJPY vs FXY). */
+const INVERTED = new Set(["FXY"]);
+const inv = (c: number | null | undefined) => (c == null ? null : 1 / (1 + c) - 1);
 
 type Row = {
   key: string;
@@ -153,6 +156,8 @@ type Row = {
   hi: number | null;
   asOf: string | null;
   spot: Spot | null;
+  /** FX rows: the ETF's own moves (the change cells show the currency's). */
+  fxEtf?: Partial<Record<H, number | null>>;
   card: [string, ReactNode][];
 };
 
@@ -174,8 +179,11 @@ const fmtBp = (pp: number | null | undefined, plus = true) => {
   const bp = Math.round(pp * 100);
   return plus ? `${signed(bp, String(Math.abs(bp)))}bp` : `${bp < 0 ? MINUS : ""}${Math.abs(bp)}bp`;
 };
+/** One precision rule for levels: ≥ 1,000 → whole numbers; ≥ 10 → 2 dp;
+ *  < 10 → 3 dp. FX quotes keep market convention (EURUSD/GBPUSD 4 dp). */
 const fmtLevel = (v: number, dp?: number) => {
-  const d = dp ?? (Math.abs(v) >= 1_000 ? 0 : 2);
+  const a = Math.abs(v);
+  const d = dp ?? (a >= 1_000 ? 0 : a >= 10 ? 2 : 3);
   return v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 };
 
@@ -242,8 +250,12 @@ function fill(r: Row, v: number | null, h: H, close?: string): { bg: string; fg:
   const z = zOf(r, v, h, close);
   if (z == null) return { bg: "transparent", fg: "var(--ink-4)", ring: true };
   if (Math.abs(z) < Z_ZERO) return { bg: "transparent", fg: "var(--ink-2)", ring: true };
-  const a = Math.min(1, Math.abs(z) / Z_SAT);
-  const [cr, cg, cb] = neutralKind(r) ? [118, 131, 148] : z > 0 ? [18, 168, 92] : [214, 52, 52];
+  // Prices: move ÷ typical move. Rates/spreads/VIX: graded by the size of
+  // the move itself (10bp, or 10% for VIX, = full) so ▼9bp outweighs ▼1bp.
+  const a = neutralKind(r)
+    ? Math.min(1, Math.abs(v ?? 0) / (r.kind === "vix" ? 0.1 : 0.1) / Math.sqrt(horizonDays(h, close)))
+    : Math.min(1, Math.abs(z) / Z_SAT);
+  const [cr, cg, cb] = neutralKind(r) ? [150, 162, 178] : z > 0 ? [18, 168, 92] : [214, 52, 52];
   const base = [21, 27, 35];
   const k = 0.2 + 0.8 * Math.pow(a, 0.8);
   const mix = (c: number, i: number) => Math.round(base[i] + (c - base[i]) * k);
@@ -304,6 +316,13 @@ function fromQuote(q: QuoteRow, macro: Map<string, MacroRow>): Row {
   const sid = sp?.series.find((id) => macro.get(id)?.last != null);
   const m = sid ? macro.get(sid) : undefined;
   const spot: Spot | null = m && m.last != null ? { v: m.last, dp: sp!.dp, asOf: m.as_of, note: sp!.note, series: sid!, chg1d: m.chg_1d, tag: sp!.tag } : null;
+  // FX: the currency is the primary value, so its own move drives the change
+  // cells (in the ETF's direction — the yen for FXY); the ETF's move goes to
+  // the hover card. 3M/YTD fall back to the ETF (the spot series is 60 obs).
+  const fxSpot = FX_PRIMARY.has(q.ticker) && m ? m : null;
+  const flip = INVERTED.has(q.ticker);
+  const fx = (c: number | null | undefined) => (c == null ? null : flip ? inv(c) : c);
+  const fxSpark = fxSpot ? fxSpot.spark.map((x) => (x == null ? null : flip ? 1 / x : x)) : null;
   return {
     key: q.ticker,
     code: q.ticker,
@@ -313,9 +332,12 @@ function fromQuote(q: QuoteRow, macro: Map<string, MacroRow>): Row {
     held: q.held,
     macro: false,
     last: q.last,
-    chg: { "1D": q.chg_1d, "5D": q.chg_5d, "1M": q.chg_1m, "3M": q.chg_3m, YTD: q.chg_ytd },
-    sigma: dailySigma(q.spark, "px"),
-    spark: q.spark,
+    chg: fxSpot
+      ? { "1D": fx(fxSpot.chg_1d), "5D": fx(fxSpot.chg_5d), "1M": fx(fxSpot.chg_1m), "3M": q.chg_3m, YTD: q.chg_ytd }
+      : { "1D": q.chg_1d, "5D": q.chg_5d, "1M": q.chg_1m, "3M": q.chg_3m, YTD: q.chg_ytd },
+    fxEtf: fxSpot ? { "1D": q.chg_1d, "5D": q.chg_5d, "1M": q.chg_1m } : undefined,
+    sigma: dailySigma(fxSpark ?? q.spark, "px"),
+    spark: fxSpark ? fxSpark.slice(-30) : q.spark,
     pos: q.pos_52w,
     posWin: "52W",
     lo: q.lo_52w,
@@ -412,7 +434,7 @@ function fromVix(v: NonNullable<MonitorResp["vix"]>, fred?: MacroRow): Row {
 
 // ── layout definitions ───────────────────────────────────────────────────
 
-type Group = { label: string; keys: string[]; sortable?: boolean; curve?: boolean; trim?: boolean };
+type Group = { label: string; keys: string[]; sortable?: boolean; curve?: boolean; trim?: boolean; subhead?: boolean };
 
 /** Extra board groups, added per column (in order) only when they fit whole. */
 const BOARD_EXTRA: Group[][] = [
@@ -427,6 +449,8 @@ const B_GROUP = 16;
 const B_HEAD = 18;
 /** The Treasury-curve row under the Treasuries header. */
 const B_CURVE = 36;
+/** Column sub-header inside a block (ETF rows under a rates header). */
+const B_SUB = 14;
 
 const BOARD: Group[][] = [
   [
@@ -437,7 +461,7 @@ const BOARD: Group[][] = [
   [
     { label: "Treasuries", keys: ["DGS2", "DGS10", "T10Y2Y"], curve: true },
     { label: "Credit · vol", keys: ["BAMLC0A0CM", "BAMLH0A0HYM2", "VIX"] },
-    { label: "Commodities · crypto", keys: ["GLD", "USO", "IBIT", "ETHA"] },
+    { label: "Commodities · crypto", keys: ["GLD", "USO", "IBIT", "ETHA"], subhead: true },
   ],
 ];
 
@@ -621,7 +645,7 @@ function Board({
   });
   const cols = BOARD.map((base, ci) => {
     const out = [...base];
-    let used = B_HEAD + base.reduce((a, g) => a + B_GROUP + (g.curve ? B_CURVE : 0) + g.keys.filter((k) => rows.has(k)).length * B_ROW, 0);
+    let used = B_HEAD + base.reduce((a, g) => a + B_GROUP + (g.curve ? B_CURVE : 0) + (g.subhead ? B_SUB : 0) + g.keys.filter((k) => rows.has(k)).length * B_ROW, 0);
     for (const g of BOARD_EXTRA[ci]) {
       const keys = g.keys.filter((k) => rows.has(k));
       const need = B_GROUP + keys.length * B_ROW;
@@ -645,33 +669,75 @@ function Board({
     <div className={s.board}>
       {cols.map((col, ci) => (
         <div key={ci} className={s.bcol}>
-          <div className={`${s.bgrid} ${s.head}`}>
-            <span className={s.hcell} style={{ textAlign: "left", gridColumn: "span 2" }} title="ETF ticker and what it tracks; FRED rows are true levels">
-              {ci === 0 ? "ETF" : "Rates"}
-              <span className={s.wideOnly}>{ci === 0 ? " · tracks" : " · ETF"}</span>
-            </span>
-            <span className={`${s.hcell} ${s.spotHead}`} title={SPOT_TIP}>
-              Spot
-            </span>
-            <span className={s.hcell} title="Last price of the ETF (or the series value for FRED rows)">
-              Last
-            </span>
-            <span className={s.hcell} style={{ color: "var(--amber)" }} title="Change over the selected horizon">
-              {period}
-            </span>
-            {period !== "5D" && (
-              <span className={`${s.hcell} ${s.wide2}`} title="5-day change">
-                5D
+          {ci === 0 ? (
+            <div className={`${s.bgrid} ${s.head}`}>
+              <span className={s.hcell} style={{ textAlign: "left", gridColumn: "span 2" }} title="ETF ticker and what it tracks">
+                ETF<span className={s.wideOnly}> · tracks</span>
               </span>
-            )}
-          </div>
+              <span className={`${s.hcell} ${s.spotHead}`} title={SPOT_TIP}>
+                Spot
+              </span>
+              <span className={s.hcell} title="Last price of the ETF">
+                Last
+              </span>
+              <span className={s.hcell} style={{ color: "var(--amber)" }} title="Change over the selected horizon (FX rows: the currency's own move)">
+                {period}
+              </span>
+              {period !== "5D" && (
+                <span className={`${s.hcell} ${s.wide2}`} title="5-day change">
+                  5D
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className={`${s.bgrid} ${s.head}`}>
+              <span className={s.hcell} style={{ textAlign: "left", gridColumn: "span 2" }} title="US Treasury yields, curve spreads, credit spreads (FRED) and VIX — true levels, not ETFs">
+                Rates
+              </span>
+              <span className={`${s.hcell} ${s.spotHead}`} title="Days behind today's close (FRED publishes with a lag)">
+                {"\u00a0"}
+              </span>
+              <span className={s.hcell} title="Yield / spread level (VIX in points)">
+                Level
+              </span>
+              <span className={s.hcell} style={{ color: "var(--amber)" }} title="Change over the selected horizon: basis points for rates and spreads, % for VIX">
+                {period} bp
+              </span>
+              {period !== "5D" && (
+                <span className={`${s.hcell} ${s.wide2}`} title="5-day change">
+                  5D
+                </span>
+              )}
+            </div>
+          )}
           {col.map((g) => (
             <div key={g.label} style={{ display: "contents" }}>
               <div className={s.bgroup}>
                 <span className={s.groupLabel}>{g.label}</span>
                 <span className={s.groupRule} />
+                {g.curve && (
+                  <span className={s.curveKey} title="Yield curve below: latest (solid) vs one month ago (dashed)">
+                    <i className={s.ckSolid} /> latest <i className={s.ckDash} /> 1M ago
+                  </span>
+                )}
               </div>
               {g.curve && <CurveRow ys={curve} ago={curve1m} asOf={curveRows[0]?.asOf} close={close} onClick={onMacro} />}
+              {g.subhead && (
+                <div className={`${s.bgrid} ${s.subhead}`}>
+                  <span style={{ gridColumn: "span 2" }} title="ETF ticker and what it tracks">
+                    ETF
+                  </span>
+                  <span className={s.r} title={SPOT_TIP}>
+                    Spot
+                  </span>
+                  <span className={s.r} title="Last price of the ETF">
+                    Last
+                  </span>
+                  <span className={s.r} title="Change over the selected horizon">
+                    {period}
+                  </span>
+                </div>
+              )}
               {(g.sortable && !g.label.includes("best / worst") ? [...g.keys].sort((a, b) => (rows.get(b)?.chg[period] ?? -Infinity) - (rows.get(a)?.chg[period] ?? -Infinity)) : g.keys).map((k) => {
                 const r = rows.get(k);
                 if (!r) return null;
@@ -1027,7 +1093,19 @@ function HoverCard({ r, top, side, close, h }: { r: Row; top: number; side: "l" 
           </div>
         ))}
       </div>
+      {r.fxEtf && (
+        <div className={s.cardSpot}>
+          <span className={s.k}>{r.code} ETF</span>
+          {(["1D", "5D", "1M"] as H[]).map((hh) => (
+            <span key={hh} className="num">
+              <span style={{ color: "var(--ink-3)" }}>{hh} </span>
+              <span className={(r.fxEtf![hh] ?? 0) > 0 ? "up" : (r.fxEtf![hh] ?? 0) < 0 ? "down" : "flat"}>{fmtChg(r.fxEtf![hh])}</span>
+            </span>
+          ))}
+        </div>
+      )}
       <div style={{ marginTop: 5, fontSize: 10, color: "var(--ink-3)" }}>
+        {r.fxEtf && <>Change cells show the {INVERTED.has(r.key) ? "yen's" : "currency's"} move · </>}
         Typical daily move σ {sigmaTxt}
         {z != null && ` · ${h} move = ${Math.abs(z).toFixed(1)}σ`}
         {r.held && <span style={{ color: "var(--blue)" }}> · held in the book</span>}
@@ -1057,8 +1135,8 @@ function Legend({ close, held }: { close?: string; held: boolean }) {
         <span title="Tickers are ETFs; LAST is the fund's price. SPOT is the real level of what it tracks (FRED), dimmed when T-2 or older.">
           <b className={s.legendKey}>ETF</b> last · spot <span className={s.lag}>T-n</span> days behind
         </span>
-        <span title="Fill intensity = the move ÷ that row's typical daily move (σ of recent daily changes, √t-scaled for longer horizons); saturates at 3σ. Under ¼σ: empty box.">
-          fill = move ÷ typical daily move
+        <span title="Prices: fill intensity = the move ÷ that row's typical daily move (σ of recent daily changes, √t-scaled); saturates at 3σ; under ¼σ an empty box. Rates, spreads and VIX: grey fill graded by the move itself (10bp or 10% = full).">
+          fill: px ÷ typ. move · rates by bp
         </span>
       </div>
     </div>

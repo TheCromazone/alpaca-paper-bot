@@ -9,7 +9,7 @@
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api, type LLMRunRow, type RoutinesNext } from "@/lib/api";
+import { api, type BotStatus, type LLMRunRow, type RoutinesNext } from "@/lib/api";
 import { fmtAge, fmtBig, fmtET } from "@/lib/format";
 import { BOT_STALE_MS, Empty, Panel, Skeleton, useNow } from "./ui";
 import s from "./BotPanel.module.css";
@@ -431,36 +431,63 @@ function Acts({ acts, max, compact }: { acts: Act[]; max?: number; compact?: boo
   );
 }
 
-// ── status card: one status banner + facts on a shared baseline grid ────
+// ── status card: status banner · stop protection · facts ────────────────
 
 /** A routine older than this is stale (covers a long weekend). */
 const STALE_HOURS = BOT_STALE_MS / 3_600_000; // shared rule (ui.tsx)
 
 type Health = "none" | "off" | "stale" | "failed" | "active";
 
+/** /bot/status fields added server-side (not yet in lib/api types). */
+type BotStatusX = BotStatus & {
+  scheduler_alive?: boolean;
+  synthetic_stops?: boolean;
+  dry_run?: boolean;
+  last_sync_at?: string | null;
+};
+
 function useBotHealth(now: number, next: RoutinesNext | undefined) {
   const q = useQuery({ queryKey: ["bot-status"], queryFn: api.botStatus, refetchInterval: 30_000 });
-  const run = q.data?.last_llm_run ?? null;
-  const enabled = q.data?.routines_enabled ?? next?.routines_enabled ?? true;
+  const data = q.data as BotStatusX | undefined;
+  const run = data?.last_llm_run ?? null;
+  const enabled = data?.routines_enabled ?? next?.routines_enabled ?? true;
   // Shared rule from /bot/status; fall back to the same 84h threshold.
-  const stale = q.data?.stale ?? (!!run && !!now && now - new Date(run.started_at).getTime() > BOT_STALE_MS);
+  const stale = data?.stale ?? (!!run && !!now && now - new Date(run.started_at).getTime() > BOT_STALE_MS);
   const failed = !!run && run.status !== "ok" && run.status !== "running";
   const health: Health = !run ? "none" : !enabled ? "off" : failed ? "failed" : stale ? "stale" : "active";
-  return { ...q, run, enabled, stale, health };
+  return { ...q, data, run, enabled, stale, health };
+}
+
+/**
+ * What actually protects positions while routines are off: breached
+ * trailing stops without a broker order are sold by the 5-min sync_account
+ * job — only while the scheduler is alive and DRY_RUN is off.
+ */
+function Protection({ data, now }: { data: BotStatusX | undefined; now: number }) {
+  if (!data || data.synthetic_stops == null) return null;
+  const armed = !!data.synthetic_stops;
+  const why = [data.scheduler_alive === false ? "scheduler down" : null, data.dry_run ? "dry run" : null].filter(Boolean).join(" · ");
+  const sync = data.last_sync_at && now ? `last sync ${fmtAge(data.last_sync_at, now)} ago` : null;
+  return (
+    <div className={s.protect}>
+      <span className={s.protectLbl} title="Breached trailing stops without a broker order are sold by the 5-minute sync_account job (needs the scheduler alive and DRY_RUN off). The −7% cut needs the midday routine.">
+        Synthetic stops
+      </span>
+      <span className={`pill ${armed ? "" : "alert"} ${s.banner}`}>{armed ? "Armed" : `Not armed${why ? ` — ${why}` : ""}`}</span>
+      {sync && <span className={s.protectSync}>{sync}</span>}
+    </div>
+  );
 }
 
 function StatusCard({ now, runs, bot }: { now: number; runs: LLMRunRow[]; bot: ReturnType<typeof useBotHealth> }) {
   const { data, isLoading, run, health, stale } = bot;
   const { data: cost } = useQuery({ queryKey: ["llm-cost"], queryFn: api.llmCost, refetchInterval: 30_000 });
-  const tickMin = data?.last_tick_at && now ? (now - new Date(data.last_tick_at).getTime()) / 60_000 : null;
-  const jobsDead = tickMin != null && tickMin > 360;
   const model = runs[0]?.model;
   const subscription = !!cost && cost.week_usd === 0 && !!model && /^(gpt|o\d|codex)/i.test(model);
   const n = runs.length;
   const failRuns = runs.filter((r) => r.status !== "ok" && r.status !== "running").length;
   const toolsPer = n ? runs.reduce((a, r) => a + r.tool_calls, 0) / n : null;
   const lastKey = runs[0] ? etParts(new Date(runs[0].started_at).getTime()).key : null;
-  const [, lm, ld] = lastKey ? lastKey.split("-").map(Number) : [0, 0, 0];
   const old = stale || health === "off";
   const banner =
     health === "off"
@@ -486,6 +513,7 @@ function StatusCard({ now, runs, bot }: { now: number; runs: LLMRunRow[]; bot: R
           )
         )}
       </div>
+      <Protection data={data} now={now} />
       <div className={s.facts}>
         <span className={s.fk}>last run</span>
         <span className={s.fv} data-dim={old || undefined}>
@@ -497,25 +525,20 @@ function StatusCard({ now, runs, bot }: { now: number; runs: LLMRunRow[]; bot: R
             "none yet"
           )}
         </span>
-        <span className={s.fk}>jobs</span>
-        <span className={s.fv} style={{ color: jobsDead ? "var(--alert)" : undefined }} title="Scheduler heartbeat: the most recent job_runs row">
-          {data?.last_tick_kind ?? "—"} {data?.last_tick_at && now ? `${fmtAge(data.last_tick_at, now)} ago` : ""}
-        </span>
-
-        <span className={s.fk}>ran</span>
-        <span className={s.fv} data-dim={old || undefined}>
-          {run ? `${fmtET(run.started_at)} · #${run.id} · ${statusOf(run.status).label}` : "—"}
-        </span>
         <span className={s.fk}>spend</span>
         <span className={s.fv} title={cost ? `Daily budget cap $${cost.budget_usd.toFixed(2)} · $${cost.remaining_usd.toFixed(2)} left today` : undefined}>
           {cost ? (subscription ? "$0 Codex sub" : `${fmtCost(cost.today_usd)} today`) : "—"}
           {cost && <span className={s.kvDim}> · budget ${cost.budget_usd.toFixed(0)}/d</span>}
         </span>
 
-        <span className={s.fk}>window</span>
-        <span className={s.fv} data-dim={old || undefined}>{n ? `${n} runs to ${MONTHS[lm - 1]} ${pad(ld)}` : "—"}</span>
-        <span className={s.fk}>quality</span>
-        <span className={s.fv} data-dim={old || undefined} title="Over the window at left">
+        <span className={s.fk}>ran</span>
+        <span className={s.fv} data-dim={old || undefined}>
+          {run ? `${fmtET(run.started_at)} · #${run.id} · ${statusOf(run.status).label}` : "—"}
+        </span>
+        <span className={s.fk} title={lastKey ? `Window: the last ${n} routine runs, through ${dayLabel(lastKey)}` : undefined}>
+          {n} runs
+        </span>
+        <span className={s.fv} data-dim={old || undefined} title={lastKey ? `Over the last ${n} runs, through ${dayLabel(lastKey)}` : undefined}>
           {n ? (
             <>
               <span style={{ color: failRuns ? "var(--alert)" : undefined }}>{((failRuns / n) * 100).toFixed(0)}%</span> fail · {toolsPer?.toFixed(1)} tools/run
@@ -575,7 +598,7 @@ const shortDay = (key: string) => {
   return `${MONTHS[m - 1]} ${pad(d)}`;
 };
 
-// ── schedule table: routine · time · mandate · last · state ─────────────
+// ── schedule table: routine · time · mandate · last · missed · state ────
 
 function Schedule({ data, runs, now, enabled }: { data: RoutinesNext | undefined; runs: LLMRunRow[]; now: number; enabled: boolean }) {
   const today = now ? etParts(now) : null;
@@ -585,16 +608,21 @@ function Schedule({ data, runs, now, enabled }: { data: RoutinesNext | undefined
     for (const r of runs) if (!m.has(r.routine)) m.set(r.routine, r);
     return m;
   }, [runs]);
-  const missed = useMemo(() => missedRuns(runs), [runs]);
+  // Missed runs only mean something while routines are enabled — a disabled
+  // routine that doesn't run is doing exactly what it was told.
+  const missed = useMemo(() => (enabled ? missedRuns(runs) : new Map<string, string[]>()), [runs, enabled]);
   return (
     <div className={s.schedTbl} data-off={!enabled || undefined}>
       <div className={`${s.schedRow} ${s.schedHead}`}>
         <span>Schedule · ET</span>
         <span />
         <span>Mandate</span>
-        <span style={{ textAlign: "right" }} title="Last run date; warns when an expected run inside the logged window is missing">
-          Last
-        </span>
+        <span style={{ textAlign: "right" }}>Last</span>
+        {enabled && (
+          <span style={{ textAlign: "right" }} title="Expected runs inside the logged window that never happened">
+            Missed
+          </span>
+        )}
         <span style={{ textAlign: "right" }}>State</span>
       </div>
       {ROUTINES.map((r) => {
@@ -613,30 +641,22 @@ function Schedule({ data, runs, now, enabled }: { data: RoutinesNext | undefined
             key={r.name}
             className={s.schedRow}
             data-next={isNext || undefined}
-            title={`${r.name} · ${r.role} · ${pad(r.hh)}:${pad(r.mm)} ET ${r.fri ? "Fridays" : "Mon–Fri"}${last ? ` · last run ${fmtET(last.started_at)} ET (#${last.id})` : ""}${miss.length ? ` · missed in window: ${miss.map(shortDay).join(", ")}` : ""}`}
+            title={`${r.name} · ${r.role} · ${pad(r.hh)}:${pad(r.mm)} ET ${r.fri ? "Fridays" : "Mon–Fri"}${last ? ` · last run ${fmtET(last.started_at)} ET (#${last.id})` : ""}${miss.length ? ` · missed: ${miss.map(shortDay).join(", ")}` : ""}`}
           >
             <span className={s.schedName}>{r.name}</span>
             <span className={s.schedTime}>
               {pad(r.hh)}:{pad(r.mm)} <small>{r.fri ? "Fri" : "M–F"}</small>
             </span>
             <span className={s.schedRule}>{r.rule}</span>
-            <span className={s.schedLast}>
-              {missedAfterLast ? (
-                <span className="warn">missed {shortDay(latestMiss!)}</span>
-              ) : (
-                <>
-                  {last ? (ranToday ? "today" : shortDay(lastKey!)) : "never"}
-                  {miss.length > 0 && (
-                    <span className="warn" style={{ marginLeft: 5 }}>
-                      {miss.length} missed
-                    </span>
-                  )}
-                </>
-              )}
-            </span>
+            <span className={s.schedLast}>{last ? (ranToday ? "today" : shortDay(lastKey!)) : "never"}</span>
+            {enabled && (
+              <span className={s.schedMiss}>
+                {missedAfterLast ? <span className="warn">{shortDay(latestMiss!)}</span> : miss.length ? <span className="warn">{miss.length}×</span> : <span className={s.offText}>—</span>}
+              </span>
+            )}
             <span className={s.schedState}>
               {!enabled ? (
-                <span className={s.offText}>off</span>
+                <span className={s.offText}>disabled</span>
               ) : isNext && secs != null ? (
                 <span className="cyan">in {fmtCountdown(secs)}</span>
               ) : fire ? (
@@ -656,15 +676,25 @@ function Schedule({ data, runs, now, enabled }: { data: RoutinesNext | undefined
 
 // ── live data-job feed (shown when the routines are off / stale) ────────
 
-/** "{'count': 927, 'error': None}" → "count 927"; plain text passes through. */
+/** Python-dict job messages → short, neutral result text. */
 function jobMsg(m: string | null | undefined) {
   if (!m) return "";
   const pairs = [...m.matchAll(/'(\w+)':\s*('([^']*)'|[^,}]+)/g)]
     .map((x) => [x[1], (x[3] ?? x[2]).trim()] as const)
     .filter(([k, v]) => !(k === "error" && v === "None"));
-  if (pairs.length) return pairs.map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`).join(" · ");
-  return m;
+  if (!pairs.length) return m;
+  return pairs
+    .map(([k, v]) => {
+      if (k === "count") return `${v} new`;
+      if (k.endsWith("_added")) return `${k.replace(/_added$/, "")} +${v}`;
+      if (k === "label") return v.replace(/_/g, " ");
+      if (k === "error") return `error: ${v}`;
+      return `${k.replace(/_/g, " ")} ${v}`;
+    })
+    .join(" · ");
 }
+
+const JOB_COLS = { gridTemplateColumns: "12px 158px 58px minmax(0, 1fr)" } as const;
 
 function JobFeed({ now }: { now: number }) {
   const { data, isLoading } = useQuery({ queryKey: ["jobs"], queryFn: api.jobs, refetchInterval: 30_000 });
@@ -687,16 +717,30 @@ function JobFeed({ now }: { now: number }) {
         const msg = jobMsg(j.message);
         const bad = j.status === "failed" || j.status === "error";
         return (
-          <div key={j.job_name} className={s.jobRow} data-row="" data-cut-ok="" title={`${j.job_name} · ${j.status} · ${fmtET(j.started_at)} ET${dur != null ? ` · ${dur.toFixed(1)}s` : ""}${j.message ? ` · ${j.message}` : ""}`}>
+          <div key={j.job_name} className={s.jobRow} style={JOB_COLS} data-row="" data-cut-ok="" title={`${j.job_name} · ${j.status} · ${fmtET(j.started_at)} ET${dur != null ? ` · ${dur.toFixed(1)}s` : ""}${j.message ? ` · ${j.message}` : ""}`}>
             <span className={s.jobSt} style={{ color: bad ? "var(--alert)" : j.status === "skipped" ? "var(--ink-4)" : "var(--ink-3)" }}>
               {bad ? "!" : j.status === "skipped" ? "–" : "✓"}
             </span>
             <span className={s.jobName}>{j.job_name}</span>
             <span className={s.jobAge}>{now ? `${fmtAge(j.started_at, now)} ago` : ""}</span>
-            <span className={s.jobMsg}>{msg}</span>
+            <span className={s.jobMsg} style={{ color: bad ? "var(--alert)" : undefined }}>
+              {msg}
+            </span>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** Section head that doubles as the job feed's column header. */
+function JobHead() {
+  return (
+    <div className={`${s.jobRow} ${s.jobHead}`} style={JOB_COLS}>
+      <span />
+      <span title="Scheduled data jobs keep running while LLM routines are off">Data jobs · live</span>
+      <span style={{ textAlign: "right" }}>Ran</span>
+      <span>Result</span>
     </div>
   );
 }
@@ -1236,12 +1280,7 @@ export function BotPanel({
       {quiet && !page ? (
         <>
           <LastDay runs={list} />
-          <div className={s.secHead}>
-            <span className={s.secTitle} title="Scheduled data jobs keep running while LLM routines are off">
-              Data jobs · live
-            </span>
-            <span className={s.secMeta}>status · last run · result</span>
-          </div>
+          <JobHead />
           <ScrollHost watch="jobs">
             <JobFeed now={now} />
           </ScrollHost>

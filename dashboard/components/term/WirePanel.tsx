@@ -20,10 +20,10 @@ type Filter = "ALL" | Kind;
 const TAGS: Record<Kind, { fg: string; bg: string; bd: string; title: string }> = {
   // Blue is reserved for "held"; orders use neutral ink, the bot layer cyan.
   ORD: { fg: "var(--ink)", bg: "var(--bg-3)", bd: "var(--ink-4)", title: "Order" },
-  LLM: { fg: "var(--cyan)", bg: "rgba(86,212,255,.09)", bd: "rgba(86,212,255,.3)", title: "LLM routine" },
-  JOB: { fg: "var(--warn)", bg: "rgba(255,210,63,.08)", bd: "rgba(255,210,63,.3)", title: "Scheduled job (failed / skipped)" },
-  PTR: { fg: "#c3b1ff", bg: "rgba(160,132,255,.10)", bd: "rgba(160,132,255,.3)", title: "Congressional PTR" },
-  "13F": { fg: "#eaa6dc", bg: "rgba(226,140,206,.09)", bd: "rgba(226,140,206,.28)", title: "13F position change" },
+  LLM: { fg: "var(--cyan)", bg: "var(--cyan-bg)", bd: "var(--line-2)", title: "LLM routine" },
+  JOB: { fg: "var(--warn)", bg: "var(--warn-bg)", bd: "var(--line-2)", title: "Scheduled job (failed / skipped)" },
+  PTR: { fg: "var(--ink-2)", bg: "var(--bg-2)", bd: "var(--line-2)", title: "Congressional PTR (date-only filing)" },
+  "13F": { fg: "var(--ink-2)", bg: "var(--bg-2)", bd: "var(--line-2)", title: "13F position change (date-only filing)" },
   NEWS: { fg: "var(--ink-3)", bg: "transparent", bd: "var(--line-2)", title: "Ticker-tagged headline with a non-neutral sentiment score" },
 };
 
@@ -152,6 +152,9 @@ function BurstText({ items, held, kind }: { items: WireEvent[]; held: Set<string
   legs.sort((a, b) => order.indexOf(a.verb) - order.indexOf(b.verb));
   return (
     <>
+      <span className={s.filedTag} title="Date-only filing: the day header is the filing date">
+        filed
+      </span>
       <span style={{ color: "var(--ink)" }}>{who}</span>
       {items.length > 1 && (
         <span className="num dim" style={{ marginLeft: 6, fontSize: 10.5 }}>
@@ -313,20 +316,22 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
     return out;
   }, [rows, filter]);
 
-  // Day headers count both: events (what the filter holds) and rows (what is drawn).
+  // Day headers count events (a grouped burst counts each filing), not drawn rows.
   const perDay = useMemo(() => {
-    const m = new Map<string, { ev: number; rows: number }>();
+    const m = new Map<string, { ev: number; filings: number }>();
     for (const it of items) {
       if (!it.e.at) continue;
       const d = dayOf(it.e.at);
-      const c = m.get(d) ?? { ev: 0, rows: 0 };
-      c.ev += it.group?.length ?? 1;
-      c.rows += 1;
+      const c = m.get(d) ?? { ev: 0, filings: 0 };
+      const n = it.group?.length ?? 1;
+      const k = kindOf(it.e.type);
+      c.ev += n;
+      if (k === "PTR" || k === "13F") c.filings += n;
       m.set(d, c);
     }
     return m;
   }, [items]);
-  const countLabel = (ev: number, rws: number) => `${ev} ${ev === 1 ? "event" : "events"}${rws !== ev ? ` · ${rws} ${rws === 1 ? "row" : "rows"}` : ""}`;
+  const countLabel = (ev: number) => `${ev} ${ev === 1 ? "event" : "events"}`;
 
   return (
     <Panel
@@ -334,10 +339,10 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
       title="Events"
       sub={
         data && compact ? (
-          <span title={countLabel(rows.length, items.length)}>{rows.length} events</span>
+          <span>{countLabel(rows.length)}</span>
         ) : data ? (
           <span>
-            {countLabel(rows.length, items.length)} · <span style={{ color: "var(--blue)" }} title="Blue ticker = the book holds it">blue = held</span>
+            {countLabel(rows.length)} · <span style={{ color: "var(--blue)" }} title="Blue ticker = the book holds it">blue = held</span>
 
           </span>
         ) : undefined
@@ -393,8 +398,8 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
               <span>
                 Event <span style={{ color: "var(--blue)", textTransform: "none", letterSpacing: 0, marginLeft: 6 }} title="Blue ticker = the book holds it">blue = held</span>
               </span>
-              <span className={s.r} title="News: headline sentiment, VADER −1…+1 (a text score, not a price move)">
-                Sent
+              <span className={s.r} title="News: headline tone, VADER sentiment −1…+1 (a text score, not a price move)">
+                Tone
               </span>
               <span />
             </div>
@@ -448,7 +453,10 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
                       dayKey={rule}
                       right={
                         <span className="dim" style={{ fontWeight: 500 }}>
-                          {countLabel(perDay.get(rule)?.ev ?? 0, perDay.get(rule)?.rows ?? 0)}
+                          {(() => {
+                            const c = perDay.get(rule) ?? { ev: 0, filings: 0 };
+                            return c.ev > 0 && c.filings === c.ev ? `${c.ev} ${c.ev === 1 ? "filing" : "filings"}` : countLabel(c.ev);
+                          })()}
                         </span>
                       }
                     />
@@ -472,15 +480,9 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
                         : undefined
                     }
                   >
-                    {isFiling || !e.at || !clock(e.at) ? (
-                      <span className={s.time} title={timeTitle} style={{ color: "var(--ink-4)", fontFamily: "var(--font-plex-cond), sans-serif", fontVariant: "all-small-caps", letterSpacing: "0.06em", fontSize: 11 }}>
-                        {isFiling ? "filed" : "—"}
-                      </span>
-                    ) : (
-                      <span className={s.time} title={timeTitle}>
-                        {clock(e.at)}
-                      </span>
-                    )}
+                    <span className={s.time} title={timeTitle}>
+                      {!isFiling && e.at ? clock(e.at) : ""}
+                    </span>
                     <span className={s.tag} style={{ color: tag.fg, background: tag.bg, borderColor: tag.bd }} title={tag.title}>
                       {k}
                     </span>
@@ -543,7 +545,7 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
                     <span
                       className={s.mono}
                       style={{ fontSize: 10, color: "var(--ink-3)", textAlign: "right" }}
-                      title={sentText ? `Headline sentiment ${sentText} (VADER −1…+1) — a text score, not a price move` : undefined}
+                      title={sentText ? `Headline tone ${sentText} — VADER sentiment −1…+1, a text score, not a price move` : undefined}
                     >
                       {sentText}
                     </span>
@@ -555,7 +557,7 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
                     <div className={s.detail} style={{ paddingLeft: DETAIL_PAD, whiteSpace: "normal" }} data-cut>
                       <div className={s.detailMeta}>
                         <span style={{ color: tag.fg }}>
-                          {tag.title.toUpperCase()} · {grp.length} {k === "13F" ? "POSITION CHANGES" : "FILINGS"}
+                          {tag.title.replace(/ \(.*\)$/, "").toUpperCase()} · {grp.length} {k === "13F" ? "POSITION CHANGES" : "FILINGS"}
                         </span>
                         {e.at && <span>{when(e.at)}</span>}
                       </div>
@@ -569,7 +571,7 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
                               {pz ? filingAmt(pz, k) : ""}
                             </span>
                             <span className="num dim" style={{ fontSize: 10.5 }}>
-                              {pz?.traded ? `traded ${pz.traded}` : x.detail ?? ""}
+                              {pz?.traded ? `traded ${monDay(pz.traded)}` : x.detail ?? ""}
                             </span>
                           </div>
                         );
@@ -579,7 +581,7 @@ export function WirePanel({ className = "", style, limit = 200 }: { className?: 
                   {isOpen && !grp && e.detail && (
                     <div className={s.detail} style={{ paddingLeft: DETAIL_PAD }} data-cut>
                       <div className={s.detailMeta}>
-                        <span style={{ color: tag.fg }}>{tag.title.toUpperCase()}</span>
+                        <span style={{ color: tag.fg }}>{tag.title.replace(/ \(.*\)$/, "").toUpperCase()}</span>
                         {e.at && <span>{when(e.at)}</span>}
                         {e.ticker && <span style={{ color: "var(--ink-2)" }}>{e.ticker}</span>}
                       </div>

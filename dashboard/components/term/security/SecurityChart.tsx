@@ -34,8 +34,9 @@ export type ChartLevels = {
   cut: number;
   peak: number;
   from: string | null;
-  /** false → nothing acts on the stop/cut (synthetic + bot off): drawn dashed, dimmed, "inactive". */
-  enforced: boolean;
+  /** Is anything acting on the stop / the cut? (enforcement.ts — same source as the POS panel.) false → dashed, dimmed, "off". */
+  stopArmed: boolean;
+  cutArmed: boolean;
 } | null;
 /** The API's own window stats, so every "1Y"/"Max DD" on the page is one number. */
 export type ChartApiStats = { ret: Partial<Record<Range, number | null>>; mdd1y: number | null; rel3m: number | null };
@@ -45,7 +46,7 @@ const C = {
   px: "#e8edf2",
   sma50: "#b4a3f2",
   sma200: "#8d9aab",
-  spy: "#6c7785", // --ink-3: context, not data
+  spy: "#a7b1bd", // --ink-2, dashed — distinct from the solid grey SMA200
   avg: "var(--blue)",
   // Levels are not moves: a breached level takes --alert (see `breached`); red/green mean sign only.
   stop: "var(--warn)",
@@ -55,7 +56,7 @@ const C = {
 const DASH: Record<Key, string | undefined> = {
   sma50: undefined,
   sma200: undefined,
-  spy: undefined,
+  spy: "4 3",
   avg: "4 3",
   stop: "4 3",
   cut: "1.5 2.5",
@@ -81,6 +82,7 @@ const SHORT: Record<Key, string> = {
 
 // Geometry constants (px).
 const AXW = 62; // right gutter: price tags only (last, levels, crosshair) — never tick labels
+const LBW = 66; // outermost gutter: the name of each tag (LAST, AVG COST, TRAIL STOP…) — never in the plot
 const LAX = 40; // left gutter: every pane's tick labels — so tags can never cover a tick
 const ANN = 15; // reserved annotation band above/below the price data (HI/LO, SMA starts)
 const PT = 3; // top pad
@@ -279,9 +281,9 @@ export function SecurityChart({
   const g = useMemo(() => {
     if (!win || w < 120 || h < 120) return null;
     const { start, m } = win;
-    const { c, chg, sma50, sma200, hh, ll, rel, hasVol, o, upDay, marks } = full;
-    const volH = hasVol ? clamp(Math.round(h * 0.12), 44, 80) : 0;
-    const histH = clamp(Math.round(h * 0.16), 66, 104);
+    const { c, chg, sma50, sma200, hh, ll, rel, hasVol, o, upDay } = full;
+    const volH = hasVol ? clamp(Math.round(h * 0.17), 58, 100) : 0; // ≥ 44px of bars under the caption
+    const histH = clamp(Math.round(h * 0.13), 58, 92);
     const annTop = PT; // top annotation band [annTop, pTop)
     const pTop = PT + ANN;
     const pFrame = h - XAX - histH - GAP - (hasVol ? volH + GAP : 0); // price pane's bottom edge
@@ -291,7 +293,7 @@ export function SecurityChart({
     const hTop = (hasVol ? vBot : pFrame) + GAP;
     const hBot = h - XAX;
     const L = LAX;
-    const R = w - AXW;
+    const R = w - AXW - LBW;
     const step = (R - L) / m;
     const x = (i: number) => L + (i - start + 0.5) * step;
 
@@ -333,19 +335,27 @@ export function SecurityChart({
     // "REL", so the pane's last value equals it. Symmetric autoscale, 1pt floor.
     const rs: (number | null)[] = new Array(n).fill(null);
     const sb = full.spyA[start];
-    let rMaxAbs = 0;
+    let rLo = 0;
+    let rHi = 0;
     for (let i = start; i < n; i++) {
       const sv = full.spyA[i];
       if (!sb || !sv) continue;
       rs[i] = c[i] / c[start] - 1 - (sv / sb - 1);
-      rMaxAbs = Math.max(rMaxAbs, Math.abs(rs[i] as number));
+      rLo = Math.min(rLo, rs[i] as number);
+      rHi = Math.max(rHi, rs[i] as number);
     }
     const hasRs = rs.some((v) => v != null);
-    // Labels at ±lim and 0 only; lim = max|v| × 1.15 rounded up to a whole point (1pt floor).
-    const hLim = Math.max(0.01, Math.ceil(rMaxAbs * 1.15 * 100) / 100);
+    // Fit the data range, always including 0 (asymmetric is fine): 12% headroom, 1pt floor.
+    const rSpan = Math.max(rHi - rLo, 0.01);
+    const hMax = rHi + rSpan * 0.12;
+    const hMin = rLo - rSpan * 0.12;
+    const hT = hTop + 13; // below the caption
+    const yh = (v: number) => hBot - 2 - ((v - hMin) / (hMax - hMin)) * (hBot - 2 - hT);
+    const hZero = yh(0);
+    // Labelled extremes: the data's own min/max, rounded outward to whole points, if they clear 0 by 12px.
+    const hTicks = [Math.ceil(rHi * 100) / 100, Math.floor(rLo * 100) / 100].filter((t) => t !== 0 && Math.abs(yh(t) - hZero) >= 12 && yh(t) >= hT - 2 && yh(t) <= hBot);
+    const hLim = Math.max(Math.abs(rHi), Math.abs(rLo));
     const hStep = hLim;
-    const hZero = (hTop + 12 + hBot) / 2;
-    const yh = (v: number) => hZero - (v / hLim) * ((hBot - hTop - 12) / 2 - 2);
     let rsLine = "";
     {
       let pen = false;
@@ -413,9 +423,9 @@ export function SecurityChart({
     const vs = full.v.slice(start).filter((x): x is number => x != null).sort((a, b) => a - b);
     let vAvgMax = 0;
     for (let i = start; i < n; i++) vAvgMax = Math.max(vAvgMax, full.vAvg[i] ?? 0);
-    const vP97 = vs.length ? vs[Math.min(vs.length - 1, Math.floor(vs.length * 0.97))] : 1;
-    const vCap = Math.max(vP97 * 1.15, vAvgMax * 1.3, 1);
-    const yv = (val: number) => vBot - (Math.min(val, vCap) / vCap) * (volH - 13);
+    const vP95 = vs.length ? vs[Math.min(vs.length - 1, Math.floor(vs.length * 0.95))] : 1;
+    const vCap = Math.max(vP95 * 1.05, vAvgMax * 1.25, 1);
+    const yv = (val: number) => vBot - (Math.min(val, vCap) / vCap) * (volH - 14);
     let vAvgPath = "";
     {
       let pen = false;
@@ -438,62 +448,6 @@ export function SecurityChart({
       lvlStart = k < 0 ? n - 1 : Math.max(start, k);
     }
     const lvlX0 = x(lvlStart) - step / 2;
-    // Level labels: left-aligned at the line's start (the open date); above or
-    // below the line, whichever the price trace and the other labels leave clear.
-    // A position opened in the last few bars has no room → label right-anchored.
-    // Level chips: the right-most spot along each line where a chip (above or
-    // below the line) clears the price trace, trade markers, hi/lo callouts and
-    // the other chips. Falls back to the least-occluded spot at the right end.
-    const traceLo = candle ? (i: number) => ll[i] ?? c[i] : (i: number) => c[i];
-    const traceHi = candle ? (i: number) => hh[i] ?? c[i] : (i: number) => c[i];
-    const blocked = (left: number, right: number, top: number, bot: number) => {
-      let hits = 0;
-      const i0 = Math.max(start, Math.floor((left - L) / step) + start - 1);
-      const i1 = Math.min(n - 1, Math.ceil((right - L) / step) + start + 1);
-      for (let i = i0; i <= i1; i++) {
-        // the segment from bar i to i+1 spans this y-range
-        const j = Math.min(n - 1, i + 1);
-        const yTop = y(Math.max(traceHi(i), traceHi(j)));
-        const yBot = y(Math.min(traceLo(i), traceLo(j)));
-        if (yTop < bot + 2 && yBot > top - 2) hits++;
-      }
-      return hits;
-    };
-    const avoid: [number, number, number, number][] = []; // l, t, r, b
-    for (const [mi] of marks) if (mi >= start) avoid.push([x(mi) - 9, y(c[mi]) - 18, x(mi) + 9, y(c[mi]) + 18]);
-    {
-      const hiI = candle ? win.hiH : win.hi;
-      const loI = candle ? win.loL : win.lo;
-      avoid.push([x(hiI) - 70, y(traceHi(hiI)) - 20, x(hiI) + 70, y(traceHi(hiI))]);
-      avoid.push([x(loI) - 70, y(traceLo(loI)), x(loI) + 70, y(traceLo(loI)) + 20]);
-    }
-    const chipAt: Partial<Record<Key, { x: number; base: number; w: number }>> = {};
-    for (const l of [...lvl].sort((a, b) => b.v - a.v)) {
-      const ly = y(l.v);
-      if (ly < pTop || ly > pBot) continue;
-      const w = (LABEL[l.k].length + (levels && !levels.enforced && (l.k === "stop" || l.k === "cut") ? 11 : 0)) * 5.9 + 9;
-      let best: { x: number; base: number; cost: number } | null = null;
-      for (let right = R - 8; right - w >= Math.max(L + 4, lvlX0 + 4); right -= 8) {
-        const left = right - w;
-        for (const o of [
-          { base: ly - 5, top: ly - 14.5, bot: ly - 1.5 },
-          { base: ly + 13, top: ly + 3.5, bot: ly + 16.5 },
-        ]) {
-          if (o.top < pTop || o.bot > pBot) continue;
-          let cost = blocked(left, right, o.top, o.bot) * 10;
-          for (const [al, at, ar, ab] of avoid) if (left < ar && right > al && o.top < ab && o.bot > at) cost += 100;
-          cost += (R - 8 - right) / 400; // prefer the right end (beside its axis tag)
-          if (!best || cost < best.cost) best = { x: left, base: o.base, cost };
-        }
-        if (best && best.cost < 1) break;
-      }
-      // No spot clear of the trace → no chip: the legend swatch + colour-matched axis tag
-      // identify the level, and nothing is drawn over the data.
-      if (best && best.cost < 10) {
-        chipAt[l.k] = { x: best.x, base: best.base, w };
-        avoid.push([best.x - 2, best.base - 11.5, best.x + w + 2, best.base + 5.5]);
-      }
-    }
 
     // x ticks: weekly for ≤ ~6 weeks, monthly otherwise; years are majors
     const spanDays = dayNum(series[n - 1].d) - dayNum(series[start].d);
@@ -521,7 +475,7 @@ export function SecurityChart({
       const k = arr.findIndex((v, i) => i >= start && v != null);
       return k < 0 ? null : k;
     };
-    return { annTop, pTop, pBot, pFrame, vTop, vBot, hTop, hBot, L, R, step, x, y, yh, yv, vCap, vAvgPath, lvlX0, chipAt, bw, wickUp, wickDn, bodyUp, bodyDn, hZero, hLim, hStep, rs, hasRs, rsLine, rsArea, yt, yDigits, line, area, lvl, yMin, yMax, xt: kept,
+    return { annTop, pTop, pBot, pFrame, vTop, vBot, hTop, hBot, L, R, step, x, y, yh, yv, vCap, vAvgPath, lvlX0, bw, wickUp, wickDn, bodyUp, bodyDn, hZero, hLim, hStep, hTicks, rs, hasRs, rsLine, rsArea, yt, yDigits, line, area, lvl, yMin, yMax, xt: kept,
       sma50Start: smaStart(sma50),
       sma200Start: smaStart(sma200),
       sma50: show("sma50") ? seg((i) => sma50[i]) : "",
@@ -544,7 +498,7 @@ export function SecurityChart({
   // A stop/cut is "breached" when the last close is through it — the only time a level takes the alert colour.
   const breached = (k: Key) => !!levels && (k === "stop" || k === "cut") && last < levels[k];
   /** Stop/cut with nothing acting on them (synthetic + bot off) — drawn as inactive, not as live orders. */
-  const inactive = (k: Key) => !!levels && !levels.enforced && (k === "stop" || k === "cut");
+  const inactive = (k: Key) => !!levels && ((k === "stop" && !levels.stopArmed) || (k === "cut" && !levels.cutArmed));
   const lvlColor = (k: Key) => (breached(k) ? "var(--alert)" : inactive(k) ? "var(--ink-3)" : C[k]);
   /** SPY's own return since the range start (what its rebased line shows). */
   const spyRet = (i: number): number | null => (win.spyBase && full.spyA[i] ? (full.spyA[i] as number) / win.spyBase - 1 : null);
@@ -608,26 +562,23 @@ export function SecurityChart({
     }
     for (const [i] of full.marks) if (i >= start) obstacles.push([g.x(i), g.y(full.c[i]), 80], [g.x(i), g.y(full.c[i]) + 12, 80]);
     obstacles.push([g.x(hiI), g.y(hiV) - 10, 40], [g.x(loI), g.y(loV) + 12, 40]);
-    for (const l of g.lvl) {
-      const ch = g.chipAt[l.k];
-      if (ch) for (let k = 0; k * 14 < ch.w; k++) obstacles.push([ch.x + k * 14, ch.base - 4, 4]);
-    }
   }
   const lastSpy = show("spy") ? spyReb(n - 1) : null;
   const lastSpyRet = spyRet(n - 1);
   const tags = g
     ? placeTags(g, [
-        { key: "last", v: last, bg: "var(--ink)", fg: "#000", text: fmtPx(last) },
+        { key: "last", v: last, bg: "var(--ink)", fg: "#000", text: fmtPx(last), name: "LAST" },
         ...g.lvl.map((l) => ({
           key: l.k,
           v: l.v,
           bg: breached(l.k) ? "var(--alert)" : inactive(l.k) ? "var(--ink-3)" : C[l.k],
           fg: l.k === "avg" ? "#fff" : "#000",
           text: fmtPx(l.v),
+          name: l.k === "avg" ? "AVG COST" : l.k === "stop" ? (inactive(l.k) ? "STOP · OFF" : "TRAIL STOP") : inactive(l.k) ? "CUT · OFF" : "−7% CUT",
           outline: inactive(l.k),
         })),
         ...(lastSpy != null && lastSpyRet != null
-          ? [{ key: "spy", v: lastSpy, bg: "var(--ink-3)", fg: "var(--ink-2)", text: `SPY${fmtChg(lastSpyRet, 1)}`, outline: true, small: true }]
+          ? [{ key: "spy", v: lastSpy, bg: "var(--ink-2)", fg: "var(--ink-2)", text: fmtChg(lastSpyRet, 1), name: "SPY REB.", outline: true, small: true }]
           : []),
       ])
     : [];
@@ -765,7 +716,7 @@ export function SecurityChart({
 
               {/* grid */}
               {yAxis.ticks.map((t) => (
-                <line key={`yg${t}`} x1={g.L} x2={g.R} y1={crisp(g.y(t))} y2={crisp(g.y(t))} stroke="var(--line)" />
+                <line key={`yg${t}`} x1={g.L} x2={g.R} y1={crisp(g.y(t))} y2={crisp(g.y(t))} stroke="var(--line-2)" strokeOpacity={0.55} />
               ))}
               {g.xt.map((t) => (
                 <line
@@ -793,7 +744,7 @@ export function SecurityChart({
               {/* price layer */}
               <g clipPath={`url(#gp-clip-${uid})`}>
                 {!candle && <path d={g.area} fill={`url(#gp-area-${uid})`} />}
-                {g.spy && <path d={g.spy} fill="none" stroke={C.spy} strokeWidth={1} />}
+                {g.spy && <path d={g.spy} fill="none" stroke={C.spy} strokeWidth={1} strokeDasharray={DASH.spy} opacity={0.75} />}
                 {g.sma200 && <path d={g.sma200} fill="none" stroke={C.sma200} strokeWidth={1.1} strokeDasharray={DASH.sma200} />}
                 {g.sma50 && <path d={g.sma50} fill="none" stroke={C.sma50} strokeWidth={1.1} />}
                 {/* where a moving average begins inside the window — label lives in the annotation band */}
@@ -834,24 +785,8 @@ export function SecurityChart({
                 ) : (
                   <path d={g.line} fill="none" stroke={C.px} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
                 )}
-                {/* level labels ride above the price trace */}
-                {g.lvl.map((l) =>
-                  l.v < g.yMin || l.v > g.yMax ? null : (
-                    g.chipAt[l.k] ? (
-                      <LevelChip
-                        key={`lc${l.k}`}
-                        x={g.chipAt[l.k]!.x}
-                        baseline={g.chipAt[l.k]!.base}
-                        color={lvlColor(l.k)}
-                        dim={inactive(l.k)}
-                        text={`${LABEL[l.k].toUpperCase()}${inactive(l.k) ? " · INACTIVE" : ""}`}
-                      />
-                    ) : null
-                  ),
-                )}
               </g>
 
-              {/* hi / lo callouts */}
               {/* annotation bands: HI above the data, LO below, SMA starts above — never on the data */}
               <Annotations g={g} items={annots} />
 
@@ -897,7 +832,7 @@ export function SecurityChart({
                       </g>
                     );
                   })}
-                  {g.vAvgPath && <path d={g.vAvgPath} fill="none" stroke="var(--ink-2)" strokeWidth={1} />}
+                  {g.vAvgPath && <path d={g.vAvgPath} fill="none" stroke="var(--ink)" strokeWidth={1.4} opacity={0.85} />}
                   <VolLabel g={g} v={full.v[at]} avg={full.vAvg[at]} hover={hover != null} />
                 </g>
               )}
@@ -923,7 +858,7 @@ export function SecurityChart({
                 </tspan>
               </text>
               <line x1={g.L} x2={g.R} y1={crisp(g.hZero)} y2={crisp(g.hZero)} stroke="var(--ink-3)" strokeDasharray="3 3" />
-              {[g.hLim, -g.hLim].map((t) => (
+              {g.hTicks.map((t) => (
                 <g key={`hy${t}`}>
                   <line x1={g.L} x2={g.R} y1={crisp(g.yh(t))} y2={crisp(g.yh(t))} stroke="var(--line)" />
                   <text x={g.L - 5} y={g.yh(t) + 3.5} textAnchor="end" className={s.axisText}>
@@ -1026,22 +961,9 @@ function Tri({ x, y, up, color, active, hollow, n }: { x: number; y: number; up:
   );
 }
 
-/** In-plot level label as a solid chip, so it reads cleanly over the price trace. */
-function LevelChip({ x, baseline, color, text, dim = false }: { x: number; baseline: number; color: string; text: string; dim?: boolean }) {
-  const w = text.length * 5.9 + 9;
-  const x0 = x;
-  return (
-    <g pointerEvents="none" opacity={dim ? 0.75 : 1}>
-      <rect x={x0} y={baseline - 9.5} width={w} height={13} fill="var(--bg-1)" fillOpacity={0.94} stroke={color} strokeOpacity={0.55} strokeDasharray={dim ? "2 2" : undefined} />
-      <text x={x0 + w / 2} y={baseline} textAnchor="middle" className={s.lvlText} fill={color}>
-        {text}
-      </text>
-    </g>
-  );
-}
 
 
-type Tag = { key: string; v: number; bg: string; fg: string; text: string; outline?: boolean; small?: boolean };
+type Tag = { key: string; v: number; bg: string; fg: string; text: string; name?: string; outline?: boolean; small?: boolean };
 /** `anchor` = the level's true y (where the pointer aims); `y` = the tag body's centre. */
 type Placed = Tag & { y: number; anchor: number; off: "up" | "down" | null };
 const TAG_H = 15;
@@ -1080,9 +1002,9 @@ function Annotations({ g, items }: { g: G; items: Annot[] }) {
     <g pointerEvents="none">
       {items.map((a) => {
         const top = a.band === "top";
-        const base = top ? g.annTop + 11 : g.pBot + 12;
+        const base = top ? g.annTop + 11 : g.pBot + 10.5;
         const y1 = top ? g.pTop - 1 : a.py + 4;
-        const y2 = top ? a.py - 4 : g.pBot + 2;
+        const y2 = top ? a.py - 4 : g.pBot + 1;
         return (
           <g key={a.key}>
             {y2 - y1 > 2 && <line x1={crisp(a.x)} x2={crisp(a.x)} y1={y1} y2={y2} stroke={a.color} strokeDasharray="1 2" opacity={0.45} />}
@@ -1118,10 +1040,15 @@ function AxisTags({ g, placed }: { g: G; placed: Placed[] }) {
           ) : (
             <rect x={g.R + 1} y={t.y - H / 2} width={AXW - 2} height={H} fill={t.bg} />
           )}
-          <text x={g.R + 5} y={t.y + 3.6} className={s.tagText} fill={t.outline ? (t.small ? t.fg : t.bg) : t.fg} style={t.small ? { fontSize: 9.5, fontWeight: 500 } : undefined}>
+          <text x={g.R + 5} y={t.y + 3.6} className={s.tagText} fill={t.outline ? (t.small ? t.fg : t.bg) : t.fg} style={t.small ? { fontWeight: 500 } : undefined}>
             {t.off === "up" ? "▲" : t.off === "down" ? "▼" : ""}
             {t.text}
           </text>
+          {t.name && (
+            <text x={g.R + AXW + 4} y={t.y + 3.4} className={s.tagName} fill={t.key === "last" ? "var(--ink-2)" : t.outline && !t.small ? "var(--ink-3)" : t.bg}>
+              {t.name}
+            </text>
+          )}
         </g>
       ))}
     </g>

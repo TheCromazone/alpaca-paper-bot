@@ -27,8 +27,8 @@
   --warn-bg: rgba(255, 210, 63, 0.1);
   /* Alert = a state that needs action (BREACHED, STALE, DISABLED, MANUAL
      SELL). Its own hue so it never reads as an ordinary down move. */
-  --alert: #ff5cb0;
-  --alert-bg: rgba(255, 92, 176, 0.14);
+  --alert: #c77dff;
+  --alert-bg: rgba(199, 125, 255, 0.14);
   --blue: #3b8cff;
   --blue-bg: rgba(59, 140, 255, 0.14);
   --cyan: #56d4ff;
@@ -336,7 +336,7 @@ a {
 }
 .pill.alert {
   color: var(--alert);
-  border-color: rgba(255, 92, 176, 0.45);
+  border-color: rgba(199, 125, 255, 0.45);
   background: var(--alert-bg);
 }
 .pill.amber {

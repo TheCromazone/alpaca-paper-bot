@@ -121,8 +121,28 @@ const THESIS_INSET = COL_W.reduce((a, b) => a + b, 0) + COL_W.length * 6 + 16;
 const SYS_TAG_W = 78;
 const CLAMP_SLACK = 8; // keep the word-boundary cut safely inside the CSS ellipsis fallback
 
-/** Shares with trailing zeros trimmed: 20.74, 0.49, 9.5626, 2.1, 14. */
+/** Shares, full precision, trailing zeros trimmed (tooltips / expanded view). */
 const fmtQtyPlain = (q: number) => q.toLocaleString("en-US", { maximumFractionDigits: 4 });
+
+/**
+ * Shares aligned on the decimal point: the fraction is padded with U+2007
+ * FIGURE SPACE (same advance as a tabular digit) to the widest fraction in
+ * the loaded set, so 9.5626 / 20.74 / 2.1 / 6 all line up — no fake zeros.
+ */
+const FIGSP = "\u2007";
+function qtyFracWidth(qs: number[]): number {
+  let w = 0;
+  for (const q of qs) {
+    const f = fmtQtyPlain(q).split(".")[1];
+    if (f && f.length > w) w = f.length;
+  }
+  return w;
+}
+function fmtQtyAligned(q: number, fracW: number): string {
+  const [int, frac = ""] = fmtQtyPlain(q).split(".");
+  if (!fracW) return int;
+  return frac ? `${int}.${frac}${FIGSP.repeat(fracW - frac.length)}` : `${int}${FIGSP.repeat(fracW + 1)}`;
+}
 
 /** Weekdays strictly after day `a` up to and including day `b` ("YYYY-MM-DD"). */
 function tradingDaysBetween(a: string, b: string): number {
@@ -204,6 +224,7 @@ export function BlotterPanel({ className = "", style, limit = 100 }: { className
     return { b, sl };
   }, [all]);
   const realized = useMemo(() => realizedBySell(all), [all]);
+  const qtyFrac = useMemo(() => qtyFracWidth(all.map((t) => t.qty)), [all]);
   // /trades returns everything when fewer than `limit` rows come back.
   const allLoaded = all.length < limit;
   const realizedSum = useMemo(() => [...realized.values()].reduce((a, r) => a + r.pnl, 0), [realized]);
@@ -326,8 +347,8 @@ export function BlotterPanel({ className = "", style, limit = 100 }: { className
                       <span>
                         <Tkr t={t.ticker} />
                       </span>
-                      <span className={s.num}>
-                        {fmtQtyPlain(t.qty)}
+                      <span className={s.num} style={{ whiteSpace: "pre" }} title={`${fmtQtyPlain(t.qty)} sh`}>
+                        {fmtQtyAligned(t.qty, qtyFrac)}
                       </span>
                       <span className={s.num}>{fmtPx(t.price)}</span>
                       <span className={s.num}>{`$${t.notional.toLocaleString("en-US", { maximumFractionDigits: 0 })}`}</span>

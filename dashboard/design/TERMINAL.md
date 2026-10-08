@@ -35,7 +35,7 @@ the bot's reasoning) that Bloomberg makes you dig for.
 | `--up` | `#20d47b` | positive change |
 | `--down` | `#ff4f4f` | negative change |
 | `--warn` | `#ffd23f` | warnings (near a stop, blackout) |
-| `--alert` | `#ff5cb0` | states that need action: BREACHED, STALE, DISABLED, MANUAL SELL — never a direction |
+| `--alert` | `#c77dff` | states that need action: BREACHED, STALE, DISABLED, MANUAL SELL — never a direction |
 | `--blue` | `#3b8cff` | links, selection, the "you own this" outline |
 | `--cyan` | `#56d4ff` | the bot / AI layer |
 
@@ -55,6 +55,13 @@ More rules (from the gauntlet's critics):
 * Panel titles never repeat the function code (`RISK Guards`, not
   `RISK Risk guards`).
 * Numbers on one screen must reconcile (e.g. 2s10s = 10Y − 2Y as shown).
+* One guard calculation (`_guard` in api/terminal.py) feeds PORT, RISK,
+  BRIEF and DES: the binding guard is the higher of the trailing stop and
+  the −7% cut; "$ below guard" = (guard − last) × qty. Who will act on a
+  breach comes from `_stop_protection`: a broker stop, the 5-min synthetic
+  stop (scheduler alive, not DRY_RUN — independent of the LLM routines), the
+  midday routine (the cut only), or nobody → MANUAL SELL. Alert counts are
+  the brief's `counts`, verbatim, everywhere.
 
 ## Type
 
