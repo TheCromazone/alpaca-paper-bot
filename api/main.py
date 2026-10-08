@@ -913,6 +913,9 @@ def bot_status() -> dict:
         last_decision = s.scalars(
             select(Decision).order_by(desc(Decision.at)).limit(1)
         ).first()
+        from api.terminal import _stop_protection  # late: terminal imports this module's app
+
+        protection = _stop_protection(s, datetime.now(timezone.utc))
 
     # Pick the most recent activity across LLM runs and any job_run.
     candidates: list[tuple[datetime, str, str]] = []
@@ -950,6 +953,13 @@ def bot_status() -> dict:
         "routines_enabled": bool(settings.llm_routines_enabled),
         "stale": stale,
         "active": bool(settings.llm_routines_enabled) and not stale,
+        # Trailing stops without a broker order are sold by the 5-min
+        # sync_account job, which runs even with routines disabled — but only
+        # while the scheduler is alive and DRY_RUN is off.
+        "scheduler_alive": protection["scheduler_alive"],
+        "synthetic_stops": protection["synthetic_stops"],
+        "dry_run": protection["dry_run"],
+        "last_sync_at": protection["last_sync_at"],
         "last_tick_at": last_tick_at,
         "last_tick_status": last_tick_status,
         "last_tick_kind": last_tick_kind,

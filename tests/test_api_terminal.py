@@ -121,3 +121,42 @@ def test_curve_spreads_reconcile_with_the_displayed_legs(client):
     assert macro["T10Y2Y"]["as_of"] == macro["DGS10"]["as_of"] == "2026-10-06"
     assert macro["T10Y2Y"]["last"] == pytest.approx(5.27 - 4.79)
     assert macro["T10Y2Y"]["chg_1d"] == pytest.approx((5.27 - 4.79) - (5.31 - 4.84))
+
+
+def _breached_book(stop_order_id=None):
+    now = datetime.now(timezone.utc)
+    with SessionLocal.begin() as s:
+        s.add(PortfolioSnapshot(at=now, equity=50_000, cash=40_000, buying_power=80_000, spy_close=500))
+        # peak 120 → 10% trail stop 108; avg 110 → −7% cut 102.3; last 100 breaches both.
+        s.add(Position(ticker="AAPL", qty=10, avg_cost=110.0, market_price=100.0, market_value=1_000.0,
+                       unrealized_pnl=-100.0, peak_price=120.0, stop_order_id=stop_order_id))
+
+
+def test_guard_dollars_past_is_guard_minus_last_times_qty(client):
+    _breached_book()
+    risk = client.get("/terminal/risk").json()
+    g = next(r for r in risk["guards"] if r["ticker"] == "AAPL")
+    assert g["guard_kind"] == "stop" and g["guard_price"] == pytest.approx(108.0)
+    assert g["usd_beyond"] == pytest.approx((108.0 - 100.0) * 10)
+    brief = client.get("/terminal/brief").json()
+    m = next(i for i in brief["items"] if i["kind"] == "risk" and i["ticker"] == "AAPL")["metrics"]
+    assert m["usd_beyond"] == g["usd_beyond"] and m["guard_distance"] == g["guard_distance"]
+
+
+def test_breached_stop_status_follows_who_will_actually_sell(client, monkeypatch):
+    from bot.config import settings
+    from bot.db import JobRun
+
+    monkeypatch.setattr(settings, "dry_run", False)
+    _breached_book()
+    item = lambda: next(i for i in client.get("/terminal/brief").json()["items"]  # noqa: E731
+                        if i["kind"] == "risk" and i["ticker"] == "AAPL")
+    # No scheduler heartbeat: nothing will sell it.
+    assert item()["metrics"]["action"] == "MANUAL SELL"
+    assert client.get("/bot/status").json()["synthetic_stops"] is False
+    # A fresh sync_account run means the synthetic stop is armed.
+    with SessionLocal.begin() as s:
+        s.add(JobRun(job_name="sync_account", status="ok", started_at=datetime.now(timezone.utc)))
+    assert item()["metrics"]["action"] == "SELL @ next sync"
+    assert item()["metrics"]["stop_enforced_by"] == "synthetic"
+    assert client.get("/bot/status").json()["synthetic_stops"] is True

@@ -90,6 +90,49 @@ _TICKER_RX = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
 # Same rule as the dashboard's BOT_STALE_MS: no LLM routine for ~3.5 days
 # (a weekend + holiday) means the bot isn't running its routines.
 BOT_STALE = timedelta(hours=84)
+# sync_account runs every 5 min; a sync younger than this means the scheduler
+# process (and with it the synthetic trailing stop) is alive.
+SYNC_FRESH = timedelta(minutes=20)
+
+
+def _stop_protection(s: Session, now: datetime) -> dict:
+    """Who would act on a breached trailing stop right now. A broker stop
+    order fires at Alpaca; without one, bot.main's sync_account job sells
+    synthetically every 5 min — independent of the LLM routines, but only
+    while the scheduler process runs and DRY_RUN is off. The −7% cut is
+    different: only the midday LLM routine enforces it."""
+    last_sync = s.scalars(
+        select(JobRun.started_at).where(JobRun.job_name == "sync_account")
+        .order_by(desc(JobRun.started_at)).limit(1)
+    ).first()
+    alive = last_sync is not None and now - _aware(last_sync) <= SYNC_FRESH
+    return {
+        "last_sync_at": _iso(last_sync),
+        "scheduler_alive": alive,
+        "dry_run": bool(settings.dry_run),
+        "synthetic_stops": alive and not settings.dry_run,
+    }
+
+
+def _guard(p, synthetic_stops: bool) -> dict:
+    """One guard calculation for every surface (PORT, RISK, BRIEF, DES).
+    The binding guard is the higher of the trailing stop and the −7% cut —
+    the level a falling price reaches first. ``usd_beyond`` is dollars
+    already through it: (guard − last) × qty."""
+    trail = p.trail_pct or LLM_TRAILING_STOP_PCT
+    stop = (p.peak_price or p.market_price) * (1 - trail)
+    cut = p.avg_cost * (1 - LLM_MIDDAY_STOP_LOSS_PCT) if p.avg_cost else None
+    levels = [(k, v) for k, v in (("stop", stop), ("cut", cut)) if v]
+    kind, level = max(levels, key=lambda kv: kv[1]) if levels else (None, None)
+    return {
+        "trail": trail, "stop": stop, "cut": cut,
+        "stop_distance": p.market_price / stop - 1 if stop else None,
+        "cut_distance": p.market_price / cut - 1 if cut else None,
+        "guard_kind": kind, "guard_price": level,
+        "guard_distance": p.market_price / level - 1 if level else None,
+        "usd_beyond": max(0.0, (level - p.market_price) * (p.qty or 0)) if level else 0.0,
+        "stop_enforced_by": "broker" if p.stop_order_id else ("synthetic" if synthetic_stops else "none"),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -916,6 +959,7 @@ def risk() -> dict:
         positions = _held_positions(s)
         equity, cash = _equity_now(s, positions)
         snap_at = s.scalars(select(PortfolioSnapshot.at).order_by(desc(PortfolioSnapshot.at)).limit(1)).first()
+        protection = _stop_protection(s, datetime.now(timezone.utc))
         upcoming = s.scalars(
             select(EarningsCalendar)
             .where(EarningsCalendar.ticker.in_([p.ticker for p in positions] or ["~"]))
@@ -982,9 +1026,8 @@ def risk() -> dict:
     now = datetime.now(timezone.utc)
     guards = []
     for p in positions:
-        trail = p.trail_pct or LLM_TRAILING_STOP_PCT
-        stop = (p.peak_price or p.market_price) * (1 - trail)
-        cut = p.avg_cost * (1 - LLM_MIDDAY_STOP_LOSS_PCT)
+        g = _guard(p, protection["synthetic_stops"])
+        trail, stop, cut = g["trail"], g["stop"], g["cut"]
         er = next_er.get(p.ticker)
         er_days = (_report_day(er.report_date) - now.astimezone(ET).date()).days if er else None
         guards.append({
@@ -998,6 +1041,11 @@ def risk() -> dict:
             "cut_distance": _r(p.market_price / cut - 1, 5) if cut else None,
             "trail_pct": trail,
             "broker_stop": bool(p.stop_order_id),
+            "guard_kind": g["guard_kind"],
+            "guard_price": _r(g["guard_price"], 4),
+            "guard_distance": _r(g["guard_distance"], 5),
+            "usd_beyond": _r(g["usd_beyond"], 2),
+            "stop_enforced_by": g["stop_enforced_by"],
             "earnings_at": _iso(er.report_date) if er else None,
             "earnings_in_days": _r(er_days, 1),
         })
@@ -1008,6 +1056,7 @@ def risk() -> dict:
         # UI's live-age dot reflects the bot's sync, not this request.
         "as_of": _iso(snap_at) if snap_at else None,
         "computed_at": _iso(now),
+        "protection": protection,
         "equity": _r(equity, 2),
         "cash": _r(cash, 2),
         "cash_pct": _r(cash / equity, 4) if equity and cash is not None else None,
@@ -1072,6 +1121,7 @@ def brief() -> dict:
             .where(EarningsCalendar.report_date <= (now + timedelta(days=10)).replace(tzinfo=None))
             .order_by(asc(EarningsCalendar.report_date))
         ).all()
+        protection = _stop_protection(s, now)
         flow = s.scalars(
             select(Signal)
             .where(Signal.ticker.in_(held or ["~"]))
@@ -1130,53 +1180,66 @@ def brief() -> dict:
     bot_stale = last_any is None or (now - _aware(last_any.started_at)) > BOT_STALE
     routines_on = bool(settings.llm_routines_enabled)
     bot_active = routines_on and not bot_stale
-    sell_note = "a sell candidate at the next midday scan" if bot_active else "bot off — manual sell needed"
-    stop_note = "the stop should fire" if bot_active else "stop unenforced (bot off) — manual exit needed"
+    synthetic = protection["synthetic_stops"]
+    # Why nothing will act, in a few words, for MANUAL SELL rows.
+    idle = ("scheduler down" if not protection["scheduler_alive"]
+            else "dry run" if protection["dry_run"] else "routines off" if not routines_on else "bot stale")
 
     # --- risk flags ------------------------------------------------------
+    # Statuses describe what will actually happen: a breached stop is sold by
+    # the broker order or by the 5-min synthetic stop (scheduler alive, not
+    # dry-run); a breached −7% cut only by the midday routine. Otherwise the
+    # position needs a manual sell.
     for p in positions:
         p_at = _aware(p.updated_at)
-        trail = p.trail_pct or LLM_TRAILING_STOP_PCT
-        stop = (p.peak_price or p.market_price) * (1 - trail)
-        cut = p.avg_cost * (1 - LLM_MIDDAY_STOP_LOSS_PCT)
-        d_stop = p.market_price / stop - 1 if stop else None
-        d_cut = p.market_price / cut - 1 if cut else None
+        g = _guard(p, synthetic)
+        trail, stop, cut = g["trail"], g["stop"], g["cut"]
+        d_stop, d_cut = g["stop_distance"], g["cut_distance"]
         m = {
             "last": _r(p.market_price, 4), "cut_price": _r(cut, 4), "cut_distance": _r(d_cut, 5),
             "stop_price": _r(stop, 4), "stop_distance": _r(d_stop, 5), "trail_pct": trail,
+            "guard_kind": g["guard_kind"], "guard_price": _r(g["guard_price"], 4),
+            "guard_distance": _r(g["guard_distance"], 5),
             "pnl_pct": _r(p.market_price / p.avg_cost - 1, 5) if p.avg_cost else None,
             "weight": _r((p.market_value or 0) / equity, 5) if equity else None,
             "market_value": _r(p.market_value, 2),
             "pnl_usd": _r(p.unrealized_pnl, 2),
-            # Dollars already through the tightest breached guard (value ×
-            # depth) — ranks breaches by both size and severity.
-            "usd_beyond": _r(
-                (p.market_value or 0) * abs(min(v for v in (d_cut, d_stop) if v is not None))
-                if any(v is not None and v < 0 for v in (d_cut, d_stop)) else 0.0, 2),
+            # Dollars already through the binding guard: (guard − last) × qty.
+            "usd_beyond": _r(g["usd_beyond"], 2),
+            "stop_enforced_by": g["stop_enforced_by"],
         }
-        if d_cut is not None and d_cut < 0:
-            add("risk", "down",
-                f"{p.ticker} is {abs(d_cut) * 100:.1f}% below the midday −7% cut (${cut:,.2f}) — {sell_note}.",
-                p.ticker, severity=3, metrics={**m, "action": "SELL @ midday" if bot_active else "MANUAL SELL · bot off"}, at=p_at)
-        elif d_stop is not None and d_stop < 0:
-            add("risk", "down", f"{p.ticker} is {abs(d_stop) * 100:.1f}% below its {trail * 100:.0f}% trailing stop (${stop:,.2f}) — {stop_note}.",
-                p.ticker, severity=3, metrics={**m, "action": "STOP BREACHED · unfilled"}, at=p_at)
+        stop_hit = d_stop is not None and d_stop < 0
+        cut_hit = d_cut is not None and d_cut < 0
+        if stop_hit or cut_hit:
+            # Describe the binding guard, so the sentence matches PORT's GUARD/DIST.
+            which = (f"{abs(d_stop) * 100:.1f}% below its {trail * 100:.0f}% trailing stop (${stop:,.2f})"
+                     if g["guard_kind"] == "stop"
+                     else f"{abs(d_cut) * 100:.1f}% below the midday −7% cut (${cut:,.2f})")
+            if stop_hit and g["stop_enforced_by"] == "synthetic":
+                action, then = "SELL @ next sync", "the synthetic stop sells it at the next 5-min sync"
+            elif stop_hit and g["stop_enforced_by"] == "broker":
+                action, then = "STOP UNFILLED", "the broker stop order has not filled — check it"
+            elif cut_hit and bot_active:
+                action, then = "SELL @ midday", "the midday routine sells it"
+            else:
+                action, then = "MANUAL SELL", f"nothing will sell it ({idle}) — sell manually"
+            add("risk", "down", f"{p.ticker} is {which} — {then}.", p.ticker, severity=3,
+                metrics={**m, "action": action, "reason": idle if action == "MANUAL SELL" else None}, at=p_at)
         elif d_cut is not None and d_cut < 0.02:
             add("risk", "warn",
-                f"{p.ticker} is {d_cut * 100:.1f}% above the midday −7% cut (${cut:,.2f}) — next midday scan sells it below that.",
+                f"{p.ticker} is {d_cut * 100:.1f}% above the midday −7% cut (${cut:,.2f})"
+                + (" — next midday scan sells it below that." if bot_active else "."),
                 p.ticker, severity=1, metrics={**m, "action": "WATCH cut"}, at=p_at)
-        elif d_stop is not None and d_stop < 0.03:
+        elif d_stop is not None and d_stop < 0.02:
             add("risk", "warn", f"{p.ticker} sits {d_stop * 100:.1f}% above its {trail * 100:.0f}% trailing stop (${stop:,.2f}).",
                 p.ticker, severity=1, metrics={**m, "action": "WATCH stop"}, at=p_at)
-        if not p.stop_order_id:
-            pass  # synthetic stop engine covers it; surfaced per-row in /risk
     sec: dict[str, float] = defaultdict(float)
     for p in positions:
         if equity:
             sec[SECTOR_MAP.get(p.ticker, "Other")] += (p.market_value or 0) / equity
     for k, v in sec.items():
         if v > MAX_SECTOR_PCT:
-            add("risk", "warn", f"{k} is {v * 100:.1f}% of equity — above the {MAX_SECTOR_PCT * 100:.0f}% sector guide.", at=marks_at)
+            add("risk", "warn", f"{k} is {v * 100:.1f}% of equity — above the {MAX_SECTOR_PCT * 100:.0f}% sector guide.", severity=1, at=marks_at)
     if equity and cash is not None:
         add("risk", "info",
             f"{len(positions)}/{LLM_MAX_POSITIONS} slots used · cash {cash / equity * 100:.1f}% (${cash:,.0f}) available to deploy.", at=marks_at)
@@ -1196,7 +1259,8 @@ def brief() -> dict:
         tone = "warn" if dd <= 2 else "info"
         add("catalyst", tone,
             f"{e.ticker} reports {when}{tod}" + (f" (est EPS ${e.eps_estimate:.2f})" if e.eps_estimate is not None else "")
-            + (" — inside the 2-day blackout, no adds." if dd <= 2 else "."), e.ticker, at=rd)
+            + (" — inside the 2-day blackout, no adds." if dd <= 2 else "."), e.ticker,
+            severity=1 if dd <= 2 else 0, at=rd)
 
     # --- macro -----------------------------------------------------------
     if regime:
@@ -1235,7 +1299,7 @@ def brief() -> dict:
         add("bot", "down", "Routines are disabled in the bot's config — no scheduled buys, sells or stop tightening.", severity=2, at=now)
     elif bot_stale:
         age = f"{(now - _aware(last_any.started_at)).days}d" if last_any else "never"
-        add("bot", "down", f"Bot stale — last routine {age} ago; scheduled actions are not running.", severity=3,
+        add("bot", "down", f"Bot stale — last routine {age} ago; scheduled actions are not running.", severity=2,
             at=last_any.started_at if last_any else None)
     elif nxt:
         mins = nxt["seconds_until"] // 60
@@ -1245,9 +1309,9 @@ def brief() -> dict:
         first = re.split(r"(?<=[.!?])\s+", re.sub(r"[#*`>|_-]{2,}|\s+", " ", last_run.summary).strip(), maxsplit=1)[0]
         add("bot", "info", f"Last {last_run.routine} ({_aware(last_run.started_at).astimezone(ET):%a %H:%M} ET): {first[:220]}", at=last_run.started_at)
     for f in failed[:2]:
-        add("bot", "down", f"{f.routine} run {f.status} at {_aware(f.started_at).astimezone(ET):%a %H:%M} ET" + (f": {f.error[:120]}" if f.error else "."), at=f.started_at)
+        add("bot", "down", f"{f.routine} run {f.status} at {_aware(f.started_at).astimezone(ET):%a %H:%M} ET" + (f": {f.error[:120]}" if f.error else "."), severity=2, at=f.started_at)
     for j in job_fail[:2]:
-        add("bot", "warn", f"Job {j.job_name} failed {_aware(j.started_at).astimezone(ET):%H:%M} ET" + (f": {(j.message or '')[:100]}" if j.message else "."), at=j.started_at)
+        add("bot", "warn", f"Job {j.job_name} failed {_aware(j.started_at).astimezone(ET):%H:%M} ET" + (f": {(j.message or '')[:100]}" if j.message else "."), severity=1, at=j.started_at)
 
     # Within each kind, most severe first (risk: breaches → near-cut → near-stop,
     # deepest breach first); kinds keep their reading order.
